@@ -1,0 +1,74 @@
+import { getRefreshToken } from "../auth";
+import { http } from "./axios";
+import type {
+  BookRequest,
+  Day,
+  Doctor,
+  DoctorVisit,
+  FamilyMember,
+  FinishVisitRequest,
+  LoginRequest,
+  LoginResponse,
+  MyAppointment,
+  PatientVisit,
+  Prescription,
+  RegisterRequest,
+  Slot,
+  StaffAppointment,
+  WalkInRequest,
+  WalkInResult,
+} from "./types";
+
+export const httpApi = {
+  login: (body: LoginRequest) => http.post<LoginResponse>("/auth/login", body).then((r) => r.data),
+
+  register: (body: RegisterRequest) => http.post<LoginResponse>("/auth/register", body).then((r) => r.data),
+
+  logout: () => {
+    const refresh_token = getRefreshToken();
+    if (!refresh_token) return Promise.resolve();
+    return http.post<null>("/auth/logout", { refresh_token }).then(
+      () => undefined,
+      () => undefined,
+    );
+  },
+
+  listDoctors: () => http.get<Doctor[]>("/public/doctors").then((r) => r.data),
+
+  doctorSlots: (doctorId: number, day: Day) =>
+    http.get<Slot[]>(`/doctors/${doctorId}/slots`, { params: { day } }).then((r) => r.data),
+
+  myFamily: () => http.get<FamilyMember[]>("/me/family").then((r) => r.data),
+
+  myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => r.data),
+
+  myVisits: () => http.get<PatientVisit[]>("/me/visits").then((r) => r.data),
+
+  book: (body: BookRequest) => http.post<null>("/appointments", body).then(() => undefined),
+
+  cancelAppointment: (id: number) => http.post<null>(`/appointments/${id}/cancel`, {}).then(() => undefined),
+
+  bookedToday: () => http.get<StaffAppointment[]>("/appointments/booked-today").then((r) => r.data),
+
+  doctorQueue: (doctorId: number) =>
+    http.get<StaffAppointment[]>(`/doctors/${doctorId}/queue`).then((r) => r.data),
+
+  checkIn: (id: number, emergency: boolean) =>
+    http.post<null>(`/appointments/${id}/check-in`, { emergency }).then(() => undefined),
+
+  addWalkIn: (body: WalkInRequest) => http.post<WalkInResult>("/walk-ins", body).then((r) => r.data),
+
+  startVisit: (id: number) => http.post<null>(`/appointments/${id}/start`, {}).then(() => undefined),
+
+  patientHistory: (patientId: number) =>
+    http.get<DoctorVisit[]>(`/patients/${patientId}/visits`).then((r) => r.data),
+
+  finishVisit: (id: number, body: FinishVisitRequest) =>
+    http.post<null>(`/appointments/${id}/finish`, body).then(() => undefined),
+
+  listPrescriptions: () => http.get<Prescription[]>("/prescriptions").then((r) => r.data),
+
+  dispense: (id: number) => http.post<null>(`/prescriptions/${id}/dispense`, {}).then(() => undefined),
+};
+
+export type Api = typeof httpApi;
