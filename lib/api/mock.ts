@@ -44,9 +44,10 @@ export const MOCK_LOGINS = {
   pharmacy: "07800000004",
   manager: "07800000006",
   lab: "07800000007",
+  accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v7";
+const STORAGE_KEY = "alrahma.mock.v8";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -94,6 +95,8 @@ const startOf = (a: { date: string; time: string }) => new Date(`${a.date}T${a.t
 // ---------- data shapes ----------
 
 type MockDoctor = Doctor & {
+  clinic_percent: number;
+  service_percent: number;
   days: (WorkDay | null)[];
   absences: string[];
   late: { date: string; minutes: number } | null;
@@ -179,6 +182,8 @@ function seed(): Db {
         fee: 25000,
         new_minutes: 20,
         followup_minutes: 10,
+        clinic_percent: 30,
+        service_percent: 20,
         // Mornings at the main branch, and Thursday evenings at the second branch.
         days: week(work("main", "morning"), work("main", "morning"), work("main", "morning"), work("main", "morning"), work("second", "evening"), work("main", "morning")),
         absences: [],
@@ -193,6 +198,8 @@ function seed(): Db {
         fee: 20000,
         new_minutes: 15,
         followup_minutes: 10,
+        clinic_percent: 25,
+        service_percent: 25,
         days: week(work("second", "evening"), work("main", "morning"), work("second", "evening"), work("second", "evening"), work("second", "evening"), work("second", "evening")),
         absences: [],
         late: null,
@@ -206,6 +213,7 @@ function seed(): Db {
       { id: 5, name: "زينب كريم", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
       { id: 6, name: "مدير المجمع", phone: MOCK_LOGINS.manager, role: "manager", password: MOCK_PASSWORD },
       { id: 7, name: "حيدر المختبر", phone: MOCK_LOGINS.lab, role: "lab", password: MOCK_PASSWORD },
+      { id: 8, name: "رنا المحاسبة", phone: MOCK_LOGINS.accountant, role: "accountant", password: MOCK_PASSWORD },
     ],
     patients: [
       { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
@@ -258,7 +266,11 @@ function seed(): Db {
 
 function read(): Db {
   const saved = localStorage.getItem(STORAGE_KEY);
-  return saved ? (JSON.parse(saved) as Db) : seed();
+  if (saved) return JSON.parse(saved) as Db;
+  // Save the starting data once, so every tab works on the same copy from the start.
+  const db = seed();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  return db;
 }
 
 function write(db: Db) {
@@ -309,8 +321,8 @@ function findDoctor(db: Db, id: number) {
   return doctor;
 }
 
-function publicDoctor({ days: _days, absences: _absences, late: _late, ...doctor }: MockDoctor): Doctor {
-  return (void _days, void _absences, void _late, doctor);
+function publicDoctor({ days: _days, absences: _absences, late: _late, clinic_percent: _c, service_percent: _s, ...doctor }: MockDoctor): Doctor {
+  return (void _days, void _absences, void _late, void _c, void _s, doctor);
 }
 
 const doctorOf = (db: Db, id: number) => publicDoctor(findDoctor(db, id));
@@ -500,6 +512,33 @@ function invoiceOf(db: Db, a: MockAppointment) {
       .map(({ appointment_id: _a, ref_id: _r, key: _k, ...p }) => (void _a, void _r, void _k, p)),
     money: moneyOf(db, a.id),
   };
+}
+
+// ---------- reports ----------
+
+// Visits that really happened. Cancelled and didn't-come visits earn nothing.
+const VISITED: AppointmentStatus[] = ["arrived", "in_progress", "done"];
+
+const inMonth = (date: string, month: string) => date.startsWith(month);
+
+function countBy(items: string[]) {
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(item, (counts.get(item) ?? 0) + 1);
+  return [...counts.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
+}
+
+function sumAmounts(list: { amount: number; currency: Currency }[]) {
+  const total = zero();
+  for (const x of list) total[x.currency] += x.amount;
+  return total;
+}
+
+function billedOf(db: Db, ids: Set<number>) {
+  return sumAmounts(db.items.filter((i) => ids.has(i.appointment_id)).map((i) => ({ amount: i.price, currency: i.currency })));
+}
+
+function collectedOf(db: Db, payments: MockPayment[]) {
+  return sumAmounts(payments.map((p) => ({ amount: p.kind === "payment" ? p.amount : -p.amount, currency: p.currency })));
 }
 
 function session(user: MockUser): LoginResponse {
@@ -828,6 +867,8 @@ export const mockApi: Api = {
         fee: doctor.fee,
         new_minutes: 20,
         followup_minutes: 10,
+        clinic_percent: 30,
+        service_percent: 30,
         // A starting week. The manager changes it from the doctors page.
         days: week(day, day, day, day, day, day),
         absences: [],
@@ -882,6 +923,8 @@ export const mockApi: Api = {
     return delay(
       db.doctors.map((d) => ({
         doctor: publicDoctor(d),
+        clinic_percent: d.clinic_percent,
+        service_percent: d.service_percent,
         days: d.days,
         absences: d.absences.filter((date) => date >= today()),
         late: d.late?.date === today() ? d.late : null,
@@ -889,12 +932,12 @@ export const mockApi: Api = {
     );
   },
 
-  updateSchedule: async (doctorId, { fee, new_minutes, followup_minutes, days }) => {
+  updateSchedule: async (doctorId, { fee, clinic_percent, service_percent, new_minutes, followup_minutes, days }) => {
     const db = read();
     const user = requireUser(db, "manager");
     const doctor = findDoctor(db, doctorId);
     // A new fee applies to new bookings only. Old visits keep the price they had.
-    Object.assign(doctor, { fee, new_minutes, followup_minutes, days });
+    Object.assign(doctor, { fee, clinic_percent, service_percent, new_minutes, followup_minutes, days });
     log(db, user, "doctor.update", doctor.name_ar);
     write(db);
     return delay(undefined);
@@ -1078,5 +1121,94 @@ export const mockApi: Api = {
     log(db, user, "service.update", input.name_ar);
     write(db);
     return delay(undefined);
+  },
+
+  listLedger: async () => {
+    const db = read();
+    requireUser(db, "accountant", "manager");
+    const undone = (id: number) => db.payments.some((p) => p.ref_id === id);
+    return delay(
+      db.payments
+        .slice()
+        .reverse()
+        .map(({ ref_id: _r, key: _k, ...p }) => {
+          void _r;
+          void _k;
+          const appointment = findAppointment(db, p.appointment_id);
+          return {
+            ...p,
+            patient_name: patientName(db, appointment.patient_id),
+            doctor_name: doctorNameOf(db, appointment.doctor_id),
+            reversible: p.kind === "payment" && !undone(p.id),
+          };
+        }),
+    );
+  },
+
+  reversePayment: async (paymentId, reason) => {
+    const db = read();
+    const user = requireUser(db, "accountant");
+    const payment = db.payments.find((p) => p.id === paymentId);
+    if (!payment) fail(404);
+    if (payment.kind !== "payment" || db.payments.some((p) => p.ref_id === paymentId)) fail(409, "already_reversed");
+    // The original stays. A new entry with the opposite effect fixes the mistake.
+    db.payments.push({ ...payment, id: db.nextId++, kind: "reversal", at: now().toISOString(), by: user.name, reason, ref_id: paymentId, key: `reverse:${paymentId}` });
+    log(db, user, "payment.reverse", `${patientName(db, findAppointment(db, payment.appointment_id).patient_id)} · ${reason}`);
+    write(db);
+    return delay(undefined);
+  },
+
+  doctorDues: async (month) => {
+    const db = read();
+    requireUser(db, "accountant", "manager");
+    return delay(
+      db.doctors.map((doctor) => {
+        let visits = 0;
+        let visitIncome = 0;
+        let procedureIncome = 0;
+        for (const a of db.appointments.filter((x) => x.doctor_id === doctor.id && inMonth(x.date, month) && VISITED.includes(x.status))) {
+          visits++;
+          const { total, paid } = moneyOf(db, a.id);
+          // Only money actually collected counts. Refunds and reversals lower it by themselves.
+          const share = total.IQD > 0 ? Math.max(0, Math.min(1, paid.IQD / total.IQD)) : 0;
+          for (const item of db.items.filter((i) => i.appointment_id === a.id && i.currency === "IQD")) {
+            if (item.kind === "visit") visitIncome += item.price * share;
+            if (item.kind === "procedure") procedureIncome += item.price * share;
+          }
+        }
+        // Tests and X-rays belong to the clinic's lab, so they are not part of the doctor's dues.
+        const doctorShare = (visitIncome * (100 - doctor.clinic_percent) + procedureIncome * (100 - doctor.service_percent)) / 100;
+        return {
+          doctor_id: doctor.id,
+          doctor_name: doctor.name_ar,
+          visits,
+          visit_income: Math.round(visitIncome),
+          procedure_income: Math.round(procedureIncome),
+          doctor_share: Math.round(doctorShare),
+          clinic_share: Math.round(visitIncome + procedureIncome - doctorShare),
+        };
+      }),
+    );
+  },
+
+  report: async (month) => {
+    const db = read();
+    requireUser(db, "accountant", "manager");
+    const visited = db.appointments.filter((a) => inMonth(a.date, month) && VISITED.includes(a.status));
+    const todays = db.appointments.filter((a) => a.date === today() && VISITED.includes(a.status));
+    const monthPayments = db.payments.filter((p) => p.at.slice(0, 7) === month);
+    const todayPayments = db.payments.filter((p) => dateOf(new Date(p.at)) === today());
+    const noShows = db.appointments.filter((a) => inMonth(a.date, month) && a.status === "no_show");
+    return delay({
+      month,
+      by_day: countBy(visited.map((a) => a.date)).sort((a, b) => a.label.localeCompare(b.label)),
+      by_doctor: countBy(visited.map((a) => doctorNameOf(db, a.doctor_id))),
+      by_branch: countBy(visited.map((a) => a.branch)),
+      top_no_shows: countBy(noShows.map((a) => patientName(db, a.patient_id))).slice(0, 5),
+      billed: billedOf(db, new Set(visited.map((a) => a.id))),
+      collected: collectedOf(db, monthPayments),
+      today_billed: billedOf(db, new Set(todays.map((a) => a.id))),
+      today_collected: collectedOf(db, todayPayments),
+    });
   },
 };

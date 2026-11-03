@@ -25,7 +25,7 @@ export const staffSchema = z
     name: z.string().trim().min(2, "validation.name"),
     phone,
     password,
-    role: z.enum(["reception", "doctor", "pharmacy", "lab"]),
+    role: z.enum(["reception", "doctor", "pharmacy", "lab", "accountant"]),
     name_en: z.string().trim(),
     specialty_ar: z.string().trim(),
     specialty_en: z.string().trim(),
@@ -57,6 +57,8 @@ export const DAY_CHOICES = ["off", "main-morning", "main-evening", "second-morni
 
 export const scheduleSchema = z.object({
   fee: wholeNumber(0, 10_000_000),
+  clinic_percent: wholeNumber(0, 100),
+  service_percent: wholeNumber(0, 100),
   new_minutes: wholeNumber(5, 120),
   followup_minutes: wholeNumber(5, 120),
   days: z.array(z.enum(DAY_CHOICES)).length(7),
@@ -112,3 +114,9 @@ export const paymentSchema = (max: number) =>
   z.object({
     amount: z.number("validation.number").positive("validation.number").max(max, "validation.overpay"),
   });
+
+// A reversal must say why, so the manager can understand it later.
+export const reverseSchema = z.object({
+  reason: z.string().trim().min(3, "validation.reason"),
+});
+export type ReverseForm = z.infer<typeof reverseSchema>;

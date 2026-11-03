@@ -8,6 +8,7 @@ import type {
   CreateStaffRequest,
   Doctor,
   DoctorDay,
+  DoctorDues,
   DoctorSchedule,
   DoctorVisit,
   FamilyMember,
@@ -15,6 +16,7 @@ import type {
   Invoice,
   LoginRequest,
   LabOrder,
+  LedgerEntry,
   LoginResponse,
   ManagerOverview,
   MyAppointment,
@@ -22,6 +24,7 @@ import type {
   PayRequest,
   Prescription,
   RegisterRequest,
+  Report,
   RescheduleRequest,
   ResultInput,
   Service,
@@ -149,6 +152,17 @@ export const httpApi = {
   createService: (body: ServiceInput) => http.post<null>("/services", body).then(() => undefined),
 
   updateService: (serviceId: number, body: ServiceInput) => http.put<null>(`/services/${serviceId}`, body).then(() => undefined),
+
+  listLedger: () => http.get<LedgerEntry[]>("/ledger").then((r) => r.data),
+
+  // There is no delete. A mistake is fixed with an opposite entry that says why.
+  reversePayment: (paymentId: number, reason: string) =>
+    http.post<null>(`/payments/${paymentId}/reverse`, { reason }).then(() => undefined),
+
+  // month is "YYYY-MM".
+  doctorDues: (month: string) => http.get<DoctorDues[]>("/reports/doctor-dues", { params: { month } }).then((r) => r.data),
+
+  report: (month: string) => http.get<Report>("/reports/summary", { params: { month } }).then((r) => r.data),
 };
 
 export type Api = typeof httpApi;
