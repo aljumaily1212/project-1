@@ -8,6 +8,7 @@ import { doctorName, longDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { DayPicker, SlotPicker } from "@/components/booking";
+import { AmountsText, amountText } from "@/components/money";
 import { Button, Card, EmptyState, ErrorState, PageHeader, StatusBadge, buttonClass } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
@@ -60,6 +61,33 @@ function ReschedulePanel({ appointment, onDone, onClose }: { appointment: MyAppo
   );
 }
 
+function PayRest({ appointment, onPaid }: { appointment: MyAppointment; onPaid: () => void }) {
+  const { t } = useT();
+  // A new key for each payment. Pressing twice reuses it, so the server charges once.
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const [paying, setPaying] = useState(false);
+  const rest = appointment.money.balance.IQD;
+
+  async function payNow() {
+    setPaying(true);
+    try {
+      await api.payOnline(appointment.id, { amount: rest, currency: "IQD", idempotency_key: key });
+      toast.success(t("appointments.paid"));
+      setKey(crypto.randomUUID());
+      onPaid();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+    setPaying(false);
+  }
+
+  return (
+    <Button variant="secondary" loading={paying} onClick={payNow}>
+      {t("appointments.payRest", { amount: amountText(rest, "IQD", t) })}
+    </Button>
+  );
+}
+
 function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointment: MyAppointment; cancelHours: number; onChanged: () => void }) {
   const { t, locale } = useT();
   const [moving, setMoving] = useState(false);
@@ -95,6 +123,12 @@ function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointme
           </Link>
         </div>
       )}
+      {a.status !== "cancelled" && (
+        <p className="text-sm text-slate-600">
+          {t("appointments.paidOf")} <AmountsText amounts={a.money.paid} /> / <AmountsText amounts={a.money.total} />
+        </p>
+      )}
+      {a.status === "booked" && a.money.balance.IQD > 0 && <PayRest appointment={a} onPaid={onChanged} />}
       {a.late_minutes > 0 && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
           {t("appointments.late", { n: a.late_minutes })}

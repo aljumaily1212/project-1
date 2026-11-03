@@ -6,17 +6,22 @@ import type {
   AuditAction,
   AuditEntry,
   BranchId,
+  Amounts,
   CancelReason,
   ClinicSettings,
+  Currency,
   CreateStaffRequest,
   Doctor,
   DoctorVisit,
+  InvoiceItem,
   LabResult,
   LabStatus,
   LoginResponse,
   Medicine,
   MyAppointment,
   NotificationType,
+  Payment,
+  PaymentMethod,
   Relation,
   ResultEdit,
   Role,
@@ -41,7 +46,7 @@ export const MOCK_LOGINS = {
   lab: "07800000007",
 };
 
-const STORAGE_KEY = "alrahma.mock.v6";
+const STORAGE_KEY = "alrahma.mock.v7";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -99,7 +104,11 @@ type MockPatient = { id: number; name: string; phone: string; account_id: number
 type MockAppointment = Omit<StaffAppointment, "patient_name"> & {
   arrival_order: number;
   cancel_reason: CancelReason | null;
+  idempotency_key?: string;
 };
+type MockItem = InvoiceItem & { appointment_id: number };
+// ref_id links a refund or reversal to the payment it undoes. key stops the same payment twice.
+type MockPayment = Payment & { appointment_id: number; ref_id: number | null; key: string };
 type MockVisit = {
   id: number;
   patient_id: number;
@@ -144,6 +153,8 @@ type Db = {
   notifications: MockNotification[];
   services: Service[];
   labOrders: MockLabOrder[];
+  items: MockItem[];
+  payments: MockPayment[];
 };
 
 const work = (branch: BranchId, shift: Shift): WorkDay => ({ branch, shift });
@@ -237,6 +248,11 @@ function seed(): Db {
       { id: 5, name: "Wound dressing", name_ar: "تضميد جرح", kind: "procedure", price: 10000, currency: "IQD" },
     ],
     labOrders: [],
+    items: [
+      { id: 50, appointment_id: 1, label: "Visit fee", label_ar: "الكشفية", kind: "visit", price: 25000, currency: "IQD" },
+      { id: 51, appointment_id: 2, label: "Visit fee", label_ar: "الكشفية", kind: "visit", price: 25000, currency: "IQD" },
+    ],
+    payments: [],
   };
 }
 
@@ -406,6 +422,86 @@ function requireOwnAppointment(db: Db, user: MockUser, id: number) {
   return appointment;
 }
 
+// ---------- money ----------
+
+const zero = (): Amounts => ({ IQD: 0, USD: 0 });
+
+// What the bill adds up to, what was paid (refunds and reversals subtract), and what is left.
+function moneyOf(db: Db, appointmentId: number) {
+  const total = zero();
+  const paid = zero();
+  for (const item of db.items) if (item.appointment_id === appointmentId) total[item.currency] += item.price;
+  for (const p of db.payments) if (p.appointment_id === appointmentId) paid[p.currency] += p.kind === "payment" ? p.amount : -p.amount;
+  return { total, paid, balance: { IQD: total.IQD - paid.IQD, USD: total.USD - paid.USD } };
+}
+
+function addItem(db: Db, appointmentId: number, item: Omit<InvoiceItem, "id">) {
+  db.items.push({ id: db.nextId++, appointment_id: appointmentId, ...item });
+}
+
+const visitFee = (doctor: MockDoctor): Omit<InvoiceItem, "id"> => ({
+  label: "Visit fee",
+  label_ar: "الكشفية",
+  kind: "visit",
+  price: doctor.fee,
+  currency: "IQD",
+});
+
+function takePayment(db: Db, user: MockUser, appointmentId: number, amount: number, currency: Currency, method: PaymentMethod, key: string) {
+  // The same key again means a second press or a retry after a dropped connection: don't charge twice.
+  if (db.payments.some((p) => p.key === key)) return;
+  // A patient who didn't come is not charged for the visit.
+  if (findAppointment(db, appointmentId).status === "no_show") fail(409, "no_show");
+  if (!(amount > 0)) fail(422, "bad_amount");
+  if (amount > moneyOf(db, appointmentId).balance[currency]) fail(409, "overpay");
+  db.payments.push({
+    id: db.nextId++,
+    appointment_id: appointmentId,
+    amount,
+    currency,
+    method,
+    kind: "payment",
+    at: now().toISOString(),
+    by: user.name,
+    reason: "",
+    ref_id: null,
+    key,
+  });
+  log(db, user, method === "cash" ? "payment.cash" : "payment.online", patientName(db, findAppointment(db, appointmentId).patient_id));
+}
+
+// Gives back every online payment on this appointment that was not already given back.
+function refundOnline(db: Db, user: MockUser, appointmentId: number, reason: string) {
+  const undone = (id: number) => db.payments.some((p) => p.ref_id === id);
+  for (const p of db.payments.filter((p) => p.appointment_id === appointmentId && p.kind === "payment" && p.method === "online" && !undone(p.id))) {
+    db.payments.push({ ...p, id: db.nextId++, kind: "refund", at: now().toISOString(), by: user.name, reason, ref_id: p.id, key: `refund:${p.id}` });
+    log(db, user, "payment.refund", patientName(db, p.appointment_id));
+  }
+}
+
+const noShowsOf = (db: Db, patientId: number) => db.appointments.filter((a) => a.patient_id === patientId && a.status === "no_show").length;
+
+function rulesFor(db: Db, patientId: number) {
+  const noShows = noShowsOf(db, patientId);
+  return { no_shows: noShows, deposit_required: noShows >= db.settings.no_show_limit, deposit_amount: db.settings.deposit_amount };
+}
+
+function invoiceOf(db: Db, a: MockAppointment) {
+  return {
+    appointment_id: a.id,
+    patient_name: patientName(db, a.patient_id),
+    doctor_name: doctorNameOf(db, a.doctor_id),
+    date: a.date,
+    time: a.time,
+    status: a.status,
+    items: db.items.filter((i) => i.appointment_id === a.id).map(({ appointment_id: _a, ...i }) => (void _a, i)),
+    payments: db.payments
+      .filter((p) => p.appointment_id === a.id)
+      .map(({ appointment_id: _a, ref_id: _r, key: _k, ...p }) => (void _a, void _r, void _k, p)),
+    money: moneyOf(db, a.id),
+  };
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -485,6 +581,7 @@ export const mockApi: Api = {
           can_change: canChange(db, a),
           cancel_reason: a.cancel_reason,
           late_minutes: late,
+          money: moneyOf(db, a.id),
         };
       });
     return delay(list);
@@ -507,14 +604,23 @@ export const mockApi: Api = {
     );
   },
 
-  book: async ({ patient_id, doctor_id, date, time, kind }) => {
+  book: async ({ patient_id, doctor_id, date, time, kind, pay, idempotency_key }) => {
     const db = read();
     const user = requireUser(db, "patient");
     if (!ownedPatientIds(db, user).includes(patient_id)) fail(403);
+    // Pressed twice, or sent again after the connection dropped: the booking already exists.
+    if (db.appointments.some((a) => a.idempotency_key === idempotency_key)) return delay(undefined);
     const doctor = findDoctor(db, doctor_id);
     requireFreeSlot(db, doctor, date, time, kind);
+    if (rulesFor(db, patient_id).deposit_required && pay === "clinic") fail(409, "deposit_required");
     const branch = workDayOf(doctor, date)!.branch;
-    db.appointments.push({ id: db.nextId++, patient_id, doctor_id, date, time, kind, branch, status: "booked", emergency: false, arrival_order: 0, cancel_reason: null });
+    const id = db.nextId++;
+    db.appointments.push({ id, patient_id, doctor_id, date, time, kind, branch, status: "booked", emergency: false, arrival_order: 0, cancel_reason: null, idempotency_key });
+    addItem(db, id, visitFee(doctor));
+    if (pay !== "clinic") {
+      const amount = pay === "full" ? doctor.fee : Math.min(db.settings.deposit_amount, doctor.fee);
+      takePayment(db, user, id, amount, "IQD", "online", `${idempotency_key}:pay`);
+    }
     log(db, user, "appointment.book", patientName(db, patient_id));
     write(db);
     return delay(undefined);
@@ -526,6 +632,8 @@ export const mockApi: Api = {
     const appointment = requireOwnAppointment(db, user, id);
     if (!canChange(db, appointment)) fail(409, "too_late");
     changeAppointment(db, id, { status: "cancelled", cancel_reason: "patient" });
+    // Cancelled in time, so online payments come back.
+    refundOnline(db, user, id, "patient_cancel");
     log(db, user, "appointment.cancel", patientName(db, appointment.patient_id));
     write(db);
     return delay(undefined);
@@ -591,6 +699,7 @@ export const mockApi: Api = {
       arrival_order: db.nextArrival++,
       cancel_reason: null,
     });
+    addItem(db, db.appointments[db.appointments.length - 1].id, visitFee(doctor));
     log(db, user, "walkin.add", patient.name);
     write(db);
     return delay({ duplicate: Boolean(existing) });
@@ -630,7 +739,7 @@ export const mockApi: Api = {
     );
   },
 
-  finishVisit: async (id, { diagnosis, internal_note, medicines, test_ids }) => {
+  finishVisit: async (id, { diagnosis, internal_note, medicines, test_ids, procedure_ids }) => {
     const db = read();
     const user = requireUser(db, "doctor");
     const appointment = changeAppointment(db, id, { status: "done" });
@@ -645,6 +754,11 @@ export const mockApi: Api = {
       medicines,
       dispensed: medicines.length === 0,
     });
+    // Tests, X-rays and procedures go on the bill at today's price.
+    for (const serviceId of [...test_ids, ...procedure_ids]) {
+      const service = findService(db, serviceId);
+      addItem(db, id, { label: service.name, label_ar: service.name_ar, kind: service.kind, price: service.price, currency: service.currency });
+    }
     for (const serviceId of test_ids) {
       findService(db, serviceId);
       db.labOrders.push({
@@ -796,6 +910,8 @@ export const mockApi: Api = {
     for (const a of affected) {
       a.status = "cancelled";
       a.cancel_reason = "doctor_absent";
+      // The clinic cancelled, so everything paid online is refunded.
+      refundOnline(db, user, a.id, "doctor_absent");
       notify(db, a.patient_id, `absent:${a.id}`, "doctor_absent", { doctor: doctor.name_ar, date, time: a.time });
     }
     log(db, user, "doctor.absent", `${doctor.name_ar} · ${date}`);
@@ -894,5 +1010,73 @@ export const mockApi: Api = {
           confirmed_at: o.confirmed_at!,
         })),
     );
+  },
+
+  bookingRules: async (patientId) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    if (!ownedPatientIds(db, user).includes(patientId)) fail(403);
+    return delay(rulesFor(db, patientId));
+  },
+
+  payOnline: async (appointmentId, { amount, currency, idempotency_key }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const appointment = requireOwnAppointment(db, user, appointmentId);
+    if (appointment.status === "cancelled") fail(409, "cancelled");
+    takePayment(db, user, appointmentId, amount, currency, "online", idempotency_key);
+    write(db);
+    return delay(undefined);
+  },
+
+  payCash: async (appointmentId, { amount, currency, idempotency_key }) => {
+    const db = read();
+    const user = requireUser(db, "reception");
+    takePayment(db, user, appointmentId, amount, currency, "cash", idempotency_key);
+    write(db);
+    return delay(undefined);
+  },
+
+  todayInvoices: async () => {
+    const db = read();
+    requireUser(db, "reception");
+    return delay(
+      db.appointments
+        .filter((a) => a.date === today() && a.status !== "cancelled")
+        .sort((a, b) => (a.time || "99").localeCompare(b.time || "99"))
+        .map((a) => invoiceOf(db, a)),
+    );
+  },
+
+  markNoShow: async (appointmentId) => {
+    const db = read();
+    const user = requireUser(db, "reception");
+    const appointment = findAppointment(db, appointmentId);
+    if (appointment.status !== "booked") fail(409, "not_booked");
+    // Only after the appointment time has passed.
+    if (startOf(appointment).getTime() > now().getTime()) fail(409, "not_started");
+    appointment.status = "no_show";
+    log(db, user, "appointment.no_show", patientName(db, appointment.patient_id));
+    write(db);
+    return delay(undefined);
+  },
+
+  createService: async (input) => {
+    const db = read();
+    const user = requireUser(db, "manager");
+    db.services.push({ id: db.nextId++, ...input });
+    log(db, user, "service.create", input.name_ar);
+    write(db);
+    return delay(undefined);
+  },
+
+  updateService: async (serviceId, input) => {
+    const db = read();
+    const user = requireUser(db, "manager");
+    // Old bills keep their old prices, because each bill line copied the price when it was added.
+    Object.assign(findService(db, serviceId), input);
+    log(db, user, "service.update", input.name_ar);
+    write(db);
+    return delay(undefined);
   },
 };

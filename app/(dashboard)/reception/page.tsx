@@ -150,6 +150,17 @@ export default function ReceptionPage() {
   const booked = useLoad(api.bookedToday, "", { every: 4000 });
   const version = booked.updatedAt ?? 0;
 
+  // Only possible after the appointment time. Enough no-shows means the patient must pay a deposit next time.
+  async function noShow(id: number) {
+    try {
+      await api.markNoShow(id);
+      toast.success(t("reception.noShowDone"));
+      booked.reload();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
+
   async function checkIn(id: number, emergency: boolean) {
     try {
       await api.checkIn(id, emergency);
@@ -186,6 +197,9 @@ export default function ReceptionPage() {
                         <Button onClick={() => checkIn(a.id, false)}>{t("reception.checkIn")}</Button>
                         <Button variant="danger" onClick={() => checkIn(a.id, true)}>
                           {t("reception.emergency")}
+                        </Button>
+                        <Button variant="ghost" onClick={() => noShow(a.id)}>
+                          {t("reception.noShow")}
                         </Button>
                       </div>
                     </div>

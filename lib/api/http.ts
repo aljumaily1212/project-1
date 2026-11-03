@@ -3,6 +3,7 @@ import { http } from "./axios";
 import type {
   AuditEntry,
   BookRequest,
+  BookingRules,
   ClinicSettings,
   CreateStaffRequest,
   Doctor,
@@ -11,17 +12,20 @@ import type {
   DoctorVisit,
   FamilyMember,
   FinishVisitRequest,
+  Invoice,
   LoginRequest,
   LabOrder,
   LoginResponse,
   ManagerOverview,
   MyAppointment,
   PatientVisit,
+  PayRequest,
   Prescription,
   RegisterRequest,
   RescheduleRequest,
   ResultInput,
   Service,
+  ServiceInput,
   Slot,
   StaffAppointment,
   StaffUser,
@@ -128,6 +132,23 @@ export const httpApi = {
   confirmResult: (orderId: number) => http.post<null>(`/lab/orders/${orderId}/confirm`, {}).then(() => undefined),
 
   myResults: () => http.get<TestResult[]>("/me/results").then((r) => r.data),
+
+  bookingRules: (patientId: number) => http.get<BookingRules>(`/patients/${patientId}/booking-rules`).then((r) => r.data),
+
+  // In the real system this starts the payment gateway. The idempotency key stops double charges.
+  payOnline: (appointmentId: number, body: PayRequest) =>
+    http.post<null>(`/appointments/${appointmentId}/pay-online`, body).then(() => undefined),
+
+  payCash: (appointmentId: number, body: PayRequest) =>
+    http.post<null>(`/appointments/${appointmentId}/pay-cash`, body).then(() => undefined),
+
+  todayInvoices: () => http.get<Invoice[]>("/invoices/today").then((r) => r.data),
+
+  markNoShow: (appointmentId: number) => http.post<null>(`/appointments/${appointmentId}/no-show`, {}).then(() => undefined),
+
+  createService: (body: ServiceInput) => http.post<null>("/services", body).then(() => undefined),
+
+  updateService: (serviceId: number, body: ServiceInput) => http.put<null>(`/services/${serviceId}`, body).then(() => undefined),
 };
 
 export type Api = typeof httpApi;

@@ -32,4 +32,5 @@ export const STATUS_COLOR: Record<AppointmentStatus, string> = {
   in_progress: "bg-brand-100 text-brand-800",
   done: "bg-emerald-100 text-emerald-800",
   cancelled: "bg-red-100 text-red-800",
+  no_show: "bg-slate-200 text-slate-800",
 };

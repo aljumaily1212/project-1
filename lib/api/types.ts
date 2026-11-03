@@ -4,7 +4,7 @@ export type ApiEnvelope<T> =
 
 export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager" | "lab";
 export type StaffRole = Exclude<Role, "patient">;
-export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
+export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled" | "no_show";
 
 export type BranchId = "main" | "second";
 export type Shift = "morning" | "evening";
@@ -84,12 +84,24 @@ export interface FamilyMember {
   relation: Relation;
 }
 
+// clinic: pay everything at the clinic. deposit: pay part online now. full: pay everything online now.
+export type PayChoice = "clinic" | "deposit" | "full";
+
 export interface BookRequest {
   patient_id: number;
   doctor_id: number;
   date: string;
   time: string;
   kind: VisitKind;
+  pay: PayChoice;
+  // The same key on a repeated request means "this is the same booking", so nothing is booked or charged twice.
+  idempotency_key: string;
+}
+
+export interface BookingRules {
+  no_shows: number;
+  deposit_required: boolean;
+  deposit_amount: number;
 }
 
 export interface RescheduleRequest {
@@ -110,6 +122,7 @@ export interface MyAppointment {
   can_change: boolean;
   cancel_reason: CancelReason | null;
   late_minutes: number;
+  money: MoneySummary;
 }
 
 export interface StaffAppointment {
@@ -152,6 +165,63 @@ export interface PatientVisit {
 
 export type ServiceKind = "test" | "xray" | "procedure";
 export type Currency = "IQD" | "USD";
+export type Amounts = Record<Currency, number>;
+
+export interface MoneySummary {
+  total: Amounts;
+  paid: Amounts;
+  balance: Amounts;
+}
+
+// One line on the bill. The price is copied when the line is added, so later price changes don't touch it.
+export interface InvoiceItem {
+  id: number;
+  label: string;
+  label_ar: string;
+  kind: "visit" | ServiceKind;
+  price: number;
+  currency: Currency;
+}
+
+export type PaymentMethod = "cash" | "online";
+export type PaymentKind = "payment" | "refund" | "reversal";
+
+export interface Payment {
+  id: number;
+  amount: number;
+  currency: Currency;
+  method: PaymentMethod;
+  kind: PaymentKind;
+  at: string;
+  by: string;
+  reason: string;
+}
+
+export interface Invoice {
+  appointment_id: number;
+  patient_name: string;
+  doctor_name: string;
+  date: string;
+  time: string;
+  status: AppointmentStatus;
+  items: InvoiceItem[];
+  payments: Payment[];
+  money: MoneySummary;
+}
+
+export interface PayRequest {
+  amount: number;
+  currency: Currency;
+  idempotency_key: string;
+}
+
+export interface ServiceInput {
+  name: string;
+  name_ar: string;
+  kind: ServiceKind;
+  price: number;
+  currency: Currency;
+}
 
 // Anything the clinic charges for besides the visit: tests, X-rays and small procedures.
 export interface Service {
@@ -217,6 +287,7 @@ export interface FinishVisitRequest {
   internal_note: string;
   medicines: Medicine[];
   test_ids: number[];
+  procedure_ids: number[];
 }
 
 export interface StaffUser {
@@ -265,7 +336,13 @@ export type AuditAction =
   | "doctor.late"
   | "lab.result"
   | "lab.confirm"
-  | "lab.edit";
+  | "lab.edit"
+  | "payment.cash"
+  | "payment.online"
+  | "payment.refund"
+  | "appointment.no_show"
+  | "service.update"
+  | "service.create";
 
 export interface AuditEntry {
   id: number;

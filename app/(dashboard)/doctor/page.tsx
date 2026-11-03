@@ -43,8 +43,9 @@ function History({ patientId }: { patientId: number }) {
 
 function VisitForm({ appointment, services, onDone }: { appointment: StaffAppointment; services: Service[]; onDone: () => void }) {
   const { t, locale } = useT();
-  // The lab handles tests and X-rays. Procedures are billed in the billing branch.
+  // The lab handles tests and X-rays. Procedures are done in the room and only go on the bill.
   const orderable = services.filter((s) => s.kind === "test" || s.kind === "xray");
+  const procedures = services.filter((s) => s.kind === "procedure");
   const {
     register,
     control,
@@ -52,13 +53,17 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
     formState: { errors, isSubmitting },
   } = useForm<VisitForm>({
     resolver: zodResolver(visitSchema),
-    defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [] },
+    defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [], procedure_ids: [] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
 
   async function onSubmit(values: VisitForm) {
     try {
-      await api.finishVisit(appointment.id, { ...values, test_ids: values.test_ids.map(Number) });
+      await api.finishVisit(appointment.id, {
+        ...values,
+        test_ids: values.test_ids.map(Number),
+        procedure_ids: values.procedure_ids.map(Number),
+      });
       toast.success(t("doctor.finished"));
       onDone();
     } catch (err) {
@@ -123,6 +128,20 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
             ))}
           </div>
         </fieldset>
+
+        {procedures.length > 0 && (
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">{t("doctor.procedures")}</legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {procedures.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
+                  <input type="checkbox" value={s.id} className="size-4 accent-brand-600" {...register("procedure_ids")} />
+                  {serviceName(s, locale)}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
 
         <Button type="submit" className="h-11 w-full" loading={isSubmitting}>
           {t("doctor.finish")}

@@ -75,6 +75,7 @@ export const visitSchema = z.object({
   medicines: z.array(medicineSchema),
   // Checkbox values are text, so the ids are numbers written as text.
   test_ids: z.array(z.string()),
+  procedure_ids: z.array(z.string()),
 });
 export type VisitForm = z.infer<typeof visitSchema>;
 
@@ -96,3 +97,18 @@ export const resultSchema = z.discriminatedUnion("type", [
       .refine((f) => f.size <= MAX_FILE_BYTES, "validation.fileSize"),
   }),
 ]);
+
+export const serviceSchema = z.object({
+  name: z.string().trim().min(2, "validation.required"),
+  name_ar: z.string().trim().min(2, "validation.required"),
+  kind: z.enum(["test", "xray", "procedure"]),
+  price: z.number("validation.number").min(0, "validation.number"),
+  currency: z.enum(["IQD", "USD"]),
+});
+export type ServiceForm = z.infer<typeof serviceSchema>;
+
+// The amount must be more than zero and not more than what is left to pay.
+export const paymentSchema = (max: number) =>
+  z.object({
+    amount: z.number("validation.number").positive("validation.number").max(max, "validation.overpay"),
+  });
