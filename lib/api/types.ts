@@ -2,7 +2,7 @@ export type ApiEnvelope<T> =
   | { success: true; data: T }
   | { success: false; message: string; errors?: Record<string, unknown>; code?: string };
 
-export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager" | "lab";
+export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager" | "lab" | "accountant";
 export type StaffRole = Exclude<Role, "patient">;
 export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled" | "no_show";
 
@@ -59,6 +59,9 @@ export interface DoctorDay {
 
 export interface DoctorSchedule {
   doctor: Doctor;
+  // The clinic's share in percent. The doctor gets the rest.
+  clinic_percent: number;
+  service_percent: number;
   days: (WorkDay | null)[];
   absences: string[];
   late: { date: string; minutes: number } | null;
@@ -66,6 +69,8 @@ export interface DoctorSchedule {
 
 export interface UpdateScheduleRequest {
   fee: number;
+  clinic_percent: number;
+  service_percent: number;
   new_minutes: number;
   followup_minutes: number;
   days: (WorkDay | null)[];
@@ -342,7 +347,43 @@ export type AuditAction =
   | "payment.refund"
   | "appointment.no_show"
   | "service.update"
-  | "service.create";
+  | "service.create"
+  | "payment.reverse";
+
+// One line in the accountant's book. Nothing here can be deleted.
+export interface LedgerEntry extends Payment {
+  appointment_id: number;
+  patient_name: string;
+  doctor_name: string;
+  reversible: boolean;
+}
+
+export interface DoctorDues {
+  doctor_id: number;
+  doctor_name: string;
+  visits: number;
+  visit_income: number;
+  procedure_income: number;
+  doctor_share: number;
+  clinic_share: number;
+}
+
+export interface CountRow {
+  label: string;
+  count: number;
+}
+
+export interface Report {
+  month: string;
+  by_day: CountRow[];
+  by_doctor: CountRow[];
+  by_branch: CountRow[];
+  top_no_shows: CountRow[];
+  billed: Amounts;
+  collected: Amounts;
+  today_billed: Amounts;
+  today_collected: Amounts;
+}
 
 export interface AuditEntry {
   id: number;

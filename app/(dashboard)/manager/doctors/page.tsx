@@ -80,6 +80,8 @@ function DoctorCard({ schedule, onAbsent }: { schedule: DoctorSchedule; onAbsent
     resolver: zodResolver(scheduleSchema),
     defaultValues: {
       fee: doctor.fee,
+      clinic_percent: schedule.clinic_percent,
+      service_percent: schedule.service_percent,
       new_minutes: doctor.new_minutes,
       followup_minutes: doctor.followup_minutes,
       days: schedule.days.map(toChoice),
@@ -109,6 +111,15 @@ function DoctorCard({ schedule, onAbsent }: { schedule: DoctorSchedule; onAbsent
           </Field>
           <Field label={t("doctors.followupMinutes")} error={errors.followup_minutes?.message}>
             <Input type="number" dir="ltr" invalid={!!errors.followup_minutes} {...register("followup_minutes", { valueAsNumber: true })} />
+          </Field>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t("doctors.clinicPercent")} hint={t("doctors.percentHint")} error={errors.clinic_percent?.message}>
+            <Input type="number" dir="ltr" invalid={!!errors.clinic_percent} {...register("clinic_percent", { valueAsNumber: true })} />
+          </Field>
+          <Field label={t("doctors.servicePercent")} error={errors.service_percent?.message}>
+            <Input type="number" dir="ltr" invalid={!!errors.service_percent} {...register("service_percent", { valueAsNumber: true })} />
           </Field>
         </div>
 
