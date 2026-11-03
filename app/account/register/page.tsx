@@ -45,7 +45,7 @@ export default function RegisterPage() {
       footer={
         <>
           {t("account.register.hasAccount")}{" "}
-          <Link href="/account/login" className="font-medium text-brand-600 hover:underline">
+          <Link href="/" className="font-medium text-brand-600 hover:underline">
             {t("account.register.login")}
           </Link>
         </>
