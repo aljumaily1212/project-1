@@ -47,7 +47,7 @@ export const en = {
   "login.feature.queueHint": "Queue",
   "login.feature.pharmacy": "One-time",
   "login.feature.pharmacyHint": "Dispensing",
-  "login.trust": "Role-based access · Private medical file · Two branches",
+  "login.trust": "Role-based access · Private medical file",
   "login.footer": "Prototype · Fictional data only",
   "login.noAccount": "New patient?",
   "login.register": "Create an account",
