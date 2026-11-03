@@ -2,10 +2,14 @@ export type ApiEnvelope<T> =
   | { success: true; data: T }
   | { success: false; message: string; errors?: Record<string, unknown>; code?: string };
 
-export type Role = "patient" | "reception" | "doctor" | "pharmacy";
+export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager" | "lab";
 export type StaffRole = Exclude<Role, "patient">;
-export type Day = "today" | "tomorrow";
-export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
+export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled" | "no_show";
+
+export type BranchId = "main" | "second";
+export type Shift = "morning" | "evening";
+export type VisitKind = "new" | "followup";
+export type CancelReason = "patient" | "doctor_absent";
 
 export interface User {
   id: number;
@@ -36,9 +40,35 @@ export interface Doctor {
   name_ar: string;
   specialty: string;
   specialty_ar: string;
-  branch: string;
-  branch_ar: string;
   fee: number;
+  new_minutes: number;
+  followup_minutes: number;
+}
+
+// Where and when a doctor works on one weekday. null means a day off.
+export interface WorkDay {
+  branch: BranchId;
+  shift: Shift;
+}
+
+export interface DoctorDay {
+  date: string;
+  work: WorkDay | null;
+  absent: boolean;
+}
+
+export interface DoctorSchedule {
+  doctor: Doctor;
+  days: (WorkDay | null)[];
+  absences: string[];
+  late: { date: string; minutes: number } | null;
+}
+
+export interface UpdateScheduleRequest {
+  fee: number;
+  new_minutes: number;
+  followup_minutes: number;
+  days: (WorkDay | null)[];
 }
 
 export interface Slot {
@@ -54,10 +84,28 @@ export interface FamilyMember {
   relation: Relation;
 }
 
+// clinic: pay everything at the clinic. deposit: pay part online now. full: pay everything online now.
+export type PayChoice = "clinic" | "deposit" | "full";
+
 export interface BookRequest {
   patient_id: number;
   doctor_id: number;
-  day: Day;
+  date: string;
+  time: string;
+  kind: VisitKind;
+  pay: PayChoice;
+  // The same key on a repeated request means "this is the same booking", so nothing is booked or charged twice.
+  idempotency_key: string;
+}
+
+export interface BookingRules {
+  no_shows: number;
+  deposit_required: boolean;
+  deposit_amount: number;
+}
+
+export interface RescheduleRequest {
+  date: string;
   time: string;
 }
 
@@ -65,10 +113,16 @@ export interface MyAppointment {
   id: number;
   patient_name: string;
   doctor: Doctor;
-  day: Day;
+  date: string;
   time: string;
+  kind: VisitKind;
+  branch: BranchId;
   status: AppointmentStatus;
   ahead: number | null;
+  can_change: boolean;
+  cancel_reason: CancelReason | null;
+  late_minutes: number;
+  money: MoneySummary;
 }
 
 export interface StaffAppointment {
@@ -76,8 +130,10 @@ export interface StaffAppointment {
   patient_id: number;
   patient_name: string;
   doctor_id: number;
-  day: Day;
+  date: string;
   time: string;
+  kind: VisitKind;
+  branch: BranchId;
   status: AppointmentStatus;
   emergency: boolean;
 }
@@ -107,14 +163,131 @@ export interface PatientVisit {
   medicines: Medicine[];
 }
 
+export type ServiceKind = "test" | "xray" | "procedure";
+export type Currency = "IQD" | "USD";
+export type Amounts = Record<Currency, number>;
+
+export interface MoneySummary {
+  total: Amounts;
+  paid: Amounts;
+  balance: Amounts;
+}
+
+// One line on the bill. The price is copied when the line is added, so later price changes don't touch it.
+export interface InvoiceItem {
+  id: number;
+  label: string;
+  label_ar: string;
+  kind: "visit" | ServiceKind;
+  price: number;
+  currency: Currency;
+}
+
+export type PaymentMethod = "cash" | "online";
+export type PaymentKind = "payment" | "refund" | "reversal";
+
+export interface Payment {
+  id: number;
+  amount: number;
+  currency: Currency;
+  method: PaymentMethod;
+  kind: PaymentKind;
+  at: string;
+  by: string;
+  reason: string;
+}
+
+export interface Invoice {
+  appointment_id: number;
+  patient_name: string;
+  doctor_name: string;
+  date: string;
+  time: string;
+  status: AppointmentStatus;
+  items: InvoiceItem[];
+  payments: Payment[];
+  money: MoneySummary;
+}
+
+export interface PayRequest {
+  amount: number;
+  currency: Currency;
+  idempotency_key: string;
+}
+
+export interface ServiceInput {
+  name: string;
+  name_ar: string;
+  kind: ServiceKind;
+  price: number;
+  currency: Currency;
+}
+
+// Anything the clinic charges for besides the visit: tests, X-rays and small procedures.
+export interface Service {
+  id: number;
+  name: string;
+  name_ar: string;
+  kind: ServiceKind;
+  price: number;
+  currency: Currency;
+}
+
+// A result is either a number (like blood sugar) or a file (a PDF or an X-ray image).
+export type LabResult =
+  | { type: "number"; value: number; unit: string }
+  | { type: "file"; file_name: string; file_type: string; data_url: string };
+
+// What the lab sends to save a result. A file goes as the real file, not a data URL.
+export type ResultInput = { type: "number"; value: number; unit: string } | { type: "file"; file: File };
+
+export type LabStatus = "requested" | "entered" | "confirmed";
+
+export interface ResultEdit {
+  at: string;
+  by: string;
+  before: LabResult;
+}
+
+// The lab only sees the request itself, never the diagnosis or the rest of the file.
+export interface LabOrder {
+  id: number;
+  patient_name: string;
+  doctor_name: string;
+  test: Service;
+  status: LabStatus;
+  result: LabResult | null;
+  history: ResultEdit[];
+  requested_at: string;
+}
+
+// Patients and doctors see results only after the lab confirms them.
+export interface TestResult {
+  id: number;
+  patient_name: string;
+  test: Service;
+  result: LabResult;
+  confirmed_at: string;
+}
+
+export interface VisitTest {
+  id: number;
+  test: Service;
+  status: LabStatus;
+  result: LabResult | null;
+}
+
 export interface DoctorVisit extends PatientVisit {
   internal_note: string;
+  tests: VisitTest[];
 }
 
 export interface FinishVisitRequest {
   diagnosis: string;
   internal_note: string;
   medicines: Medicine[];
+  test_ids: number[];
+  procedure_ids: number[];
 }
 
 export interface StaffUser {
@@ -133,9 +306,69 @@ export interface CreateStaffRequest {
     name_en: string;
     specialty_ar: string;
     specialty_en: string;
-    branch: "main" | "second";
+    branch: BranchId;
     fee: number;
   };
+}
+
+// Rules the client will decide. The manager can change them at any time.
+export interface ClinicSettings {
+  cancel_hours: number;
+  no_show_limit: number;
+  deposit_amount: number;
+  prescription_days: number;
+  usd_rate: number;
+}
+
+export type AuditAction =
+  | "file.open"
+  | "visit.finish"
+  | "prescription.dispense"
+  | "staff.create"
+  | "settings.update"
+  | "appointment.book"
+  | "appointment.cancel"
+  | "appointment.reschedule"
+  | "appointment.checkin"
+  | "walkin.add"
+  | "doctor.update"
+  | "doctor.absent"
+  | "doctor.late"
+  | "lab.result"
+  | "lab.confirm"
+  | "lab.edit"
+  | "payment.cash"
+  | "payment.online"
+  | "payment.refund"
+  | "appointment.no_show"
+  | "service.update"
+  | "service.create";
+
+export interface AuditEntry {
+  id: number;
+  at: string;
+  user_name: string;
+  role: Role;
+  action: AuditAction;
+  target: string;
+}
+
+export interface ManagerOverview {
+  appointments_today: number;
+  waiting_now: number;
+  visits_done_today: number;
+  doctors: number;
+  staff: number;
+}
+
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready";
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  params: Record<string, string | number>;
+  at: string;
+  read: boolean;
 }
 
 export interface Prescription {

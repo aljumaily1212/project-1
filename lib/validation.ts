@@ -25,7 +25,7 @@ export const staffSchema = z
     name: z.string().trim().min(2, "validation.name"),
     phone,
     password,
-    role: z.enum(["reception", "doctor", "pharmacy"]),
+    role: z.enum(["reception", "doctor", "pharmacy", "lab"]),
     name_en: z.string().trim(),
     specialty_ar: z.string().trim(),
     specialty_en: z.string().trim(),
@@ -40,6 +40,29 @@ export const staffSchema = z
   });
 export type StaffForm = z.infer<typeof staffSchema>;
 
+const wholeNumber = (min: number, max: number) =>
+  z.number("validation.number").int("validation.number").min(min, "validation.number").max(max, "validation.number");
+
+export const settingsSchema = z.object({
+  cancel_hours: wholeNumber(0, 72),
+  no_show_limit: wholeNumber(1, 10),
+  deposit_amount: wholeNumber(0, 1_000_000),
+  prescription_days: wholeNumber(1, 90),
+  usd_rate: wholeNumber(1, 100_000),
+});
+export type SettingsForm = z.infer<typeof settingsSchema>;
+
+// One choice per weekday: a day off, or a branch and a shift.
+export const DAY_CHOICES = ["off", "main-morning", "main-evening", "second-morning", "second-evening"] as const;
+
+export const scheduleSchema = z.object({
+  fee: wholeNumber(0, 10_000_000),
+  new_minutes: wholeNumber(5, 120),
+  followup_minutes: wholeNumber(5, 120),
+  days: z.array(z.enum(DAY_CHOICES)).length(7),
+});
+export type ScheduleForm = z.infer<typeof scheduleSchema>;
+
 export const medicineSchema = z.object({
   name: z.string().trim().min(1, "validation.required"),
   dose: z.string().trim().min(1, "validation.required"),
@@ -50,5 +73,42 @@ export const visitSchema = z.object({
   diagnosis: z.string().trim().min(2, "validation.diagnosis"),
   internal_note: z.string().trim(),
   medicines: z.array(medicineSchema),
+  // Checkbox values are text, so the ids are numbers written as text.
+  test_ids: z.array(z.string()),
+  procedure_ids: z.array(z.string()),
 });
 export type VisitForm = z.infer<typeof visitSchema>;
+
+export const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const FILE_TYPES = ["application/pdf", "image/png", "image/jpeg"];
+
+// The lab enters either a number with its unit, or a file.
+export const resultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("number"),
+    value: z.number("validation.resultValue"),
+    unit: z.string().trim().min(1, "validation.required"),
+  }),
+  z.object({
+    type: z.literal("file"),
+    file: z
+      .instanceof(File, { message: "validation.file" })
+      .refine((f) => FILE_TYPES.includes(f.type), "validation.fileType")
+      .refine((f) => f.size <= MAX_FILE_BYTES, "validation.fileSize"),
+  }),
+]);
+
+export const serviceSchema = z.object({
+  name: z.string().trim().min(2, "validation.required"),
+  name_ar: z.string().trim().min(2, "validation.required"),
+  kind: z.enum(["test", "xray", "procedure"]),
+  price: z.number("validation.number").min(0, "validation.number"),
+  currency: z.enum(["IQD", "USD"]),
+});
+export type ServiceForm = z.infer<typeof serviceSchema>;
+
+// The amount must be more than zero and not more than what is left to pay.
+export const paymentSchema = (max: number) =>
+  z.object({
+    amount: z.number("validation.number").positive("validation.number").max(max, "validation.overpay"),
+  });

@@ -29,6 +29,8 @@ const DEMO_ACCOUNTS = [
   { label: "nav.reception", phone: MOCK_LOGINS.reception },
   { label: "nav.doctor", phone: MOCK_LOGINS.doctor },
   { label: "nav.pharmacy", phone: MOCK_LOGINS.pharmacy },
+  { label: "nav.lab", phone: MOCK_LOGINS.lab },
+  { label: "nav.manager", phone: MOCK_LOGINS.manager },
 ] as const;
 
 function BrandPanel() {
