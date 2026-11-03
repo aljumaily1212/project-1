@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { AnalyticsSection } from "@/components/analytics";
 import { AuditList } from "@/components/audit-list";
 import { Card, EmptyState, ErrorState, PageHeader } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
@@ -39,7 +40,9 @@ export default function ManagerPage() {
         </div>
       )}
 
-      <Card className="mt-6 space-y-2">
+      <AnalyticsSection />
+
+      <Card className="mt-8 space-y-2">
         <div className="flex items-center justify-between gap-2">
           <h2 className="font-semibold">{t("manager.recent")}</h2>
           <Link href="/manager/audit" className="text-sm font-medium text-brand-600 hover:underline">

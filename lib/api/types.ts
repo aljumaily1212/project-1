@@ -450,6 +450,37 @@ export interface PatientFile {
   money: MoneySummary;
 }
 
+// One day on the manager's charts. collected is net dinars received that day.
+export interface AnalyticsDay {
+  date: string;
+  visits: number;
+  no_shows: number;
+  cancelled: number;
+  collected: number;
+}
+
+export interface Analytics {
+  from: string;
+  to: string;
+  totals: {
+    appointments: number;
+    visits: number;
+    no_shows: number;
+    cancelled: number;
+    walk_ins: number;
+    followups: number;
+    // Patients whose first visit ever falls inside the range.
+    new_patients: number;
+    collected: Amounts;
+  };
+  by_day: AnalyticsDay[];
+  by_doctor: { label: string; visits: number; collected: number }[];
+  // "09" means appointments that start between 9:00 and 9:59.
+  by_hour: CountRow[];
+  by_method: Record<PaymentMethod, number>;
+  top_diagnoses: CountRow[];
+}
+
 export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near";
 
 export interface AppNotification {
