@@ -35,6 +35,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
+  --color-white: #f9fbfa;
   --color-brand-50: #f0fdfa;
   --color-brand-100: #ccfbf1;
   --color-brand-200: #99f6e4;
@@ -45,10 +46,10 @@
   --color-brand-800: #134e4a;
   --color-brand-900: #042f2e;
 
-  --color-slate-50: #eef1f6;
-  --color-slate-100: #e4e8ef;
-  --color-slate-200: #d9dee7;
-  --color-slate-300: #c3cad6;
+  --color-slate-50: #eef4f1;
+  --color-slate-100: #e3ece8;
+  --color-slate-200: #d3e0da;
+  --color-slate-300: #bccdc5;
 
   --font-sans: var(--font-plex-arabic), system-ui, sans-serif;
 }
@@ -71,10 +72,10 @@ html {
 .dark {
   color-scheme: dark;
 
-  --color-slate-50: #0b1120;
-  --color-slate-100: #141c2f;
-  --color-slate-200: #1f2a3d;
-  --color-slate-300: #334155;
+  --color-slate-50: #0e1916;
+  --color-slate-100: #15231f;
+  --color-slate-200: #1f322d;
+  --color-slate-300: #31463f;
   --color-slate-400: #64748b;
   --color-slate-500: #94a3b8;
   --color-slate-600: #cbd5e1;
@@ -83,49 +84,49 @@ html {
   --color-slate-900: #f8fafc;
   --color-slate-950: #ffffff;
 
-  --color-brand-50: color-mix(in srgb, #14b8a6 12%, #111a2c);
-  --color-brand-100: color-mix(in srgb, #14b8a6 22%, #111a2c);
-  --color-brand-200: color-mix(in srgb, #14b8a6 38%, #111a2c);
+  --color-brand-50: color-mix(in srgb, #14b8a6 12%, #13221e);
+  --color-brand-100: color-mix(in srgb, #14b8a6 22%, #13221e);
+  --color-brand-200: color-mix(in srgb, #14b8a6 38%, #13221e);
   --color-brand-600: #2dd4bf;
   --color-brand-700: #5eead4;
   --color-brand-800: #99f6e4;
 
-  --color-red-50: color-mix(in srgb, #ef4444 12%, #111a2c);
-  --color-red-100: color-mix(in srgb, #ef4444 22%, #111a2c);
-  --color-red-200: color-mix(in srgb, #ef4444 38%, #111a2c);
+  --color-red-50: color-mix(in srgb, #ef4444 12%, #13221e);
+  --color-red-100: color-mix(in srgb, #ef4444 22%, #13221e);
+  --color-red-200: color-mix(in srgb, #ef4444 38%, #13221e);
   --color-red-600: #f87171;
   --color-red-700: #fca5a5;
   --color-red-800: #fecaca;
 
-  --color-emerald-50: color-mix(in srgb, #10b981 12%, #111a2c);
-  --color-emerald-100: color-mix(in srgb, #10b981 22%, #111a2c);
+  --color-emerald-50: color-mix(in srgb, #10b981 12%, #13221e);
+  --color-emerald-100: color-mix(in srgb, #10b981 22%, #13221e);
   --color-emerald-700: #6ee7b7;
   --color-emerald-800: #a7f3d0;
 
-  --color-amber-50: color-mix(in srgb, #f59e0b 12%, #111a2c);
-  --color-amber-100: color-mix(in srgb, #f59e0b 22%, #111a2c);
+  --color-amber-50: color-mix(in srgb, #f59e0b 12%, #13221e);
+  --color-amber-100: color-mix(in srgb, #f59e0b 22%, #13221e);
   --color-amber-700: #fcd34d;
   --color-amber-800: #fde68a;
 
-  --color-sky-100: color-mix(in srgb, #0ea5e9 22%, #111a2c);
+  --color-sky-100: color-mix(in srgb, #0ea5e9 22%, #13221e);
   --color-sky-700: #7dd3fc;
   --color-sky-800: #bae6fd;
 
-  --color-fuchsia-50: color-mix(in srgb, #d946ef 12%, #111a2c);
-  --color-fuchsia-100: color-mix(in srgb, #d946ef 22%, #111a2c);
+  --color-fuchsia-50: color-mix(in srgb, #d946ef 12%, #13221e);
+  --color-fuchsia-100: color-mix(in srgb, #d946ef 22%, #13221e);
   --color-fuchsia-700: #f0abfc;
   --color-fuchsia-800: #f5d0fe;
 }
 
 .dark .bg-white {
-  background-color: #111a2c;
+  background-color: #13221e;
 }
 .dark .bg-white\/70,
 .dark .bg-white\/80,
 .dark .bg-white\/85,
 .dark .bg-white\/90,
 .dark .bg-white\/95 {
-  background-color: rgb(17 26 44 / 0.85);
+  background-color: rgb(19 34 30 / 0.85);
 }
 .dark .border-white\/60 {
   border-color: rgb(255 255 255 / 0.08);
@@ -201,7 +202,7 @@ html[data-vt="fade"]::view-transition-new(root) {
 }
 
 :root {
-  --surface: #ffffff;
+  --surface: #f9fbfa;
   --background: var(--color-slate-50);
   --foreground: var(--color-slate-900);
   --card: var(--surface);
@@ -237,7 +238,7 @@ html[data-vt="fade"]::view-transition-new(root) {
 }
 
 .dark {
-  --surface: #111a2c;
+  --surface: #13221e;
   --primary: #2dd4bf;
   --primary-foreground: #042f2e;
   --destructive: #f87171;

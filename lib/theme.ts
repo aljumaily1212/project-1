@@ -7,14 +7,11 @@ export type Theme = "light" | "dark";
 
 const listeners = new Set<() => void>();
 
-function systemTheme(): Theme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
 function readTheme(): Theme {
   try {
     const v = localStorage.getItem(THEME_KEY);
-    return v === "dark" || v === "light" ? v : systemTheme();
+    // Day mode unless the person chose night mode.
+    return v === "dark" ? "dark" : "light";
   } catch {
     return "light";
   }
