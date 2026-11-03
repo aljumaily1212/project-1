@@ -260,8 +260,8 @@ function seed(): Db {
     ],
     labOrders: [],
     items: [
-      { id: 50, appointment_id: 1, label: "Visit fee", label_ar: "الكشفية", kind: "visit", price: 25000, currency: "IQD" },
-      { id: 51, appointment_id: 2, label: "Visit fee", label_ar: "الكشفية", kind: "visit", price: 25000, currency: "IQD" },
+      { id: 50, appointment_id: 1, label: "Visit fee", label_ar: "رسوم الكشف", kind: "visit", price: 25000, currency: "IQD" },
+      { id: 51, appointment_id: 2, label: "Visit fee", label_ar: "رسوم الكشف", kind: "visit", price: 25000, currency: "IQD" },
     ],
     payments: [],
   };
@@ -456,7 +456,7 @@ function addItem(db: Db, appointmentId: number, item: Omit<InvoiceItem, "id">) {
 
 const visitFee = (doctor: MockDoctor): Omit<InvoiceItem, "id"> => ({
   label: "Visit fee",
-  label_ar: "الكشفية",
+  label_ar: "رسوم الكشف",
   kind: "visit",
   price: doctor.fee,
   currency: "IQD",
