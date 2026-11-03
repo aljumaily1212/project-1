@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -15,7 +15,12 @@ import { CardsSkeleton, FormSkeleton } from "@/components/skeleton";
 
 function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
   const { t, locale } = useT();
-  const { state, reload } = useLoad(() => api.doctorQueue(doctor.id), `${doctor.id}|${version}`, { every: 4000 });
+  const { state, reload, refresh } = useLoad(() => api.doctorQueue(doctor.id), String(doctor.id), { every: 4000 });
+
+  // After a check-in or walk-in, update the queue right away, without the skeleton.
+  useEffect(() => {
+    if (version > 0) refresh();
+  }, [version, refresh]);
 
   return (
     <Card className="space-y-3">
@@ -152,11 +157,16 @@ export default function ReceptionPage() {
   const { t, locale } = useT();
   const doctors = useLoad(api.listDoctors);
   const booked = useLoad(api.bookedToday, "", { every: 4000 });
-  const version = booked.updatedAt ?? 0;
+  // Goes up by one after every change at the desk, so the queue cards fetch again.
+  const [version, setVersion] = useState(0);
   const online = useOnline();
   const outbox = useOutbox();
   const waitingIds = new Set(outbox.flatMap((item) => (item.type === "checkIn" ? [item.appointmentId] : [])));
-  const reloadBooked = booked.reload;
+  const refreshBooked = booked.refresh;
+  const afterChange = useCallback(() => {
+    refreshBooked();
+    setVersion((v) => v + 1);
+  }, [refreshBooked]);
 
   // When the connection comes back, send everything that waited.
   useEffect(() => {
@@ -164,17 +174,17 @@ export default function ReceptionPage() {
     void flush().then((sent) => {
       if (sent > 0) {
         toast.success(t("offline.sent", { n: sent }));
-        reloadBooked();
+        afterChange();
       }
     });
-  }, [online, reloadBooked, t]);
+  }, [online, afterChange, t]);
 
   // Only possible after the appointment time. Enough no-shows means the patient must pay a deposit next time.
   async function noShow(id: number) {
     try {
       await api.markNoShow(id);
       toast.success(t("reception.noShowDone"));
-      booked.reload();
+      afterChange();
     } catch (err) {
       toast.error(errorText(err, t));
     }
@@ -189,7 +199,7 @@ export default function ReceptionPage() {
     try {
       await api.checkIn(id, emergency);
       toast.success(t("reception.checkedIn"));
-      booked.reload();
+      afterChange();
     } catch (err) {
       toast.error(errorText(err, t));
     }
@@ -242,7 +252,7 @@ export default function ReceptionPage() {
                   );
                 })}
             </Card>
-            <WalkInCard doctors={doctors.state.data} onAdded={booked.reload} />
+            <WalkInCard doctors={doctors.state.data} onAdded={afterChange} />
           </div>
           <div className="space-y-4">
             {doctors.state.data.map((d) => (
