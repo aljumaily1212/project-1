@@ -9,7 +9,7 @@ import { CalendarCheck, Eye, EyeOff, ListOrdered, Pill, ShieldCheck } from "luci
 import { api } from "@/lib/api";
 import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
-import { USE_MOCK } from "@/lib/config";
+import { SHOW_DEMO_ACCOUNTS } from "@/lib/config";
 import { errorText, useT } from "@/lib/i18n";
 import { loginSchema, type LoginForm } from "@/lib/validation";
 import { LanguageSwitch } from "@/components/language-switch";
@@ -205,7 +205,7 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          {USE_MOCK && (
+          {SHOW_DEMO_ACCOUNTS && (
             <>
               <Separator />
               <DemoAccounts onPick={fillDemo} />
