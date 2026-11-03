@@ -49,7 +49,7 @@ export const ar: Record<MessageKey, string> = {
   "login.feature.queueHint": "الطابور",
   "login.feature.pharmacy": "مرة وحدة",
   "login.feature.pharmacyHint": "صرف الوصفة",
-  "login.trust": "صلاحيات حسب الدور · ملف طبي خاص · فرعين",
+  "login.trust": "صلاحيات حسب الدور · ملف طبي خاص",
   "login.footer": "نسخة تجريبية · بيانات وهمية فقط",
   "login.noAccount": "مريض جديد؟",
   "login.register": "سوي حساب",
