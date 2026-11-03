@@ -20,7 +20,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof CalendarPlus }[] = [
   { href: "/account/records", label: "account.nav.records", icon: FileHeart },
 ];
 
-const PUBLIC = ["/account/login", "/account/register"];
+const PUBLIC = ["/account/register"];
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -32,7 +32,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
-    if (!isPublic && ready && !allowed) router.replace("/account/login");
+    if (!isPublic && ready && !allowed) router.replace("/");
   }, [isPublic, ready, allowed, router]);
 
   if (isPublic) return children;

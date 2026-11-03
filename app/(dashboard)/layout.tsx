@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
-    if (ready && !allowed) router.replace(home ?? "/login");
+    if (ready && !allowed) router.replace(home ?? "/");
   }, [ready, allowed, home, router]);
 
   if (!ready || leaving || !allowed || !session || session.user.role === "patient") {
@@ -50,7 +50,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     void api.logout();
     clearSession();
     // A full reload clears any patient data left in the browser's memory.
-    window.location.replace("/login");
+    window.location.replace("/");
   }
 
   const label = ROLE_LABEL[session.user.role];
