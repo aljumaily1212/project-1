@@ -450,13 +450,16 @@ export interface PatientFile {
   money: MoneySummary;
 }
 
-// One day on the manager's charts. collected is net dinars received that day.
+// One day on the manager's charts. Money is net dinars received that day.
 export interface AnalyticsDay {
   date: string;
   visits: number;
+  followups: number;
   no_shows: number;
   cancelled: number;
   collected: number;
+  cash: number;
+  online: number;
 }
 
 export interface Analytics {

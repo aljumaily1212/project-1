@@ -1425,12 +1425,18 @@ export const mockApi: Api = {
     const by_day = Array.from({ length: days }, (_, i) => {
       const date = addDays(from, i);
       const ofDay = appointments.filter((a) => a.date === date);
+      const visitedOfDay = ofDay.filter((a) => VISITED.includes(a.status));
+      const paidOfDay = payments.filter((p) => dateOf(new Date(p.at)) === date);
+      const sum = (list: MockPayment[]) => list.reduce((total, p) => total + dinars(p), 0);
       return {
         date,
-        visits: ofDay.filter((a) => VISITED.includes(a.status)).length,
+        visits: visitedOfDay.length,
+        followups: visitedOfDay.filter((a) => a.kind === "followup").length,
         no_shows: ofDay.filter((a) => a.status === "no_show").length,
         cancelled: ofDay.filter((a) => a.status === "cancelled").length,
-        collected: payments.filter((p) => dateOf(new Date(p.at)) === date).reduce((sum, p) => sum + dinars(p), 0),
+        collected: sum(paidOfDay),
+        cash: sum(paidOfDay.filter((p) => p.method === "cash")),
+        online: sum(paidOfDay.filter((p) => p.method === "online")),
       };
     });
 

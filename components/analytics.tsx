@@ -1,67 +1,100 @@
 "use client";
 
 import { useState } from "react";
-import { api, type Analytics } from "@/lib/api";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { api, type Analytics, type AnalyticsDay } from "@/lib/api";
 import { money, shortDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { Button, Card, ErrorState } from "@/components/common";
 import { AmountsText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
+import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
-const RANGES = [7, 30] as const;
+// 7 days, or 4 whole weeks so every weekly group on the charts has 7 days.
+const RANGES = [7, 28] as const;
 
-type Column = { key: string; tick: string; value: number; tip: string };
+// One bar group on a chart: a day, or a week when the range is long. a and b are its two bars.
+type Group = { key: string; tick: string; label: string; a: number; b: number };
 
-// ---------- chart pieces ----------
+// Teal and blue, checked for colorblind readers in both day and night mode.
+const SERIES_COLORS = {
+  a: { light: "#1baf7a", dark: "#199e70" },
+  b: { light: "#2a78d6", dark: "#3987e5" },
+};
 
-// One bar per day. Hovering or focusing a bar shows its exact value. Time runs left to right in both languages.
-function ColumnChart({ title, columns, format }: { title: string; columns: Column[]; format: (n: number) => string }) {
+// 7 days show one group per day. Longer ranges add up whole weeks, ending today, so the chart stays readable.
+function toGroups(days: AnalyticsDay[], pick: (d: AnalyticsDay) => [number, number]): Group[] {
+  const size = days.length <= 7 ? 1 : 7;
+  const groups: Group[] = [];
+  for (let end = days.length; end > 0; end -= size) {
+    const chunk = days.slice(Math.max(0, end - size), end);
+    const first = shortDate(chunk[0].date);
+    const last = shortDate(chunk[chunk.length - 1].date);
+    const [a, b] = chunk.reduce(([x, y], d) => [x + pick(d)[0], y + pick(d)[1]], [0, 0]);
+    // The axis shows the week's first day. The tooltip and the table show the whole week.
+    groups.unshift({ key: chunk[0].date, tick: first, label: size === 1 ? first : `${first} – ${last}`, a, b });
+  }
+  return groups;
+}
+
+// Two bars side by side for every group, with a legend, a tooltip on hover and a table view.
+function GroupedBars({ title, groups, names, format }: { title: string; groups: Group[]; names: [string, string]; format: (n: number) => string }) {
   const { t } = useT();
-  const max = Math.max(1, ...columns.map((c) => c.value));
-  // About six date labels under the chart, so they never overlap.
-  const every = Math.max(1, Math.ceil(columns.length / 6));
+  const config = {
+    a: { label: names[0], theme: SERIES_COLORS.a },
+    b: { label: names[1], theme: SERIES_COLORS.b },
+  } satisfies ChartConfig;
 
   return (
     <Card className="space-y-3">
       <h3 className="font-semibold">{title}</h3>
-      <div dir="ltr" className="flex gap-2">
-        <div className="flex h-44 flex-col justify-between text-end text-xs text-slate-500">
-          <span>{format(max)}</span>
-          <span>0</span>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex h-44 items-end gap-0.5 border-b border-t border-dashed border-slate-200">
-            {columns.map((c) => (
-              <div key={c.key} tabIndex={0} aria-label={c.tip} className="group relative flex h-full flex-1 items-end outline-none">
-                <div
-                  className="w-full rounded-t-[4px] bg-brand-500 group-hover:bg-brand-700 group-focus:bg-brand-700"
-                  style={{ height: `${(c.value / max) * 100}%`, minHeight: c.value > 0 ? 2 : 0 }}
-                />
-                <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white shadow group-hover:block group-focus:block">
-                  {c.tip}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-1 flex gap-0.5 text-xs text-slate-500">
-            {columns.map((c, i) => (
-              <span key={c.key} className="flex-1 overflow-visible whitespace-nowrap text-center">
-                {i % every === 0 ? c.tick : ""}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Time runs left to right in both languages. */}
+      <ChartContainer config={config} className="h-60 w-full" dir="ltr">
+        <BarChart data={groups} accessibilityLayer barGap={4}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="tick" tickLine={false} axisLine={false} tickMargin={10} interval={0} />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                labelFormatter={(_, payload) => payload[0]?.payload.label}
+                formatter={(value, name) => (
+                  <div className="flex w-full items-center justify-between gap-4">
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      <span className="size-2.5 rounded-[2px]" style={{ background: `var(--color-${name})` }} />
+                      {config[name as "a" | "b"].label}
+                    </span>
+                    <span className="font-mono font-medium tabular-nums">{format(Number(value))}</span>
+                  </div>
+                )}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="a" fill="var(--color-a)" radius={6} />
+          <Bar dataKey="b" fill="var(--color-b)" radius={6} />
+        </BarChart>
+      </ChartContainer>
       <details className="text-sm">
         <summary className="cursor-pointer text-slate-500">{t("analytics.asTable")}</summary>
         <table className="mt-2 w-full text-start">
+          <thead>
+            <tr className="text-slate-500">
+              <th className="py-1 text-start font-normal" />
+              <th className="py-1 text-end font-normal">{names[0]}</th>
+              <th className="py-1 text-end font-normal">{names[1]}</th>
+            </tr>
+          </thead>
           <tbody>
-            {columns.map((c) => (
-              <tr key={c.key} className="border-t border-slate-200">
-                <td className="py-1">{c.tick}</td>
+            {groups.map((g) => (
+              <tr key={g.key} className="border-t border-slate-200">
+                <td className="py-1">{g.label}</td>
                 <td className="py-1 text-end" dir="ltr">
-                  {format(c.value)}
+                  {format(g.a)}
+                </td>
+                <td className="py-1 text-end" dir="ltr">
+                  {format(g.b)}
                 </td>
               </tr>
             ))}
@@ -169,20 +202,17 @@ function Charts({ data }: { data: Analytics }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <ColumnChart
+        <GroupedBars
           title={t("analytics.visitsPerDay")}
+          names={[t("kind.new"), t("kind.followup")]}
           format={String}
-          columns={data.by_day.map((d) => ({
-            key: d.date,
-            tick: shortDate(d.date),
-            value: d.visits,
-            tip: `${shortDate(d.date)}: ${t("analytics.visitsTip", { n: d.visits })}`,
-          }))}
+          groups={toGroups(data.by_day, (d) => [d.visits - d.followups, d.followups])}
         />
-        <ColumnChart
+        <GroupedBars
           title={t("analytics.moneyPerDay")}
-          format={(n) => money(n)}
-          columns={data.by_day.map((d) => ({ key: d.date, tick: shortDate(d.date), value: d.collected, tip: `${shortDate(d.date)}: ${iqd(d.collected)}` }))}
+          names={[t("payments.method.cash"), t("payments.method.online")]}
+          format={iqd}
+          groups={toGroups(data.by_day, (d) => [d.cash, d.online])}
         />
       </div>
 
@@ -226,7 +256,7 @@ function Charts({ data }: { data: Analytics }) {
 // The manager's numbers for the last 7 or 30 days.
 export function AnalyticsSection() {
   const { t } = useT();
-  const [days, setDays] = useState<number>(30);
+  const [days, setDays] = useState<number>(28);
   const { state, reload } = useLoad(() => api.analytics(days), String(days), { keepPrevious: true });
 
   return (
