@@ -163,7 +163,8 @@ export default function LoginPage() {
               />
             </Field>
             <Field label={t("login.password")} error={errors.password?.message}>
-              <div className="relative">
+              {/* Passwords are typed left to right, so the eye always sits on the right, away from the text. */}
+              <div className="relative" dir="ltr">
                 <Input
                   type={showPassword ? "text" : "password"}
                   dir="ltr"
