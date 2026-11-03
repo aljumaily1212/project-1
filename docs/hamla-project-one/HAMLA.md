@@ -3646,3 +3646,726 @@ npm run build
 | Medical file | `screenshots/08-patient-file.png` |
 | English and night mode | `screenshots/09-english-dark.png` |
 | Dashboard on desktop | `screenshots/10-dashboard-desktop.png` |
+
+## Day 2: 3 November 2026
+
+### Entry 17: How we work now (branches and pull requests)
+
+**Why it changed:** our DevOps teammate added a `Jenkinsfile` to the repo. Jenkins is a CI/CD tool. CI means "continuous integration": every push is checked automatically.
+
+**What the Jenkinsfile does on every push:**
+
+| Stage | Command | Meaning |
+| --- | --- | --- |
+| Install Dependencies | `npm ci` | Installs the exact versions from `package-lock.json` |
+| Lint | `npm run lint` | Checks the code quality |
+| Build | `npm run build` | Builds the site, including the TypeScript check |
+
+**Our new rule:** never push to `main`. Each request gets its own branch and pull request, and Yasser reviews and merges it.
+
+```bash
+git switch -c feature/zod-validation
+git add -A
+git commit -m "Use Zod for env config and the doctor visit form"
+git push -u origin feature/zod-validation
+```
+
+- `git switch -c name` creates a new branch and moves to it. A branch is a separate line of work, so `main` stays safe.
+- `git add -A` prepares all changed files.
+- `git commit -m "..."` saves them with a short message.
+- `git push -u origin name` uploads the branch. `-u` remembers the link, so later you can just write `git push`.
+
+**Important:** Jenkins has no `.env` file, so before every push we ran the build without `.env`, exactly like Jenkins does.
+
+**Today's branches, in merge order:**
+
+1. `feature/zod-validation`
+2. `feature/remove-landing`
+3. `feature/ui-library`
+4. `feature/role-login`
+5. `feature/medical-colors`
+6. `docs/hamla-day-2`
+
+Each branch starts from the one before it, so merge them in this order.
+
+### Entry 18: Request 1, using Zod more widely
+
+**Goal:** Zod already checked the login, register and walk-in forms. Now it also checks the `.env` file and the doctor's visit form.
+
+**File:** `lib/config.ts`
+
+```ts
+import { z } from "zod";
+
+// Checks .env when the site starts, so a wrong value fails with a clear message.
+const envSchema = z.object({
+  NEXT_PUBLIC_API_URL: z.url().default("http://localhost:8000"),
+  NEXT_PUBLIC_USE_MOCK: z.enum(["true", "false"]).default("false"),
+});
+
+const result = envSchema.safeParse({
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  NEXT_PUBLIC_USE_MOCK: process.env.NEXT_PUBLIC_USE_MOCK,
+});
+
+if (!result.success) {
+  throw new Error(`Invalid .env file:\n${z.prettifyError(result.error)}`);
+}
+
+export const API_URL = result.data.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+
+export const USE_MOCK = result.data.NEXT_PUBLIC_USE_MOCK === "true";
+```
+
+**Line by line:**
+
+- `import { z } from "zod"` brings in Zod. `z` is the object we build rules with.
+- `z.object({ ... })` describes the shape we expect.
+- `z.url()` accepts only a real web address.
+- `.default("http://localhost:8000")` is used when the value is missing, like on Jenkins.
+- `z.enum(["true", "false"])` accepts only these two words. Before, a typo like `ture` silently meant false. Now it is an error.
+- `process.env.NEXT_PUBLIC_API_URL` must be written in full like this. Next.js finds these exact words and puts the value into the browser code.
+- `safeParse` checks without crashing. It returns `success` and either `data` or `error`.
+- `if (!result.success) throw new Error(...)` stops the site with a clear message.
+- `z.prettifyError(result.error)` turns Zod's error into readable text.
+- `result.data` is the checked data, with the right types.
+
+**Tested:** `NEXT_PUBLIC_USE_MOCK=yes` made the build fail with `Invalid .env file: → at NEXT_PUBLIC_USE_MOCK`.
+
+**File:** `lib/validation.ts`
+
+```ts
+import { z } from "zod";
+
+const phone = z.string().regex(/^07\d{9}$/, "validation.phone");
+const password = z.string().min(6, "validation.password");
+
+export const loginSchema = z.object({ phone, password });
+export type LoginForm = z.infer<typeof loginSchema>;
+
+export const registerSchema = loginSchema.extend({
+  name: z.string().trim().min(2, "validation.name"),
+});
+export type RegisterForm = z.infer<typeof registerSchema>;
+
+export const walkInSchema = z.object({
+  name: z.string().trim().min(2, "validation.name"),
+  phone,
+  doctor_id: z.string(),
+  emergency: z.boolean(),
+});
+export type WalkInForm = z.infer<typeof walkInSchema>;
+
+export const medicineSchema = z.object({
+  name: z.string().trim().min(1, "validation.required"),
+  dose: z.string().trim().min(1, "validation.required"),
+  days: z.number("validation.days").int("validation.days").min(1, "validation.days").max(365, "validation.days"),
+});
+
+export const visitSchema = z.object({
+  diagnosis: z.string().trim().min(2, "validation.diagnosis"),
+  internal_note: z.string().trim(),
+  medicines: z.array(medicineSchema),
+});
+export type VisitForm = z.infer<typeof visitSchema>;
+```
+
+**Line by line, the new part:**
+
+- `medicineSchema` is the rule for one medicine.
+- `.trim().min(1, "validation.required")` means it cannot be empty or just spaces.
+- `z.number("validation.days")` must be a number. The text is the error if it is not.
+- `.int(...)` means a whole number, with no `2.5` days.
+- `.min(1, ...).max(365, ...)` gives the allowed range.
+- `visitSchema` is the whole visit form.
+- `z.array(medicineSchema)` is a list where every item follows the medicine rule.
+- `internal_note: z.string().trim()` is optional text, so it has no `min`.
+- `type VisitForm = z.infer<typeof visitSchema>` creates the TypeScript type from the rules.
+
+**File:** `app/(dashboard)/doctor/page.tsx`
+
+```tsx
+"use client";
+
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
+import { api, type StaffAppointment } from "@/lib/api";
+import { useSession } from "@/lib/auth";
+import { errorText, useT } from "@/lib/i18n";
+import { useLoad } from "@/lib/useLoad";
+import { visitSchema, type VisitForm } from "@/lib/validation";
+import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea } from "@/components/common";
+import { CardsSkeleton } from "@/components/skeleton";
+
+function History({ patientId }: { patientId: number }) {
+  const { t } = useT();
+  const { state, reload } = useLoad(() => api.patientHistory(patientId), String(patientId));
+
+  if (state.status === "loading") return <CardsSkeleton count={1} />;
+  if (state.status === "error") return <ErrorState message={errorText(state.error, t)} onRetry={reload} />;
+  if (state.data.length === 0) return <p className="text-sm text-slate-500">{t("doctor.noHistory")}</p>;
+  return (
+    <div className="space-y-2">
+      {state.data.map((v) => (
+        <div key={v.id} className="rounded-lg bg-brand-50 p-3 text-sm">
+          <p>
+            {t("visit.diagnosis")}: {v.diagnosis}
+          </p>
+          {v.internal_note && <p className="text-slate-600">{v.internal_note}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VisitForm({ appointment, onDone }: { appointment: StaffAppointment; onDone: () => void }) {
+  const { t } = useT();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<VisitForm>({
+    resolver: zodResolver(visitSchema),
+    defaultValues: { diagnosis: "", internal_note: "", medicines: [] },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
+
+  async function onSubmit(values: VisitForm) {
+    try {
+      await api.finishVisit(appointment.id, values);
+      toast.success(t("doctor.finished"));
+      onDone();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
+
+  return (
+    <Card>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">{appointment.patient_name}</h2>
+          <StatusBadge status={appointment.status} />
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">{t("doctor.history")}</h3>
+          <History patientId={appointment.patient_id} />
+        </div>
+
+        <Field label={t("visit.diagnosis")} error={errors.diagnosis?.message}>
+          <Textarea aria-invalid={!!errors.diagnosis || undefined} {...register("diagnosis")} />
+        </Field>
+        <Field label={t("doctor.internalNote")}>
+          <Textarea {...register("internal_note")} />
+        </Field>
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium">{t("visit.prescription")}</h3>
+          {fields.map((field, index) => {
+            const rowErrors = errors.medicines?.[index];
+            return (
+              <div key={field.id} className="grid items-start gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_6rem_auto]">
+                <Field label={t("doctor.medicine")} error={rowErrors?.name?.message}>
+                  <Input dir="ltr" invalid={!!rowErrors?.name} {...register(`medicines.${index}.name`)} />
+                </Field>
+                <Field label={t("doctor.dose")} error={rowErrors?.dose?.message}>
+                  <Input dir="ltr" invalid={!!rowErrors?.dose} {...register(`medicines.${index}.dose`)} />
+                </Field>
+                <Field label={t("doctor.days")} error={rowErrors?.days?.message}>
+                  <Input type="number" min={1} invalid={!!rowErrors?.days} {...register(`medicines.${index}.days`, { valueAsNumber: true })} />
+                </Field>
+                <Button type="button" variant="danger" className="sm:mt-7" onClick={() => remove(index)}>
+                  {t("doctor.removeMedicine")}
+                </Button>
+              </div>
+            );
+          })}
+          <Button type="button" variant="secondary" onClick={() => append({ name: "", dose: "", days: 1 })}>
+            {t("doctor.addMedicine")}
+          </Button>
+        </div>
+
+        <Button type="submit" className="h-11 w-full" loading={isSubmitting}>
+          {t("doctor.finish")}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+export default function DoctorPage() {
+  const { t } = useT();
+  const { session } = useSession();
+  const doctorId = session?.user.doctor_id ?? 0;
+  const { state, reload } = useLoad(() => api.doctorQueue(doctorId), String(doctorId), { every: 4000 });
+
+  async function callNext(id: number) {
+    try {
+      await api.startVisit(id);
+      reload();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
+
+  const current = state.status === "success" ? state.data.find((a) => a.status === "in_progress") : undefined;
+  const waiting = state.status === "success" ? state.data.filter((a) => a.status === "arrived") : [];
+
+  return (
+    <>
+      <PageHeader title={t("doctor.title")} description={t("doctor.subtitle")} />
+      {state.status === "loading" && <CardsSkeleton count={2} />}
+      {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
+      {state.status === "success" && (
+        <div className="grid items-start gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            {current ? (
+              <VisitForm key={current.id} appointment={current} onDone={reload} />
+            ) : (
+              <EmptyState title={t("doctor.noCurrent")} description={t("doctor.noCurrentHint")} />
+            )}
+          </div>
+          <Card className="space-y-3">
+            <h2 className="font-semibold">{t("queue.title")}</h2>
+            {waiting.length === 0 && <p className="text-sm text-slate-500">{t("queue.empty")}</p>}
+            <ol className="space-y-2">
+              {waiting.map((a, index) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                  <span>
+                    {index + 1}. {a.patient_name}
+                  </span>
+                  {a.emergency && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {!current && waiting.length > 0 && (
+              <Button className="w-full" onClick={() => callNext(waiting[0].id)}>
+                {t("doctor.callNext")}
+              </Button>
+            )}
+          </Card>
+        </div>
+      )}
+    </>
+  );
+}
+```
+
+**Line by line, `VisitForm`:**
+
+- `useForm<VisitForm>({ resolver: zodResolver(visitSchema), defaultValues })` connects the form to Zod. `defaultValues` gives the starting values.
+- `useFieldArray({ control, name: "medicines" })` manages a list of fields that can grow and shrink.
+- `fields` is the current list, `append` adds a row, and `remove` deletes a row.
+- `control` connects the list to the form.
+- `onSubmit(values)` runs only if Zod accepts everything, so `values` is always clean.
+- `key={field.id}` uses an id from the library, not the position. That keeps typed text in the right row when a row is deleted.
+- `errors.medicines?.[index]` gives the errors of one row.
+- `` register(`medicines.${index}.name`) `` connects an input to one row's field.
+- `{ valueAsNumber: true }` gives the days as a number, which Zod requires.
+- `sm:grid-cols-[1fr_1fr_6rem_auto]` sets custom column widths on bigger screens.
+- `type="button"` stops the add and remove buttons from submitting the form.
+- `loading={isSubmitting}` shows the spinner and blocks double clicks.
+
+**Tested:** an empty medicine row showed "هذا الحقل مطلوب" and the visit was not saved.
+
+### Entry 19: Request 2, removing the landing page
+
+**What was deleted:** `components/landing/landing-page.tsx`, `components/landing/navbar.tsx`, and the 25 `landing.*` texts in each language file.
+
+**File:** `app/page.tsx` in that branch:
+
+```tsx
+import { redirect } from "next/navigation";
+
+export default function Home() {
+  redirect("/login");
+}
+```
+
+- `redirect` sends the visitor to another address. It ran on the server, so the browser received status 307 (a temporary redirect).
+- This was a temporary step, and Entry 21 replaces it with the new sign-in page.
+
+**Why delete unused text too:** keys nobody uses make the language files harder to read, and they can hide mistakes.
+
+### Entry 20: Request 3, the UI library (shadcn/ui)
+
+**What shadcn/ui is:** a collection of accessible components built on Radix UI. You don't install it as one package. The CLI copies each component's code into your project, so you own it and can change it.
+
+**No UI/UX skill was available** in the Claude skill catalog, so we set up the library properly instead. It is the same one Bareeed used.
+
+**File:** `components.json`, copied from Bareeed
+
+```json
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "radix-nova",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "app/globals.css",
+    "baseColor": "neutral",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "rtl": true,
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "menuColor": "default",
+  "menuAccent": "subtle",
+  "registries": {}
+}
+```
+
+**Line by line:**
+
+- `"style": "radix-nova"` is the style of components to download.
+- `"rsc": true` means the project uses React Server Components, which is true for Next.js.
+- `"tsx": true` gives TypeScript files.
+- `"css": "app/globals.css"` is our main CSS file.
+- `"cssVariables": true` means colors come from CSS variables, which is how our themes work.
+- `"iconLibrary": "lucide"` uses the same icons we already use.
+- `"rtl": true` makes components support Arabic right-to-left.
+- `"aliases"` tells the CLI where to put files, like `@/components/ui`.
+
+**Adding a component is one command:**
+
+```bash
+npx shadcn@latest add separator label
+```
+
+- This created `components/ui/separator.tsx` and `components/ui/label.tsx`, and changed nothing else.
+- To see all the components, visit https://ui.shadcn.com and pick one. For example, run `npx shadcn@latest add dialog`.
+- The `Separator` is the line above the demo accounts on the sign-in page.
+
+### Entry 21: Request 5, one sign-in page for every role
+
+**Goal:** like the design Yasser sent, with a brand panel on one side and the form on the other. After signing in, each role opens its own page.
+
+**File:** `app/page.tsx`
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { CalendarCheck, Eye, EyeOff, ListOrdered, Pill, ShieldCheck } from "lucide-react";
+import { api } from "@/lib/api";
+import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
+import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
+import { USE_MOCK } from "@/lib/config";
+import { errorText, useT } from "@/lib/i18n";
+import { loginSchema, type LoginForm } from "@/lib/validation";
+import { LanguageSwitch } from "@/components/language-switch";
+import { LogoMark, Wordmark } from "@/components/logo";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Button, Field, Input } from "@/components/common";
+import { Separator } from "@/components/ui/separator";
+
+const FEATURES = [
+  { icon: CalendarCheck, title: "login.feature.booking", hint: "login.feature.bookingHint" },
+  { icon: ListOrdered, title: "login.feature.queue", hint: "login.feature.queueHint" },
+  { icon: Pill, title: "login.feature.pharmacy", hint: "login.feature.pharmacyHint" },
+] as const;
+
+const DEMO_ACCOUNTS = [
+  { label: "nav.patient", phone: MOCK_LOGINS.patient },
+  { label: "nav.reception", phone: MOCK_LOGINS.reception },
+  { label: "nav.doctor", phone: MOCK_LOGINS.doctor },
+  { label: "nav.pharmacy", phone: MOCK_LOGINS.pharmacy },
+] as const;
+
+function BrandPanel() {
+  const { t } = useT();
+  return (
+    <section className="login-panel relative hidden flex-col justify-between overflow-hidden p-12 text-[#f8fafc] lg:flex">
+      <div className="login-grid absolute inset-0" aria-hidden />
+
+      <div className="relative flex items-center gap-3">
+        <LogoMark size={48} />
+        <div>
+          <p className="text-lg font-bold">{t("app.name")}</p>
+          <p className="text-sm opacity-75">{t("login.panel.tagline")}</p>
+        </div>
+      </div>
+
+      <div className="relative max-w-lg space-y-6">
+        <h1 className="text-4xl font-bold leading-tight">{t("login.panel.title")}</h1>
+        <p className="opacity-75">{t("login.panel.subtitle")}</p>
+        <div className="grid grid-cols-3 gap-3">
+          {FEATURES.map(({ icon: Icon, title, hint }) => (
+            <div key={title} className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
+              <Icon className="mb-3 size-5 text-[#5eead4]" aria-hidden />
+              <p className="font-semibold">{t(title)}</p>
+              <p className="text-sm opacity-70">{t(hint)}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="relative flex items-center gap-2 text-sm opacity-70">
+        <ShieldCheck className="size-4" aria-hidden />
+        {t("login.trust")}
+      </p>
+    </section>
+  );
+}
+
+function DemoAccounts({ onPick }: { onPick: (phone: string) => void }) {
+  const { t } = useT();
+
+  function reset() {
+    resetMockData();
+    clearSession();
+    window.location.reload();
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+      <p className="font-medium">{t("login.demo")}</p>
+      <div className="grid grid-cols-2 gap-2">
+        {DEMO_ACCOUNTS.map(({ label, phone }) => (
+          <Button key={phone} type="button" variant="secondary" onClick={() => onPick(phone)}>
+            {t(label)}
+          </Button>
+        ))}
+      </div>
+      <p dir="auto">{t("login.demoPassword", { p: MOCK_PASSWORD })}</p>
+      <button type="button" onClick={reset} className="text-xs underline">
+        {t("login.reset")}
+      </button>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  const router = useRouter();
+  const { t } = useT();
+  const { session } = useSession();
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
+
+  // After login, every role goes to its own page.
+  useEffect(() => {
+    if (session) router.replace(homeFor(session.user.role));
+  }, [session, router]);
+
+  async function onSubmit(values: LoginForm) {
+    setError("");
+    try {
+      const res = await api.login(values);
+      saveSession({ token: res.access_token, refreshToken: res.refresh_token, user: res.user });
+    } catch (err) {
+      setError(errorText(err, t));
+    }
+  }
+
+  function fillDemo(phone: string) {
+    setValue("phone", phone, { shouldValidate: true });
+    setValue("password", MOCK_PASSWORD, { shouldValidate: true });
+  }
+
+  return (
+    <div className="grid min-h-screen lg:grid-cols-2">
+      <BrandPanel />
+
+      <main className="flex min-h-screen flex-col px-4 py-6 sm:px-8">
+        <div className="flex justify-end gap-2">
+          <ThemeToggle />
+          <LanguageSwitch />
+        </div>
+
+        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 py-10">
+          <div className="flex items-center gap-2 text-2xl lg:hidden">
+            <LogoMark size={40} />
+            <Wordmark />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold tracking-tight">{t("login.title")}</h2>
+            <p className="text-slate-600">{t("login.subtitle")}</p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+            <Field label={t("login.phone")} error={errors.phone?.message}>
+              <Input
+                type="tel"
+                inputMode="numeric"
+                dir="ltr"
+                autoComplete="username"
+                placeholder="07XXXXXXXXX"
+                className="h-11"
+                invalid={!!errors.phone}
+                {...register("phone")}
+              />
+            </Field>
+            <Field label={t("login.password")} error={errors.password?.message}>
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  dir="ltr"
+                  autoComplete="current-password"
+                  className="h-11 pe-11"
+                  invalid={!!errors.password}
+                  {...register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
+                  className="absolute inset-y-0 end-0 flex w-11 items-center justify-center text-slate-500 hover:text-slate-800"
+                >
+                  {showPassword ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                </button>
+              </div>
+            </Field>
+
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                {error}
+              </p>
+            )}
+
+            <Button type="submit" loading={isSubmitting} className="h-11 w-full text-base">
+              {t("login.submit")}
+            </Button>
+          </form>
+
+          <p className="text-center text-sm text-slate-600">
+            {t("login.noAccount")}{" "}
+            <Link href="/account/register" className="font-medium text-brand-600 hover:underline">
+              {t("login.register")}
+            </Link>
+          </p>
+
+          {USE_MOCK && (
+            <>
+              <Separator />
+              <DemoAccounts onPick={fillDemo} />
+            </>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-slate-500">{t("login.footer")}</p>
+      </main>
+    </div>
+  );
+}
+```
+
+**Line by line, the constants:**
+
+- `FEATURES` is the three tiles on the brand panel. `as const` keeps the exact text keys, so TypeScript can check them.
+- `DEMO_ACCOUNTS` is the four demo buttons, one per role.
+
+**Line by line, `BrandPanel`:**
+
+- `hidden ... lg:flex` hides the panel on phones and shows it from laptop width. Phones only see the form.
+- `login-panel` is the teal gradient, and `login-grid` is the faint grid lines. Both are in `globals.css`.
+- `absolute inset-0` makes the grid cover the whole panel. `relative` on the other parts keeps them above the grid.
+- `justify-between` pushes the logo to the top, the text to the middle, and the trust line to the bottom.
+- `bg-white/5` is white at 5% strength, a glass effect. `backdrop-blur-sm` blurs what is behind it.
+- `text-[#f8fafc]` is a fixed light color, because the panel is dark in both themes.
+
+**Line by line, `DemoAccounts`:**
+
+- `onPick` is a function the page passes in, so the button can fill the page's form.
+- `reset()` deletes the fake data and the session, then reloads.
+
+**Line by line, `LoginPage`:**
+
+- `useEffect(() => { if (session) router.replace(homeFor(session.user.role)); })` is the main logic. Once a session exists, `homeFor` picks the page: patient goes to `/account`, reception to `/reception`, doctor to `/doctor`, and pharmacy to `/pharmacy`.
+- `onSubmit` only saves the session. The effect above then moves the page, so there is one place deciding where each role goes.
+- `setValue("phone", phone, { shouldValidate: true })` fills a field from code and checks it.
+- `type={showPassword ? "text" : "password"}` switches between hidden and visible.
+- `pe-11` adds space at the end of the input, so text never goes under the eye button.
+- `absolute inset-y-0 end-0` puts the eye button inside the input, at the end. `end` means left in Arabic and right in English.
+- `aria-label` tells screen readers what the eye button does, because it has only an icon.
+- `{USE_MOCK && ( ... )}` shows the demo accounts only in mock mode.
+
+**Other changes:**
+
+- `app/login` and `app/account/login` were deleted, because there is one sign-in page now.
+- The guards and logout now go to `/`.
+- The `login.*` texts were rewritten in both languages, and `login.submit` became "Sign in".
+
+**Tested:** every role landed on its own page, and a demo button logged the pharmacy into `/pharmacy`.
+
+**A problem we met:** the dev server kept old CSS, so the new panel styles did not appear. Deleting the `.next/dev` folder, which only holds cache, and restarting fixed it. Avoid running `npm run build` while `npm run dev` is running.
+
+### Entry 22: Request 6, medical colors
+
+**Goal:** replace Bareeed's indigo with teal, a calm color common in healthcare, which also matches the design Yasser sent.
+
+**What changed in `app/globals.css`:**
+
+```css
+--color-brand-50: #f0fdfa;
+--color-brand-500: #14b8a6;
+--color-brand-600: #0f766e;
+--primary: #0f766e;
+```
+
+```css
+.dark {
+  --color-brand-600: #2dd4bf;
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
+}
+```
+
+**Line by line:**
+
+- `--color-brand-50` to `--color-brand-900` is the teal scale, from very light to very dark. Every `bg-brand-*` and `text-brand-*` class uses it, so no page needed changes.
+- `--primary: #0f766e` is the main button color. It is darker than the logo teal on purpose. White text on it has a contrast of about 5.5 to 1, above the 4.5 to 1 readability rule.
+- In night mode, `--primary: #2dd4bf` is a light teal, and `--primary-foreground: #042f2e` makes the button text dark. White on light teal would be hard to read.
+- `--color-brand-600: #2dd4bf` in night mode fixes links, which were too dark on the dark background.
+- The logo gradient in `components/logo.tsx` changed from `#6366f1 → #7c3aed` to `#14b8a6 → #0f766e`.
+
+### Entry 23: Question 7, is the pharmacy in the client's request?
+
+**Yes.** Page 1 of the PDF lists the pharmacy as one of the users: it receives prescriptions, dispenses them, and records what was dispensed. Page 3 adds that the pharmacy sees only the prescription, a prescription can be dispensed once, and it cannot be dispensed after a set time.
+
+**What we built:** the pharmacy sees prescriptions only and dispenses each one once.
+
+**Not built yet:** the expiry time, because we still need the client's answer for how many days.
+
+The same PDF also lists the lab, the accountant and the manager, which are not built yet.
+
+### Day 2 results
+
+| Screen | Screenshot |
+| --- | --- |
+| Sign-in on phone | `screenshots/01-login.png` |
+| Sign-in on laptop | `screenshots/02-login-desktop.png` |
+| Booking | `screenshots/03-patient-booking.png` |
+| Reception | `screenshots/04-reception.png` |
+| Patient queue | `screenshots/05-patient-queue.png` |
+| Doctor visit | `screenshots/06-doctor-visit.png` |
+| Pharmacy | `screenshots/07-pharmacy.png` |
+| Medical file | `screenshots/08-patient-file.png` |
+| English and night mode | `screenshots/09-english-dark.png` |
+| Dashboard on laptop | `screenshots/10-dashboard-desktop.png` |
+
+The day 1 tables above list `01-home.png` and `02-staff-login.png`. Those pages no longer exist, so the screenshots were replaced.
