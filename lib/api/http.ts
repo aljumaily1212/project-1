@@ -2,6 +2,7 @@ import { getRefreshToken } from "../auth";
 import { http } from "./axios";
 import type {
   BookRequest,
+  CreateStaffRequest,
   Day,
   Doctor,
   DoctorVisit,
@@ -15,6 +16,7 @@ import type {
   RegisterRequest,
   Slot,
   StaffAppointment,
+  StaffUser,
   WalkInRequest,
   WalkInResult,
 } from "./types";
@@ -69,6 +71,10 @@ export const httpApi = {
   listPrescriptions: () => http.get<Prescription[]>("/prescriptions").then((r) => r.data),
 
   dispense: (id: number) => http.post<null>(`/prescriptions/${id}/dispense`, {}).then(() => undefined),
+
+  listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
+
+  createStaff: (body: CreateStaffRequest) => http.post<null>("/users", body).then(() => undefined),
 };
 
 export type Api = typeof httpApi;

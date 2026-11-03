@@ -2,6 +2,7 @@ import { getToken } from "../auth";
 import { ApiError } from "./errors";
 import type { Api } from "./http";
 import type {
+  CreateStaffRequest,
   Doctor,
   DoctorVisit,
   LoginResponse,
@@ -9,6 +10,7 @@ import type {
   MyAppointment,
   Role,
   StaffAppointment,
+  StaffUser,
   User,
 } from "./types";
 
@@ -22,9 +24,18 @@ export const MOCK_LOGINS = {
   pharmacy: "07800000004",
 };
 
-const STORAGE_KEY = "alrahma.mock";
+const STORAGE_KEY = "alrahma.mock.v2";
 
-const doctors: (Doctor & { slots: string[] })[] = [
+type MockDoctor = Doctor & { slots: string[] };
+
+const DEFAULT_SLOTS = ["09:00", "09:20", "09:40", "10:00", "10:20", "10:40"];
+
+const BRANCHES = {
+  main: { branch: "Main Branch", branch_ar: "الفرع الرئيسي" },
+  second: { branch: "Second Branch", branch_ar: "الفرع الثاني" },
+};
+
+const seedDoctors: MockDoctor[] = [
   {
     id: 1,
     name: "Dr. Ali Hassan",
@@ -65,6 +76,7 @@ type MockVisit = {
 type Db = {
   nextId: number;
   nextArrival: number;
+  doctors: MockDoctor[];
   users: MockUser[];
   patients: MockPatient[];
   appointments: MockAppointment[];
@@ -74,6 +86,7 @@ type Db = {
 const seed = (): Db => ({
   nextId: 100,
   nextArrival: 2,
+  doctors: seedDoctors,
   users: [
     { id: 1, name: "سارة موظفة", phone: MOCK_LOGINS.reception, role: "reception", password: MOCK_PASSWORD },
     { id: 2, name: "د. علي حسن", phone: MOCK_LOGINS.doctor, role: "doctor", doctor_id: 1, password: MOCK_PASSWORD },
@@ -140,13 +153,13 @@ function requireUser(db: Db, ...roles: Role[]) {
   return user;
 }
 
-function doctorOf(id: number) {
-  const doctor = doctors.find((d) => d.id === id);
+function doctorOf(db: Db, id: number) {
+  const doctor = db.doctors.find((d) => d.id === id);
   if (!doctor) fail(404);
   return publicDoctor(doctor);
 }
 
-function publicDoctor({ slots: _slots, ...doctor }: (typeof doctors)[number]): Doctor {
+function publicDoctor({ slots: _slots, ...doctor }: MockDoctor): Doctor {
   return (void _slots, doctor);
 }
 
@@ -218,12 +231,12 @@ export const mockApi: Api = {
 
   logout: () => delay(undefined),
 
-  listDoctors: () => delay(doctors.map(publicDoctor)),
+  listDoctors: async () => delay(read().doctors.map(publicDoctor)),
 
   doctorSlots: async (doctorId, day) => {
     const db = read();
     requireUser(db, "patient");
-    const doctor = doctors.find((d) => d.id === doctorId);
+    const doctor = db.doctors.find((d) => d.id === doctorId);
     if (!doctor) fail(404);
     return delay(doctor.slots.map((time) => ({ time, available: !isTaken(db, doctorId, day, time) })));
   },
@@ -245,7 +258,7 @@ export const mockApi: Api = {
         return {
           id: a.id,
           patient_name: patientName(db, a.patient_id),
-          doctor: doctorOf(a.doctor_id),
+          doctor: doctorOf(db, a.doctor_id),
           day: a.day,
           time: a.time,
           status: a.status,
@@ -265,7 +278,7 @@ export const mockApi: Api = {
         .map((v) => ({
           id: v.id,
           patient_name: patientName(db, v.patient_id),
-          doctor: doctorOf(v.doctor_id),
+          doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,
           medicines: v.medicines,
         })),
@@ -354,7 +367,7 @@ export const mockApi: Api = {
         .map((v): DoctorVisit => ({
           id: v.id,
           patient_name: patientName(db, v.patient_id),
-          doctor: doctorOf(v.doctor_id),
+          doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,
           internal_note: v.internal_note,
           medicines: v.medicines,
@@ -401,6 +414,40 @@ export const mockApi: Api = {
     if (!visit) fail(404);
     if (visit.dispensed) fail(409, "already_dispensed");
     visit.dispensed = true;
+    write(db);
+    return delay(undefined);
+  },
+  listStaff: async () => {
+    const db = read();
+    requireUser(db, "reception");
+    return delay(
+      db.users
+        .filter((u): u is MockUser & { role: StaffUser["role"] } => u.role !== "patient")
+        .map(({ id, name, phone, role }) => ({ id, name, phone, role })),
+    );
+  },
+
+  createStaff: async ({ name, phone, password, role, doctor }: CreateStaffRequest) => {
+    const db = read();
+    requireUser(db, "reception");
+    if (db.users.some((u) => u.phone === phone)) fail(409, "phone_taken");
+    const user: MockUser = { id: db.nextId++, name, phone, role, password };
+    if (role === "doctor") {
+      if (!doctor) fail(422);
+      const id = db.nextId++;
+      db.doctors.push({
+        id,
+        name: doctor.name_en,
+        name_ar: name,
+        specialty: doctor.specialty_en,
+        specialty_ar: doctor.specialty_ar,
+        ...BRANCHES[doctor.branch],
+        fee: doctor.fee,
+        slots: DEFAULT_SLOTS,
+      });
+      user.doctor_id = id;
+    }
+    db.users.push(user);
     write(db);
     return delay(undefined);
   },
