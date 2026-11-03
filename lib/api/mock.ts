@@ -2,6 +2,9 @@ import { getToken } from "../auth";
 import { ApiError } from "./errors";
 import type { Api } from "./http";
 import type {
+  AuditAction,
+  AuditEntry,
+  ClinicSettings,
   CreateStaffRequest,
   Doctor,
   DoctorVisit,
@@ -23,9 +26,19 @@ export const MOCK_LOGINS = {
   reception: "07800000001",
   doctor: "07800000002",
   pharmacy: "07800000004",
+  manager: "07800000006",
 };
 
-const STORAGE_KEY = "alrahma.mock.v3";
+const STORAGE_KEY = "alrahma.mock.v4";
+
+// Placeholder values until the client answers. The manager can change them.
+const DEFAULT_SETTINGS: ClinicSettings = {
+  cancel_hours: 3,
+  no_show_limit: 3,
+  deposit_amount: 10000,
+  prescription_days: 7,
+  usd_rate: 1310,
+};
 
 type MockDoctor = Doctor & { slots: string[] };
 
@@ -83,6 +96,8 @@ type Db = {
   patients: MockPatient[];
   appointments: MockAppointment[];
   visits: MockVisit[];
+  settings: ClinicSettings;
+  audit: AuditEntry[];
 };
 
 const seed = (): Db => ({
@@ -95,6 +110,7 @@ const seed = (): Db => ({
     { id: 3, name: "د. نور جاسم", phone: "07800000003", role: "doctor", doctor_id: 2, password: MOCK_PASSWORD },
     { id: 4, name: "أحمد الصيدلي", phone: MOCK_LOGINS.pharmacy, role: "pharmacy", password: MOCK_PASSWORD },
     { id: 5, name: "زينب كريم", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
+    { id: 6, name: "مدير المجمع", phone: MOCK_LOGINS.manager, role: "manager", password: MOCK_PASSWORD },
   ],
   patients: [
     { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
@@ -126,6 +142,8 @@ const seed = (): Db => ({
       dispensed: false,
     },
   ],
+  settings: DEFAULT_SETTINGS,
+  audit: [],
 });
 
 function read(): Db {
@@ -153,6 +171,21 @@ function requireUser(db: Db, ...roles: Role[]) {
   if (!user) fail(401);
   if (roles.length > 0 && !roles.includes(user.role)) fail(403);
   return user;
+}
+
+// Every sensitive action is written here, so the manager can see who did what and when.
+function log(db: Db, user: MockUser, action: AuditAction, target: string) {
+  // In development React loads each page twice, so skip the same entry within 3 seconds.
+  const last = db.audit[0];
+  if (last && last.user_name === user.name && last.action === action && last.target === target && Date.now() - Date.parse(last.at) < 3000) return;
+  db.audit.unshift({
+    id: db.nextId++,
+    at: new Date().toISOString(),
+    user_name: user.name,
+    role: user.role,
+    action,
+    target,
+  });
 }
 
 function doctorOf(db: Db, id: number) {
@@ -293,14 +326,17 @@ export const mockApi: Api = {
     if (db.patients.find((p) => p.id === patient_id)?.account_id !== user.id) fail(403);
     if (isTaken(db, doctor_id, day, time)) fail(409, "slot_taken");
     db.appointments.push({ id: db.nextId++, patient_id, doctor_id, day, time, status: "booked", emergency: false, arrival_order: 0 });
+    log(db, user, "appointment.book", patientName(db, patient_id));
     write(db);
     return delay(undefined);
   },
 
   cancelAppointment: async (id) => {
     const db = read();
-    requireUser(db, "patient");
-    changeAppointment(db, id, { status: "cancelled" });
+    const user = requireUser(db, "patient");
+    const appointment = changeAppointment(db, id, { status: "cancelled" });
+    log(db, user, "appointment.cancel", patientName(db, appointment.patient_id));
+    write(db);
     return delay(undefined);
   },
 
@@ -324,14 +360,16 @@ export const mockApi: Api = {
 
   checkIn: async (id, emergency) => {
     const db = read();
-    requireUser(db, "reception");
-    changeAppointment(db, id, { status: "arrived", emergency, arrival_order: db.nextArrival++ });
+    const user = requireUser(db, "reception");
+    const appointment = changeAppointment(db, id, { status: "arrived", emergency, arrival_order: db.nextArrival++ });
+    log(db, user, "appointment.checkin", patientName(db, appointment.patient_id));
+    write(db);
     return delay(undefined);
   },
 
   addWalkIn: async ({ name, phone, doctor_id, emergency }) => {
     const db = read();
-    requireUser(db, "reception");
+    const user = requireUser(db, "reception");
     const existing = db.patients.find((p) => p.phone === phone);
     const patient = existing ?? { id: db.nextId++, name, phone, account_id: null };
     if (!existing) db.patients.push(patient);
@@ -345,6 +383,7 @@ export const mockApi: Api = {
       emergency,
       arrival_order: db.nextArrival++,
     });
+    log(db, user, "walkin.add", patient.name);
     write(db);
     return delay({ duplicate: Boolean(existing) });
   },
@@ -363,6 +402,8 @@ export const mockApi: Api = {
       db.appointments.some((a) => a.patient_id === patientId && a.doctor_id === user.doctor_id) ||
       db.visits.some((v) => v.patient_id === patientId && v.doctor_id === user.doctor_id);
     if (!seesPatient) fail(403);
+    log(db, user, "file.open", patientName(db, patientId));
+    write(db);
     return delay(
       db.visits
         .filter((v) => v.patient_id === patientId)
@@ -379,8 +420,9 @@ export const mockApi: Api = {
 
   finishVisit: async (id, { diagnosis, internal_note, medicines }) => {
     const db = read();
-    requireUser(db, "doctor");
+    const user = requireUser(db, "doctor");
     const appointment = changeAppointment(db, id, { status: "done" });
+    log(db, user, "visit.finish", patientName(db, appointment.patient_id));
     db.visits.unshift({
       id: db.nextId++,
       patient_id: appointment.patient_id,
@@ -411,17 +453,18 @@ export const mockApi: Api = {
 
   dispense: async (id) => {
     const db = read();
-    requireUser(db, "pharmacy");
+    const user = requireUser(db, "pharmacy");
     const visit = db.visits.find((v) => v.id === id);
     if (!visit) fail(404);
     if (visit.dispensed) fail(409, "already_dispensed");
     visit.dispensed = true;
+    log(db, user, "prescription.dispense", patientName(db, visit.patient_id));
     write(db);
     return delay(undefined);
   },
   listStaff: async () => {
     const db = read();
-    requireUser(db, "reception");
+    requireUser(db, "reception", "manager");
     return delay(
       db.users
         .filter((u): u is MockUser & { role: StaffUser["role"] } => u.role !== "patient")
@@ -431,7 +474,7 @@ export const mockApi: Api = {
 
   createStaff: async ({ name, phone, password, role, doctor }: CreateStaffRequest) => {
     const db = read();
-    requireUser(db, "reception");
+    const creator = requireUser(db, "reception", "manager");
     if (db.users.some((u) => u.phone === phone)) fail(409, "phone_taken");
     const user: MockUser = { id: db.nextId++, name, phone, role, password };
     if (role === "doctor") {
@@ -450,7 +493,43 @@ export const mockApi: Api = {
       user.doctor_id = id;
     }
     db.users.push(user);
+    log(db, creator, "staff.create", name);
     write(db);
     return delay(undefined);
+  },
+
+  // Everyone signed in can read the rules, for example the cancel window.
+  getSettings: async () => {
+    const db = read();
+    requireUser(db);
+    return delay(db.settings);
+  },
+
+  updateSettings: async (settings) => {
+    const db = read();
+    const user = requireUser(db, "manager");
+    db.settings = settings;
+    log(db, user, "settings.update", "");
+    write(db);
+    return delay(db.settings);
+  },
+
+  listAudit: async () => {
+    const db = read();
+    requireUser(db, "manager");
+    return delay(db.audit);
+  },
+
+  managerOverview: async () => {
+    const db = read();
+    requireUser(db, "manager");
+    const today = db.appointments.filter((a) => a.day === "today" && a.status !== "cancelled");
+    return delay({
+      appointments_today: today.length,
+      waiting_now: today.filter((a) => a.status === "arrived").length,
+      visits_done_today: today.filter((a) => a.status === "done").length,
+      doctors: db.doctors.length,
+      staff: db.users.filter((u) => u.role !== "patient").length,
+    });
   },
 };

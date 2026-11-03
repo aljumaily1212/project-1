@@ -2,7 +2,7 @@ export type ApiEnvelope<T> =
   | { success: true; data: T }
   | { success: false; message: string; errors?: Record<string, unknown>; code?: string };
 
-export type Role = "patient" | "reception" | "doctor" | "pharmacy";
+export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager";
 export type StaffRole = Exclude<Role, "patient">;
 export type Day = "today" | "tomorrow";
 export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
@@ -136,6 +136,43 @@ export interface CreateStaffRequest {
     branch: "main" | "second";
     fee: number;
   };
+}
+
+// Rules the client will decide. The manager can change them at any time.
+export interface ClinicSettings {
+  cancel_hours: number;
+  no_show_limit: number;
+  deposit_amount: number;
+  prescription_days: number;
+  usd_rate: number;
+}
+
+export type AuditAction =
+  | "file.open"
+  | "visit.finish"
+  | "prescription.dispense"
+  | "staff.create"
+  | "settings.update"
+  | "appointment.book"
+  | "appointment.cancel"
+  | "appointment.checkin"
+  | "walkin.add";
+
+export interface AuditEntry {
+  id: number;
+  at: string;
+  user_name: string;
+  role: Role;
+  action: AuditAction;
+  target: string;
+}
+
+export interface ManagerOverview {
+  appointments_today: number;
+  waiting_now: number;
+  visits_done_today: number;
+  doctors: number;
+  staff: number;
 }
 
 export interface Prescription {

@@ -40,6 +40,18 @@ export const staffSchema = z
   });
 export type StaffForm = z.infer<typeof staffSchema>;
 
+const wholeNumber = (min: number, max: number) =>
+  z.number("validation.number").int("validation.number").min(min, "validation.number").max(max, "validation.number");
+
+export const settingsSchema = z.object({
+  cancel_hours: wholeNumber(0, 72),
+  no_show_limit: wholeNumber(1, 10),
+  deposit_amount: wholeNumber(0, 1_000_000),
+  prescription_days: wholeNumber(1, 90),
+  usd_rate: wholeNumber(1, 100_000),
+});
+export type SettingsForm = z.infer<typeof settingsSchema>;
+
 export const medicineSchema = z.object({
   name: z.string().trim().min(1, "validation.required"),
   dose: z.string().trim().min(1, "validation.required"),

@@ -7,6 +7,10 @@ export const doctorBranch = (d: Doctor, locale: Locale) => (locale === "ar" ? d.
 
 export const money = (amount: number) => amount.toLocaleString("en-US");
 
+// Latin digits in both languages, so numbers look the same everywhere.
+export const dateTime = (iso: string, locale: Locale) =>
+  new Intl.DateTimeFormat(locale === "ar" ? "ar-IQ-u-nu-latn" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+
 export const STATUS_COLOR: Record<AppointmentStatus, string> = {
   booked: "bg-sky-100 text-sky-800",
   arrived: "bg-amber-100 text-amber-800",

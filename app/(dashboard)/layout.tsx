@@ -12,8 +12,9 @@ import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/skeleton";
 import { buttonClass } from "@/components/common";
+import { ROLE_LABEL } from "@/components/staff-users";
 
-// Each staff role sees only its own pages. User management belongs to reception.
+// Each staff role sees only its own pages.
 const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
   reception: [
     { href: "/reception", label: "nav.reception" },
@@ -21,6 +22,12 @@ const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
   ],
   doctor: [{ href: "/doctor", label: "nav.doctor" }],
   pharmacy: [{ href: "/pharmacy", label: "nav.pharmacy" }],
+  manager: [
+    { href: "/manager", label: "nav.overview" },
+    { href: "/manager/settings", label: "nav.settings" },
+    { href: "/manager/users", label: "nav.users" },
+    { href: "/manager/audit", label: "nav.audit" },
+  ],
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -58,7 +65,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const nav = NAV[session.user.role];
-  const label = nav[0].label;
+  const label = ROLE_LABEL[session.user.role];
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">

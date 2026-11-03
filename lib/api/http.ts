@@ -1,7 +1,9 @@
 import { getRefreshToken } from "../auth";
 import { http } from "./axios";
 import type {
+  AuditEntry,
   BookRequest,
+  ClinicSettings,
   CreateStaffRequest,
   Day,
   Doctor,
@@ -10,6 +12,7 @@ import type {
   FinishVisitRequest,
   LoginRequest,
   LoginResponse,
+  ManagerOverview,
   MyAppointment,
   PatientVisit,
   Prescription,
@@ -75,6 +78,14 @@ export const httpApi = {
   listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
 
   createStaff: (body: CreateStaffRequest) => http.post<null>("/users", body).then(() => undefined),
+
+  getSettings: () => http.get<ClinicSettings>("/settings").then((r) => r.data),
+
+  updateSettings: (body: ClinicSettings) => http.put<ClinicSettings>("/settings", body).then((r) => r.data),
+
+  listAudit: () => http.get<AuditEntry[]>("/audit").then((r) => r.data),
+
+  managerOverview: () => http.get<ManagerOverview>("/manager/overview").then((r) => r.data),
 };
 
 export type Api = typeof httpApi;
