@@ -1,6 +1,7 @@
 import { getRefreshToken } from "../auth";
 import { http } from "./axios";
 import type {
+  Analytics,
   AppNotification,
   AuditEntry,
   BookRequest,
@@ -170,6 +171,9 @@ export const httpApi = {
   myNotifications: () => http.get<AppNotification[]>("/me/notifications").then((r) => r.data),
 
   readNotifications: () => http.post<null>("/me/notifications/read", {}).then(() => undefined),
+
+  // The manager's charts for the last {days} days, today included.
+  analytics: (days: number) => http.get<Analytics>("/manager/analytics", { params: { days } }).then((r) => r.data),
 
   // Reception and the manager search by name or phone. An empty search lists the latest patients.
   searchPatients: (query: string) => http.get<PatientSummary[]>("/patients", { params: { q: query } }).then((r) => r.data),

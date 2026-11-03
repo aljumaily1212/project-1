@@ -2,6 +2,7 @@ import { getToken } from "../auth";
 import { ApiError } from "./errors";
 import type { Api } from "./http";
 import type {
+  Analytics,
   AppointmentStatus,
   AuditAction,
   AuditEntry,
@@ -1407,6 +1408,71 @@ export const mockApi: Api = {
     for (const n of db.notifications) if (n.user_id === user.id) n.read = true;
     write(db);
     return delay(undefined);
+  },
+
+  analytics: async (days) => {
+    const db = read();
+    requireUser(db, "manager");
+    const from = addDays(today(), 1 - days);
+    const to = today();
+    const inRange = (date: string) => date >= from && date <= to;
+    const appointments = db.appointments.filter((a) => inRange(a.date));
+    const visited = appointments.filter((a) => VISITED.includes(a.status));
+    // Payments are counted on the day the money moved, in dinars. Refunds and reversals subtract.
+    const payments = db.payments.filter((p) => inRange(dateOf(new Date(p.at))));
+    const dinars = (p: MockPayment) => (p.currency !== "IQD" ? 0 : p.kind === "payment" ? p.amount : -p.amount);
+
+    const by_day = Array.from({ length: days }, (_, i) => {
+      const date = addDays(from, i);
+      const ofDay = appointments.filter((a) => a.date === date);
+      return {
+        date,
+        visits: ofDay.filter((a) => VISITED.includes(a.status)).length,
+        no_shows: ofDay.filter((a) => a.status === "no_show").length,
+        cancelled: ofDay.filter((a) => a.status === "cancelled").length,
+        collected: payments.filter((p) => dateOf(new Date(p.at)) === date).reduce((sum, p) => sum + dinars(p), 0),
+      };
+    });
+
+    const by_doctor = db.doctors
+      .map((d) => ({
+        label: d.name_ar,
+        visits: visited.filter((a) => a.doctor_id === d.id).length,
+        collected: payments.filter((p) => findAppointment(db, p.appointment_id).doctor_id === d.id).reduce((sum, p) => sum + dinars(p), 0),
+      }))
+      .sort((a, b) => b.visits - a.visits);
+
+    const firstVisit = new Map<number, string>();
+    for (const a of db.appointments.filter((x) => VISITED.includes(x.status))) {
+      const seen = firstVisit.get(a.patient_id);
+      if (!seen || a.date < seen) firstVisit.set(a.patient_id, a.date);
+    }
+
+    const result: Analytics = {
+      from,
+      to,
+      totals: {
+        appointments: appointments.length,
+        visits: visited.length,
+        no_shows: appointments.filter((a) => a.status === "no_show").length,
+        cancelled: appointments.filter((a) => a.status === "cancelled").length,
+        walk_ins: appointments.filter((a) => !a.time).length,
+        followups: visited.filter((a) => a.kind === "followup").length,
+        new_patients: [...firstVisit.values()].filter(inRange).length,
+        collected: collectedOf(db, payments),
+      },
+      by_day,
+      by_doctor,
+      by_hour: countBy(appointments.filter((a) => a.time).map((a) => a.time.slice(0, 2))).sort((a, b) => a.label.localeCompare(b.label)),
+      by_method: {
+        cash: payments.filter((p) => p.method === "cash").reduce((sum, p) => sum + dinars(p), 0),
+        online: payments.filter((p) => p.method === "online").reduce((sum, p) => sum + dinars(p), 0),
+      },
+      top_diagnoses: countBy(
+        db.visits.filter((v) => inRange(dateOf(new Date(v.created_at)))).map((v) => v.diagnosis),
+      ).slice(0, 5),
+    };
+    return delay(result);
   },
 
   searchPatients: async (query) => {
