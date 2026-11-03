@@ -403,6 +403,53 @@ export interface ManagerOverview {
   staff: number;
 }
 
+// One line in the patient search for reception and the manager.
+export interface PatientSummary {
+  id: number;
+  name: string;
+  phone: string;
+  // false for walk-ins and family members added without their own login.
+  has_account: boolean;
+  relation: Relation | null;
+  appointments: number;
+  visits: number;
+  no_shows: number;
+  last_visit: string | null;
+}
+
+export interface PatientAppointment {
+  id: number;
+  doctor_name: string;
+  date: string;
+  time: string;
+  kind: VisitKind;
+  branch: BranchId;
+  status: AppointmentStatus;
+  emergency: boolean;
+  cancel_reason: CancelReason | null;
+  money: MoneySummary;
+}
+
+export interface PatientFileVisit {
+  id: number;
+  created_at: string;
+  doctor_name: string;
+  diagnosis: string;
+  medicines: Medicine[];
+  dispensed: boolean;
+  tests: VisitTest[];
+}
+
+// Everything about one patient, newest first. The doctor's private notes are not included.
+export interface PatientFile {
+  patient: PatientSummary;
+  family: FamilyMember[];
+  appointments: PatientAppointment[];
+  visits: PatientFileVisit[];
+  payments: (Payment & { appointment_id: number })[];
+  money: MoneySummary;
+}
+
 export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near";
 
 export interface AppNotification {

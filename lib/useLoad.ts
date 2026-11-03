@@ -9,7 +9,7 @@ export type LoadState<T> =
 
 type Result<T> = { key: string; at: number } & ({ status: "error"; error: unknown } | { status: "success"; data: T });
 
-export function useLoad<T>(fetcher: () => Promise<T>, key = "", options: { every?: number } = {}) {
+export function useLoad<T>(fetcher: () => Promise<T>, key = "", options: { every?: number; keepPrevious?: boolean } = {}) {
   const fetcherRef = useRef(fetcher);
   useEffect(() => {
     fetcherRef.current = fetcher;
@@ -51,7 +51,9 @@ export function useLoad<T>(fetcher: () => Promise<T>, key = "", options: { every
     };
   }, [every, refresh]);
 
-  const state: LoadState<T> = !result || result.key !== fullKey ? { status: "loading" } : result;
+  // keepPrevious leaves the last list on screen while a new search loads, instead of the skeleton.
+  const showOld = options.keepPrevious && result?.status === "success";
+  const state: LoadState<T> = !result || (result.key !== fullKey && !showOld) ? { status: "loading" } : result;
   const updatedAt = result && result.key === fullKey ? result.at : null;
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
