@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type Doctor } from "@/lib/api";
 import { doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
+import { flush, queue, useOnline, useOutbox } from "@/lib/offline";
 import { useLoad } from "@/lib/useLoad";
 import { walkInSchema, type WalkInForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge } from "@/components/common";
@@ -97,13 +98,16 @@ function WalkInCard({ doctors, onAdded }: { doctors: Doctor[]; onAdded: () => vo
   });
 
   async function onSubmit(values: WalkInForm) {
+    const body = { name: values.name, phone: values.phone, doctor_id: Number(values.doctor_id), emergency: values.emergency };
+    // No internet: keep it in this browser and send it later, so reception never has to stop.
+    if (!navigator.onLine) {
+      queue({ id: crypto.randomUUID(), type: "walkIn", body, label: values.name });
+      toast.info(t("offline.saved"));
+      reset();
+      return;
+    }
     try {
-      const { duplicate } = await api.addWalkIn({
-        name: values.name,
-        phone: values.phone,
-        doctor_id: Number(values.doctor_id),
-        emergency: values.emergency,
-      });
+      const { duplicate } = await api.addWalkIn(body);
       if (duplicate) toast.info(t("reception.duplicate"));
       else toast.success(t("reception.added"));
       reset();
@@ -149,6 +153,21 @@ export default function ReceptionPage() {
   const doctors = useLoad(api.listDoctors);
   const booked = useLoad(api.bookedToday, "", { every: 4000 });
   const version = booked.updatedAt ?? 0;
+  const online = useOnline();
+  const outbox = useOutbox();
+  const waitingIds = new Set(outbox.flatMap((item) => (item.type === "checkIn" ? [item.appointmentId] : [])));
+  const reloadBooked = booked.reload;
+
+  // When the connection comes back, send everything that waited.
+  useEffect(() => {
+    if (!online) return;
+    void flush().then((sent) => {
+      if (sent > 0) {
+        toast.success(t("offline.sent", { n: sent }));
+        reloadBooked();
+      }
+    });
+  }, [online, reloadBooked, t]);
 
   // Only possible after the appointment time. Enough no-shows means the patient must pay a deposit next time.
   async function noShow(id: number) {
@@ -161,7 +180,12 @@ export default function ReceptionPage() {
     }
   }
 
-  async function checkIn(id: number, emergency: boolean) {
+  async function checkIn(id: number, emergency: boolean, label: string) {
+    if (!navigator.onLine) {
+      queue({ id: crypto.randomUUID(), type: "checkIn", appointmentId: id, emergency, label });
+      toast.info(t("offline.saved"));
+      return;
+    }
     try {
       await api.checkIn(id, emergency);
       toast.success(t("reception.checkedIn"));
@@ -174,6 +198,16 @@ export default function ReceptionPage() {
   return (
     <>
       <PageHeader title={t("reception.title")} description={t("reception.subtitle")} />
+      {(!online || outbox.length > 0) && (
+        <div role="status" className={`mb-4 rounded-lg px-4 py-3 text-sm ${online ? "bg-sky-50 text-sky-800" : "bg-amber-50 text-amber-800"}`}>
+          <p className="font-medium">{online ? t("offline.sending") : t("offline.title")}</p>
+          {outbox.length > 0 && (
+            <p>
+              {t("offline.waiting", { n: outbox.length })}: {outbox.map((item) => item.label).join("، ")}
+            </p>
+          )}
+        </div>
+      )}
       {doctors.state.status === "loading" && <FormSkeleton />}
       {doctors.state.status === "error" && <ErrorState message={errorText(doctors.state.error, t)} onRetry={doctors.reload} />}
       {doctors.state.status === "success" && (
@@ -185,7 +219,9 @@ export default function ReceptionPage() {
               {booked.state.status === "error" && <ErrorState message={errorText(booked.state.error, t)} onRetry={booked.reload} />}
               {booked.state.status === "success" && booked.state.data.length === 0 && <EmptyState title={t("reception.empty")} />}
               {booked.state.status === "success" &&
-                booked.state.data.map((a) => {
+                booked.state.data
+                  .filter((a) => !waitingIds.has(a.id))
+                  .map((a) => {
                   const doctor = doctors.state.status === "success" ? doctors.state.data.find((d) => d.id === a.doctor_id) : undefined;
                   return (
                     <div key={a.id} data-appointment={a.time} className="space-y-2 border-t border-slate-200 pt-3">
@@ -194,8 +230,8 @@ export default function ReceptionPage() {
                         {doctor && ` · ${doctorName(doctor, locale)}`} · <span dir="ltr">{a.time}</span>
                       </p>
                       <div className="flex gap-2">
-                        <Button onClick={() => checkIn(a.id, false)}>{t("reception.checkIn")}</Button>
-                        <Button variant="danger" onClick={() => checkIn(a.id, true)}>
+                        <Button onClick={() => checkIn(a.id, false, a.patient_name)}>{t("reception.checkIn")}</Button>
+                        <Button variant="danger" onClick={() => checkIn(a.id, true, a.patient_name)}>
                           {t("reception.emergency")}
                         </Button>
                         <Button variant="ghost" onClick={() => noShow(a.id)}>

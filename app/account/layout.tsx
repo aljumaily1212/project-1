@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarClock, CalendarPlus, FileHeart } from "lucide-react";
+import { Bell, CalendarClock, CalendarPlus, FileHeart, UserRound } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearSession, useSession } from "@/lib/auth";
 import { USE_MOCK } from "@/lib/config";
 import { useT, type MessageKey } from "@/lib/i18n";
+import { useLoad } from "@/lib/useLoad";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -18,6 +19,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof CalendarPlus }[] = [
   { href: "/account", label: "account.nav.book", icon: CalendarPlus },
   { href: "/account/appointments", label: "account.nav.appointments", icon: CalendarClock },
   { href: "/account/records", label: "account.nav.records", icon: FileHeart },
+  { href: "/account/profile", label: "account.nav.profile", icon: UserRound },
 ];
 
 const PUBLIC = ["/account/register"];
@@ -30,6 +32,13 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const isPublic = PUBLIC.includes(pathname);
   const allowed = session?.user.role === "patient";
   const [leaving, setLeaving] = useState(false);
+  // Checks for new messages every 15 seconds. Hooks must run before any early return.
+  const notifications = useLoad(
+    () => (allowed && !isPublic ? api.myNotifications() : Promise.resolve([])),
+    `${allowed}|${pathname}`,
+    { every: 15000 },
+  );
+  const unread = notifications.state.status === "success" ? notifications.state.data.filter((n) => !n.read).length : 0;
 
   useEffect(() => {
     if (!isPublic && ready && !allowed) router.replace("/");
@@ -68,6 +77,19 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/account/notifications"
+              replace
+              aria-label={t("notifications.title")}
+              className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <Bell className="size-4" aria-hidden />
+              {unread > 0 && (
+                <span data-unread={unread} className="absolute -top-1.5 -end-1.5 min-w-5 rounded-full bg-red-600 px-1 text-center text-[11px] font-bold text-white">
+                  {unread}
+                </span>
+              )}
+            </Link>
             <ThemeToggle />
             <LanguageSwitch />
             <button onClick={logout} className={buttonClass("danger")}>

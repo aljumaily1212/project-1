@@ -27,6 +27,7 @@ const ACTIONS: AuditAction[] = [
   "service.create",
   "service.update",
   "payment.reverse",
+  "account.delete",
   "doctor.update",
   "doctor.absent",
   "doctor.late",
