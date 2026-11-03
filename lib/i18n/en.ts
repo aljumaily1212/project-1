@@ -70,7 +70,12 @@ export const en = {
 
   "book.title": "Book a visit",
   "book.subtitle": "Choose the doctor, the day and a free time",
-  "book.for": "Booking for",
+  "book.for": "Who is this visit for?",
+  "book.forHint": "Your account can book for you and the family members on it.",
+  "relation.self": "Me",
+  "relation.child": "Child",
+  "relation.parent": "Parent",
+  "relation.spouse": "Spouse",
   "book.doctor": "Doctor",
   "book.day": "Day",
   "book.time": "Time",

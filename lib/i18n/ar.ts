@@ -72,7 +72,12 @@ export const ar: Record<MessageKey, string> = {
 
   "book.title": "حجز موعد",
   "book.subtitle": "اختار الطبيب واليوم ووقت فاضي",
-  "book.for": "الحجز لـ",
+  "book.for": "الموعد لمنو؟",
+  "book.forHint": "حسابك يكدر يحجز إلك ولأفراد عائلتك المضافين عليه.",
+  "relation.self": "أنا",
+  "relation.child": "ابن/بنت",
+  "relation.parent": "أب/أم",
+  "relation.spouse": "زوج/زوجة",
   "book.doctor": "الطبيب",
   "book.day": "اليوم",
   "book.time": "الوقت",

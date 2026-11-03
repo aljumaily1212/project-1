@@ -46,9 +46,12 @@ export interface Slot {
   available: boolean;
 }
 
+export type Relation = "self" | "child" | "parent" | "spouse";
+
 export interface FamilyMember {
   id: number;
   name: string;
+  relation: Relation;
 }
 
 export interface BookRequest {
