@@ -18,3 +18,6 @@ if (!result.success) {
 export const API_URL = result.data.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
 
 export const USE_MOCK = result.data.NEXT_PUBLIC_USE_MOCK === "true";
+
+// The demo accounts box shows only on a developer's computer (npm run dev), never on a deployed site.
+export const SHOW_DEMO_ACCOUNTS = USE_MOCK && process.env.NODE_ENV === "development";
