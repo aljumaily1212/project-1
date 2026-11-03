@@ -35,15 +35,15 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c7d2fe;
-  --color-brand-300: #a5b4fc;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
-  --color-brand-800: #3730a3;
-  --color-brand-900: #312e81;
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0f766e;
+  --color-brand-700: #115e59;
+  --color-brand-800: #134e4a;
+  --color-brand-900: #042f2e;
 
   --color-slate-50: #eef1f6;
   --color-slate-100: #e4e8ef;
@@ -83,11 +83,12 @@ html {
   --color-slate-900: #f8fafc;
   --color-slate-950: #ffffff;
 
-  --color-brand-50: color-mix(in srgb, #6366f1 12%, #111a2c);
-  --color-brand-100: color-mix(in srgb, #6366f1 22%, #111a2c);
-  --color-brand-200: color-mix(in srgb, #6366f1 38%, #111a2c);
-  --color-brand-700: #a5b4fc;
-  --color-brand-800: #c7d2fe;
+  --color-brand-50: color-mix(in srgb, #14b8a6 12%, #111a2c);
+  --color-brand-100: color-mix(in srgb, #14b8a6 22%, #111a2c);
+  --color-brand-200: color-mix(in srgb, #14b8a6 38%, #111a2c);
+  --color-brand-600: #2dd4bf;
+  --color-brand-700: #5eead4;
+  --color-brand-800: #99f6e4;
 
   --color-red-50: color-mix(in srgb, #ef4444 12%, #111a2c);
   --color-red-100: color-mix(in srgb, #ef4444 22%, #111a2c);
@@ -207,7 +208,7 @@ html[data-vt="fade"]::view-transition-new(root) {
   --card-foreground: var(--color-slate-900);
   --popover: var(--surface);
   --popover-foreground: var(--color-slate-900);
-  --primary: #4f46e5;
+  --primary: #0f766e;
   --primary-foreground: #ffffff;
   --secondary: var(--color-slate-100);
   --secondary-foreground: var(--color-slate-900);
@@ -218,28 +219,30 @@ html[data-vt="fade"]::view-transition-new(root) {
   --destructive: #dc2626;
   --border: var(--color-slate-200);
   --input: var(--color-slate-300);
-  --ring: #6366f1;
+  --ring: #14b8a6;
   --radius: 0.625rem;
-  --chart-1: #4f46e5;
+  --chart-1: #0f766e;
   --chart-2: #0ea5e9;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
   --chart-5: #d946ef;
   --sidebar: var(--surface);
   --sidebar-foreground: var(--color-slate-900);
-  --sidebar-primary: #4f46e5;
+  --sidebar-primary: #0f766e;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: var(--color-slate-100);
   --sidebar-accent-foreground: var(--color-slate-900);
   --sidebar-border: var(--color-slate-200);
-  --sidebar-ring: #6366f1;
+  --sidebar-ring: #14b8a6;
 }
 
 .dark {
   --surface: #111a2c;
-  --primary: #6366f1;
+  --primary: #2dd4bf;
+  --primary-foreground: #042f2e;
   --destructive: #f87171;
-  --sidebar-primary: #6366f1;
+  --sidebar-primary: #2dd4bf;
+  --sidebar-primary-foreground: #042f2e;
 }
 
 @layer base {

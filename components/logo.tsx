@@ -10,8 +10,8 @@ export function LogoMark({ size = 32, className = "" }: { size?: number; classNa
     <svg viewBox="0 0 120 120" width={size} height={size} className={className} aria-hidden>
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6366f1" />
-          <stop offset="1" stopColor="#7c3aed" />
+          <stop offset="0" stopColor="#14b8a6" />
+          <stop offset="1" stopColor="#0f766e" />
         </linearGradient>
       </defs>
       <rect width="120" height="120" rx="28" fill={`url(#${id})`} />
