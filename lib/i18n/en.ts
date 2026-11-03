@@ -154,6 +154,10 @@ export const en = {
   "validation.phone": "Enter a phone number like 07XXXXXXXXX",
   "validation.password": "Use at least 6 characters",
   "validation.name": "Enter the full name",
+  "validation.required": "This field is required",
+  "validation.diagnosis": "Write the diagnosis",
+  "validation.days": "Enter a number of days from 1 to 365",
+  "doctor.removeMedicine": "Remove medicine",
 
   "error.network": "Could not reach the server. Check your internet",
   "error.generic": "Something went wrong. Please try again",

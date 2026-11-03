@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type Medicine, type StaffAppointment } from "@/lib/api";
+import { api, type StaffAppointment } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, StatusBadge, Textarea } from "@/components/common";
+import { visitSchema, type VisitForm } from "@/lib/validation";
+import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
 function History({ patientId }: { patientId: number }) {
@@ -32,70 +34,77 @@ function History({ patientId }: { patientId: number }) {
 
 function VisitForm({ appointment, onDone }: { appointment: StaffAppointment; onDone: () => void }) {
   const { t } = useT();
-  const [diagnosis, setDiagnosis] = useState("");
-  const [note, setNote] = useState("");
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
-  const [medicine, setMedicine] = useState<Medicine>({ name: "", dose: "", days: 1 });
-  const [saving, setSaving] = useState(false);
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<VisitForm>({
+    resolver: zodResolver(visitSchema),
+    defaultValues: { diagnosis: "", internal_note: "", medicines: [] },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
 
-  function addMedicine() {
-    setMedicines([...medicines, { ...medicine, name: medicine.name.trim() }]);
-    setMedicine({ name: "", dose: "", days: 1 });
-  }
-
-  async function finish() {
-    setSaving(true);
+  async function onSubmit(values: VisitForm) {
     try {
-      await api.finishVisit(appointment.id, { diagnosis: diagnosis.trim(), internal_note: note.trim(), medicines });
+      await api.finishVisit(appointment.id, values);
       toast.success(t("doctor.finished"));
       onDone();
     } catch (err) {
       toast.error(errorText(err, t));
-      setSaving(false);
     }
   }
 
   return (
-    <Card className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{appointment.patient_name}</h2>
-        <StatusBadge status={appointment.status} />
-      </div>
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium">{t("doctor.history")}</h3>
-        <History patientId={appointment.patient_id} />
-      </div>
-
-      <Field label={t("visit.diagnosis")}>
-        <Textarea value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
-      </Field>
-      <Field label={t("doctor.internalNote")}>
-        <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
-      </Field>
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">{t("visit.prescription")}</h3>
-        <MedicineList medicines={medicines} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={t("doctor.medicine")}>
-            <Input dir="ltr" value={medicine.name} onChange={(e) => setMedicine({ ...medicine, name: e.target.value })} />
-          </Field>
-          <Field label={t("doctor.dose")}>
-            <Input dir="ltr" value={medicine.dose} onChange={(e) => setMedicine({ ...medicine, dose: e.target.value })} />
-          </Field>
-          <Field label={t("doctor.days")}>
-            <Input type="number" min={1} value={medicine.days} onChange={(e) => setMedicine({ ...medicine, days: Number(e.target.value) })} />
-          </Field>
+    <Card>
+      <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">{appointment.patient_name}</h2>
+          <StatusBadge status={appointment.status} />
         </div>
-        <Button variant="secondary" disabled={!medicine.name.trim()} onClick={addMedicine}>
-          {t("doctor.addMedicine")}
-        </Button>
-      </div>
 
-      <Button className="h-11 w-full" disabled={!diagnosis.trim()} loading={saving} onClick={finish}>
-        {t("doctor.finish")}
-      </Button>
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">{t("doctor.history")}</h3>
+          <History patientId={appointment.patient_id} />
+        </div>
+
+        <Field label={t("visit.diagnosis")} error={errors.diagnosis?.message}>
+          <Textarea aria-invalid={!!errors.diagnosis || undefined} {...register("diagnosis")} />
+        </Field>
+        <Field label={t("doctor.internalNote")}>
+          <Textarea {...register("internal_note")} />
+        </Field>
+
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium">{t("visit.prescription")}</h3>
+          {fields.map((field, index) => {
+            const rowErrors = errors.medicines?.[index];
+            return (
+              <div key={field.id} className="grid items-start gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_6rem_auto]">
+                <Field label={t("doctor.medicine")} error={rowErrors?.name?.message}>
+                  <Input dir="ltr" invalid={!!rowErrors?.name} {...register(`medicines.${index}.name`)} />
+                </Field>
+                <Field label={t("doctor.dose")} error={rowErrors?.dose?.message}>
+                  <Input dir="ltr" invalid={!!rowErrors?.dose} {...register(`medicines.${index}.dose`)} />
+                </Field>
+                <Field label={t("doctor.days")} error={rowErrors?.days?.message}>
+                  <Input type="number" min={1} invalid={!!rowErrors?.days} {...register(`medicines.${index}.days`, { valueAsNumber: true })} />
+                </Field>
+                <Button type="button" variant="danger" className="sm:mt-7" onClick={() => remove(index)}>
+                  {t("doctor.removeMedicine")}
+                </Button>
+              </div>
+            );
+          })}
+          <Button type="button" variant="secondary" onClick={() => append({ name: "", dose: "", days: 1 })}>
+            {t("doctor.addMedicine")}
+          </Button>
+        </div>
+
+        <Button type="submit" className="h-11 w-full" loading={isSubmitting}>
+          {t("doctor.finish")}
+        </Button>
+      </form>
     </Card>
   );
 }
