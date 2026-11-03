@@ -156,6 +156,10 @@ export const ar: Record<MessageKey, string> = {
   "validation.phone": "اكتب رقم مثل 07XXXXXXXXX",
   "validation.password": "لازم 6 أحرف على الأقل",
   "validation.name": "اكتب الاسم الكامل",
+  "validation.required": "هذا الحقل مطلوب",
+  "validation.diagnosis": "اكتب التشخيص",
+  "validation.days": "اكتب عدد أيام من 1 إلى 365",
+  "doctor.removeMedicine": "حذف الدواء",
 
   "error.network": "ما گدرنا نوصل للسيرفر. تأكد من الإنترنت",
   "error.generic": "صار خطأ. حاول مرة ثانية",

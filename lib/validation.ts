@@ -18,3 +18,16 @@ export const walkInSchema = z.object({
   emergency: z.boolean(),
 });
 export type WalkInForm = z.infer<typeof walkInSchema>;
+
+export const medicineSchema = z.object({
+  name: z.string().trim().min(1, "validation.required"),
+  dose: z.string().trim().min(1, "validation.required"),
+  days: z.number("validation.days").int("validation.days").min(1, "validation.days").max(365, "validation.days"),
+});
+
+export const visitSchema = z.object({
+  diagnosis: z.string().trim().min(2, "validation.diagnosis"),
+  internal_note: z.string().trim(),
+  medicines: z.array(medicineSchema),
+});
+export type VisitForm = z.infer<typeof visitSchema>;
