@@ -30,28 +30,26 @@ export function useLoad<T>(fetcher: () => Promise<T>, key = "", options: { every
     };
   }, [fullKey]);
 
+  // Fetches again quietly: the old data stays on screen (no skeleton) until the new data arrives.
+  const refresh = useCallback(() => {
+    fetcherRef.current().then(
+      (data) =>
+        setResult((r) => (r && r.key === fullKey && r.status === "success" ? { key: fullKey, at: Date.now(), status: "success", data } : r)),
+      () => {},
+    );
+  }, [fullKey]);
+
   const { every } = options;
   useEffect(() => {
     if (!every) return;
-    let cancelled = false;
-    const refresh = () => {
-      if (document.hidden) return;
-      fetcherRef.current().then(
-        (data) =>
-          !cancelled &&
-          setResult((r) => (r && r.key === fullKey && r.status === "success" ? { key: fullKey, at: Date.now(), status: "success", data } : r)),
-        () => {},
-      );
-    };
-    const timer = setInterval(refresh, every);
-    const onVisible = () => !document.hidden && refresh();
-    document.addEventListener("visibilitychange", onVisible);
+    const poll = () => !document.hidden && refresh();
+    const timer = setInterval(poll, every);
+    document.addEventListener("visibilitychange", poll);
     return () => {
-      cancelled = true;
       clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("visibilitychange", poll);
     };
-  }, [every, fullKey]);
+  }, [every, refresh]);
 
   const state: LoadState<T> = !result || result.key !== fullKey ? { status: "loading" } : result;
   const updatedAt = result && result.key === fullKey ? result.at : null;
@@ -64,5 +62,5 @@ export function useLoad<T>(fetcher: () => Promise<T>, key = "", options: { every
     [],
   );
 
-  return { state, reload, setData, updatedAt };
+  return { state, reload, refresh, setData, updatedAt };
 }
