@@ -11,12 +11,16 @@ import type {
   CreateStaffRequest,
   Doctor,
   DoctorVisit,
+  LabResult,
+  LabStatus,
   LoginResponse,
   Medicine,
   MyAppointment,
   NotificationType,
   Relation,
+  ResultEdit,
   Role,
+  Service,
   Shift,
   StaffAppointment,
   StaffUser,
@@ -34,9 +38,10 @@ export const MOCK_LOGINS = {
   doctor: "07800000002",
   pharmacy: "07800000004",
   manager: "07800000006",
+  lab: "07800000007",
 };
 
-const STORAGE_KEY = "alrahma.mock.v5";
+const STORAGE_KEY = "alrahma.mock.v6";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -104,6 +109,18 @@ type MockVisit = {
   medicines: Medicine[];
   dispensed: boolean;
 };
+type MockLabOrder = {
+  id: number;
+  visit_id: number;
+  patient_id: number;
+  doctor_id: number;
+  service_id: number;
+  status: LabStatus;
+  result: LabResult | null;
+  history: ResultEdit[];
+  requested_at: string;
+  confirmed_at: string | null;
+};
 type MockNotification = {
   id: number;
   user_id: number;
@@ -125,6 +142,8 @@ type Db = {
   settings: ClinicSettings;
   audit: AuditEntry[];
   notifications: MockNotification[];
+  services: Service[];
+  labOrders: MockLabOrder[];
 };
 
 const work = (branch: BranchId, shift: Shift): WorkDay => ({ branch, shift });
@@ -175,6 +194,7 @@ function seed(): Db {
       { id: 4, name: "أحمد الصيدلي", phone: MOCK_LOGINS.pharmacy, role: "pharmacy", password: MOCK_PASSWORD },
       { id: 5, name: "زينب كريم", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
       { id: 6, name: "مدير المجمع", phone: MOCK_LOGINS.manager, role: "manager", password: MOCK_PASSWORD },
+      { id: 7, name: "حيدر المختبر", phone: MOCK_LOGINS.lab, role: "lab", password: MOCK_PASSWORD },
     ],
     patients: [
       { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
@@ -209,6 +229,14 @@ function seed(): Db {
     settings: DEFAULT_SETTINGS,
     audit: [],
     notifications: [],
+    services: [
+      { id: 1, name: "Blood sugar", name_ar: "سكر الدم", kind: "test", price: 5000, currency: "IQD" },
+      { id: 2, name: "Complete blood count", name_ar: "تحليل دم شامل", kind: "test", price: 15000, currency: "IQD" },
+      { id: 3, name: "Vitamin D", name_ar: "فيتامين د", kind: "test", price: 25000, currency: "IQD" },
+      { id: 4, name: "Chest X-ray", name_ar: "أشعة صدر", kind: "xray", price: 20, currency: "USD" },
+      { id: 5, name: "Wound dressing", name_ar: "تضميد جرح", kind: "procedure", price: 10000, currency: "IQD" },
+    ],
+    labOrders: [],
   };
 }
 
@@ -218,7 +246,12 @@ function read(): Db {
 }
 
 function write(db: Db) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  } catch {
+    // The browser's storage is full, usually because of large files.
+    fail(413, "file_too_big");
+  }
 }
 
 export function resetMockData() {
@@ -265,6 +298,32 @@ function publicDoctor({ days: _days, absences: _absences, late: _late, ...doctor
 }
 
 const doctorOf = (db: Db, id: number) => publicDoctor(findDoctor(db, id));
+
+function findService(db: Db, id: number) {
+  const service = db.services.find((s) => s.id === id);
+  if (!service) fail(404);
+  return service;
+}
+
+function findLabOrder(db: Db, id: number) {
+  const order = db.labOrders.find((o) => o.id === id);
+  if (!order) fail(404);
+  return order;
+}
+
+function doctorNameOf(db: Db, id: number) {
+  return db.doctors.find((d) => d.id === id)?.name_ar ?? "";
+}
+
+// Files are kept as data URLs in the mock. The real backend stores the file and gives a link.
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
 
 function patientName(db: Db, id: number) {
   return db.patients.find((p) => p.id === id)?.name ?? "";
@@ -564,17 +623,21 @@ export const mockApi: Api = {
           diagnosis: v.diagnosis,
           internal_note: v.internal_note,
           medicines: v.medicines,
+          tests: db.labOrders
+            .filter((o) => o.visit_id === v.id)
+            .map((o) => ({ id: o.id, test: findService(db, o.service_id), status: o.status, result: o.status === "confirmed" ? o.result : null })),
         })),
     );
   },
 
-  finishVisit: async (id, { diagnosis, internal_note, medicines }) => {
+  finishVisit: async (id, { diagnosis, internal_note, medicines, test_ids }) => {
     const db = read();
     const user = requireUser(db, "doctor");
     const appointment = changeAppointment(db, id, { status: "done" });
     log(db, user, "visit.finish", patientName(db, appointment.patient_id));
+    const visitId = db.nextId++;
     db.visits.unshift({
-      id: db.nextId++,
+      id: visitId,
       patient_id: appointment.patient_id,
       doctor_id: appointment.doctor_id,
       diagnosis,
@@ -582,6 +645,21 @@ export const mockApi: Api = {
       medicines,
       dispensed: medicines.length === 0,
     });
+    for (const serviceId of test_ids) {
+      findService(db, serviceId);
+      db.labOrders.push({
+        id: db.nextId++,
+        visit_id: visitId,
+        patient_id: appointment.patient_id,
+        doctor_id: appointment.doctor_id,
+        service_id: serviceId,
+        status: "requested",
+        result: null,
+        history: [],
+        requested_at: now().toISOString(),
+        confirmed_at: null,
+      });
+    }
     write(db);
     return delay(undefined);
   },
@@ -739,5 +817,82 @@ export const mockApi: Api = {
     log(db, user, "doctor.late", `${doctor.name_ar} · ${minutes}`);
     write(db);
     return delay({ notified: affected.length });
+  },
+
+  listServices: async () => {
+    const db = read();
+    requireUser(db);
+    return delay(db.services);
+  },
+
+  listLabOrders: async () => {
+    const db = read();
+    requireUser(db, "lab");
+    return delay(
+      db.labOrders
+        .slice()
+        .reverse()
+        .map((o) => ({
+          id: o.id,
+          patient_name: patientName(db, o.patient_id),
+          doctor_name: doctorNameOf(db, o.doctor_id),
+          test: findService(db, o.service_id),
+          status: o.status,
+          result: o.result,
+          history: o.history,
+          requested_at: o.requested_at,
+        })),
+    );
+  },
+
+  saveResult: async (orderId, input) => {
+    const db = read();
+    const user = requireUser(db, "lab");
+    const order = findLabOrder(db, orderId);
+    const result: LabResult =
+      input.type === "number"
+        ? input
+        : { type: "file", file_name: input.file.name, file_type: input.file.type, data_url: await fileToDataUrl(input.file) };
+    // A confirmed result can still be corrected, but the old value and who changed it are kept.
+    if (order.status === "confirmed" && order.result) {
+      order.history.unshift({ at: now().toISOString(), by: user.name, before: order.result });
+      log(db, user, "lab.edit", patientName(db, order.patient_id));
+    } else {
+      order.status = "entered";
+      log(db, user, "lab.result", patientName(db, order.patient_id));
+    }
+    order.result = result;
+    write(db);
+    return delay(undefined);
+  },
+
+  confirmResult: async (orderId) => {
+    const db = read();
+    const user = requireUser(db, "lab");
+    const order = findLabOrder(db, orderId);
+    if (order.status !== "entered") fail(409, "nothing_to_confirm");
+    order.status = "confirmed";
+    order.confirmed_at = now().toISOString();
+    notify(db, order.patient_id, `result:${order.id}`, "result_ready", { test: findService(db, order.service_id).name_ar });
+    log(db, user, "lab.confirm", patientName(db, order.patient_id));
+    write(db);
+    return delay(undefined);
+  },
+
+  myResults: async () => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const ids = ownedPatientIds(db, user);
+    return delay(
+      db.labOrders
+        .filter((o) => ids.includes(o.patient_id) && o.status === "confirmed" && o.result)
+        .map((o) => ({
+          id: o.id,
+          patient_name: patientName(db, o.patient_id),
+          test: findService(db, o.service_id),
+          result: o.result!,
+          confirmed_at: o.confirmed_at!,
+        })),
+    );
   },
 };

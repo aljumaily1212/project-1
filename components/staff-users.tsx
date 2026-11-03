@@ -15,10 +15,11 @@ export const ROLE_LABEL: Record<StaffRole, MessageKey> = {
   doctor: "nav.doctor",
   pharmacy: "nav.pharmacy",
   manager: "nav.manager",
+  lab: "nav.lab",
 };
 
 // Roles that can be created from this page. Manager accounts are made by the company.
-const CREATABLE: StaffForm["role"][] = ["reception", "doctor", "pharmacy"];
+const CREATABLE: StaffForm["role"][] = ["reception", "doctor", "pharmacy", "lab"];
 
 const EMPTY: StaffForm = {
   name: "",

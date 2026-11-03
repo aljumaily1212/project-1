@@ -22,6 +22,7 @@ const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
   ],
   doctor: [{ href: "/doctor", label: "nav.doctor" }],
   pharmacy: [{ href: "/pharmacy", label: "nav.pharmacy" }],
+  lab: [{ href: "/lab", label: "nav.lab" }],
   manager: [
     { href: "/manager", label: "nav.overview" },
     { href: "/manager/doctors", label: "nav.doctors" },

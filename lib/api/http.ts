@@ -12,6 +12,7 @@ import type {
   FamilyMember,
   FinishVisitRequest,
   LoginRequest,
+  LabOrder,
   LoginResponse,
   ManagerOverview,
   MyAppointment,
@@ -19,9 +20,12 @@ import type {
   Prescription,
   RegisterRequest,
   RescheduleRequest,
+  ResultInput,
+  Service,
   Slot,
   StaffAppointment,
   StaffUser,
+  TestResult,
   UpdateScheduleRequest,
   VisitKind,
   WalkInRequest,
@@ -108,6 +112,22 @@ export const httpApi = {
   // Returns how many patients were told.
   markLate: (doctorId: number, minutes: number) =>
     http.post<{ notified: number }>(`/doctors/${doctorId}/late`, { minutes }).then((r) => r.data),
+
+  listServices: () => http.get<Service[]>("/services").then((r) => r.data),
+
+  listLabOrders: () => http.get<LabOrder[]>("/lab/orders").then((r) => r.data),
+
+  // Numbers go as JSON. Files go as multipart form data, which is how browsers upload files.
+  saveResult: (orderId: number, input: ResultInput) => {
+    if (input.type === "number") return http.put<null>(`/lab/orders/${orderId}/result`, input).then(() => undefined);
+    const form = new FormData();
+    form.set("file", input.file);
+    return http.put<null>(`/lab/orders/${orderId}/result`, form).then(() => undefined);
+  },
+
+  confirmResult: (orderId: number) => http.post<null>(`/lab/orders/${orderId}/confirm`, {}).then(() => undefined),
+
+  myResults: () => http.get<TestResult[]>("/me/results").then((r) => r.data),
 };
 
 export type Api = typeof httpApi;

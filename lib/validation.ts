@@ -25,7 +25,7 @@ export const staffSchema = z
     name: z.string().trim().min(2, "validation.name"),
     phone,
     password,
-    role: z.enum(["reception", "doctor", "pharmacy"]),
+    role: z.enum(["reception", "doctor", "pharmacy", "lab"]),
     name_en: z.string().trim(),
     specialty_ar: z.string().trim(),
     specialty_en: z.string().trim(),
@@ -73,5 +73,26 @@ export const visitSchema = z.object({
   diagnosis: z.string().trim().min(2, "validation.diagnosis"),
   internal_note: z.string().trim(),
   medicines: z.array(medicineSchema),
+  // Checkbox values are text, so the ids are numbers written as text.
+  test_ids: z.array(z.string()),
 });
 export type VisitForm = z.infer<typeof visitSchema>;
+
+export const MAX_FILE_BYTES = 2 * 1024 * 1024;
+const FILE_TYPES = ["application/pdf", "image/png", "image/jpeg"];
+
+// The lab enters either a number with its unit, or a file.
+export const resultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("number"),
+    value: z.number("validation.resultValue"),
+    unit: z.string().trim().min(1, "validation.required"),
+  }),
+  z.object({
+    type: z.literal("file"),
+    file: z
+      .instanceof(File, { message: "validation.file" })
+      .refine((f) => FILE_TYPES.includes(f.type), "validation.fileType")
+      .refine((f) => f.size <= MAX_FILE_BYTES, "validation.fileSize"),
+  }),
+]);

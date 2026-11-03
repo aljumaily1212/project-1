@@ -3,16 +3,17 @@
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type StaffAppointment } from "@/lib/api";
+import { api, type Service, type StaffAppointment } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { visitSchema, type VisitForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea } from "@/components/common";
+import { ResultView, serviceName } from "@/components/result-view";
 import { CardsSkeleton } from "@/components/skeleton";
 
 function History({ patientId }: { patientId: number }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { state, reload } = useLoad(() => api.patientHistory(patientId), String(patientId));
 
   if (state.status === "loading") return <CardsSkeleton count={1} />;
@@ -26,14 +27,24 @@ function History({ patientId }: { patientId: number }) {
             {t("visit.diagnosis")}: {v.diagnosis}
           </p>
           {v.internal_note && <p className="text-slate-600">{v.internal_note}</p>}
+          {v.tests.map((test) => (
+            <div key={test.id} className="mt-2 border-t border-brand-100 pt-2">
+              <p className="font-medium">
+                {serviceName(test.test, locale)} · <span className="text-slate-500">{t(`lab.status.${test.status}`)}</span>
+              </p>
+              {test.result && <ResultView result={test.result} />}
+            </div>
+          ))}
         </div>
       ))}
     </div>
   );
 }
 
-function VisitForm({ appointment, onDone }: { appointment: StaffAppointment; onDone: () => void }) {
-  const { t } = useT();
+function VisitForm({ appointment, services, onDone }: { appointment: StaffAppointment; services: Service[]; onDone: () => void }) {
+  const { t, locale } = useT();
+  // The lab handles tests and X-rays. Procedures are billed in the billing branch.
+  const orderable = services.filter((s) => s.kind === "test" || s.kind === "xray");
   const {
     register,
     control,
@@ -41,13 +52,13 @@ function VisitForm({ appointment, onDone }: { appointment: StaffAppointment; onD
     formState: { errors, isSubmitting },
   } = useForm<VisitForm>({
     resolver: zodResolver(visitSchema),
-    defaultValues: { diagnosis: "", internal_note: "", medicines: [] },
+    defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
 
   async function onSubmit(values: VisitForm) {
     try {
-      await api.finishVisit(appointment.id, values);
+      await api.finishVisit(appointment.id, { ...values, test_ids: values.test_ids.map(Number) });
       toast.success(t("doctor.finished"));
       onDone();
     } catch (err) {
@@ -101,6 +112,18 @@ function VisitForm({ appointment, onDone }: { appointment: StaffAppointment; onD
           </Button>
         </div>
 
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">{t("doctor.tests")}</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {orderable.map((s) => (
+              <label key={s.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-2 text-sm">
+                <input type="checkbox" value={s.id} className="size-4 accent-brand-600" {...register("test_ids")} />
+                {serviceName(s, locale)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <Button type="submit" className="h-11 w-full" loading={isSubmitting}>
           {t("doctor.finish")}
         </Button>
@@ -114,6 +137,7 @@ export default function DoctorPage() {
   const { session } = useSession();
   const doctorId = session?.user.doctor_id ?? 0;
   const { state, reload } = useLoad(() => api.doctorQueue(doctorId), String(doctorId), { every: 4000 });
+  const services = useLoad(api.listServices);
 
   async function callNext(id: number) {
     try {
@@ -136,7 +160,7 @@ export default function DoctorPage() {
         <div className="grid items-start gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
             {current ? (
-              <VisitForm key={current.id} appointment={current} onDone={reload} />
+              <VisitForm key={current.id} appointment={current} services={services.state.status === "success" ? services.state.data : []} onDone={reload} />
             ) : (
               <EmptyState title={t("doctor.noCurrent")} description={t("doctor.noCurrentHint")} />
             )}

@@ -2,7 +2,7 @@ export type ApiEnvelope<T> =
   | { success: true; data: T }
   | { success: false; message: string; errors?: Record<string, unknown>; code?: string };
 
-export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager";
+export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager" | "lab";
 export type StaffRole = Exclude<Role, "patient">;
 export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
 
@@ -150,14 +150,73 @@ export interface PatientVisit {
   medicines: Medicine[];
 }
 
+export type ServiceKind = "test" | "xray" | "procedure";
+export type Currency = "IQD" | "USD";
+
+// Anything the clinic charges for besides the visit: tests, X-rays and small procedures.
+export interface Service {
+  id: number;
+  name: string;
+  name_ar: string;
+  kind: ServiceKind;
+  price: number;
+  currency: Currency;
+}
+
+// A result is either a number (like blood sugar) or a file (a PDF or an X-ray image).
+export type LabResult =
+  | { type: "number"; value: number; unit: string }
+  | { type: "file"; file_name: string; file_type: string; data_url: string };
+
+// What the lab sends to save a result. A file goes as the real file, not a data URL.
+export type ResultInput = { type: "number"; value: number; unit: string } | { type: "file"; file: File };
+
+export type LabStatus = "requested" | "entered" | "confirmed";
+
+export interface ResultEdit {
+  at: string;
+  by: string;
+  before: LabResult;
+}
+
+// The lab only sees the request itself, never the diagnosis or the rest of the file.
+export interface LabOrder {
+  id: number;
+  patient_name: string;
+  doctor_name: string;
+  test: Service;
+  status: LabStatus;
+  result: LabResult | null;
+  history: ResultEdit[];
+  requested_at: string;
+}
+
+// Patients and doctors see results only after the lab confirms them.
+export interface TestResult {
+  id: number;
+  patient_name: string;
+  test: Service;
+  result: LabResult;
+  confirmed_at: string;
+}
+
+export interface VisitTest {
+  id: number;
+  test: Service;
+  status: LabStatus;
+  result: LabResult | null;
+}
+
 export interface DoctorVisit extends PatientVisit {
   internal_note: string;
+  tests: VisitTest[];
 }
 
 export interface FinishVisitRequest {
   diagnosis: string;
   internal_note: string;
   medicines: Medicine[];
+  test_ids: number[];
 }
 
 export interface StaffUser {
@@ -203,7 +262,10 @@ export type AuditAction =
   | "walkin.add"
   | "doctor.update"
   | "doctor.absent"
-  | "doctor.late";
+  | "doctor.late"
+  | "lab.result"
+  | "lab.confirm"
+  | "lab.edit";
 
 export interface AuditEntry {
   id: number;
@@ -222,7 +284,7 @@ export interface ManagerOverview {
   staff: number;
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready";
 
 export interface AppNotification {
   id: number;
