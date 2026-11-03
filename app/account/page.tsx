@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { api, type Day, type Doctor } from "@/lib/api";
+import { api, type Day, type Doctor, type FamilyMember } from "@/lib/api";
 import { doctorBranch, doctorName, doctorSpecialty, money } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
@@ -39,7 +39,7 @@ function SlotPicker({ doctorId, day, time, onPick }: { doctorId: number; day: Da
   );
 }
 
-function BookingForm({ doctors, family }: { doctors: Doctor[]; family: { id: number; name: string }[] }) {
+function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMember[] }) {
   const router = useRouter();
   const { t, locale } = useT();
   const [patientId, setPatientId] = useState(family[0].id);
@@ -65,11 +65,11 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: { id: num
 
   return (
     <Card className="space-y-5">
-      <Field label={t("book.for")}>
+      <Field label={t("book.for")} hint={t("book.forHint")}>
         <Select value={patientId} onChange={(e) => setPatientId(Number(e.target.value))}>
           {family.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name}
+              {p.name} ({t(`relation.${p.relation}`)})
             </option>
           ))}
         </Select>

@@ -8,6 +8,7 @@ import type {
   LoginResponse,
   Medicine,
   MyAppointment,
+  Relation,
   Role,
   StaffAppointment,
   StaffUser,
@@ -24,7 +25,7 @@ export const MOCK_LOGINS = {
   pharmacy: "07800000004",
 };
 
-const STORAGE_KEY = "alrahma.mock.v2";
+const STORAGE_KEY = "alrahma.mock.v3";
 
 type MockDoctor = Doctor & { slots: string[] };
 
@@ -61,7 +62,8 @@ const seedDoctors: MockDoctor[] = [
 ];
 
 type MockUser = User & { password: string };
-type MockPatient = { id: number; name: string; phone: string; account_id: number | null };
+// relation says who this person is to the account owner. Walk-ins have no account.
+type MockPatient = { id: number; name: string; phone: string; account_id: number | null; relation?: Relation };
 type MockAppointment = Omit<StaffAppointment, "patient_name"> & { arrival_order: number };
 type MockVisit = {
   id: number;
@@ -95,8 +97,8 @@ const seed = (): Db => ({
     { id: 5, name: "زينب كريم", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
   ],
   patients: [
-    { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5 },
-    { id: 2, name: "مصطفى كريم", phone: "07700000002", account_id: 5 },
+    { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
+    { id: 2, name: "مصطفى كريم", phone: "07700000002", account_id: 5, relation: "child" },
     { id: 3, name: "حسن عباس", phone: "07700000003", account_id: null },
     { id: 4, name: "مريم ناصر", phone: "07700000004", account_id: null },
   ],
@@ -224,7 +226,7 @@ export const mockApi: Api = {
     if (db.users.some((u) => u.phone === phone)) fail(409, "phone_taken");
     const user: MockUser = { id: db.nextId++, name, phone, role: "patient", password };
     db.users.push(user);
-    db.patients.push({ id: db.nextId++, name, phone, account_id: user.id });
+    db.patients.push({ id: db.nextId++, name, phone, account_id: user.id, relation: "self" });
     write(db);
     return delay(session(user));
   },
@@ -244,7 +246,7 @@ export const mockApi: Api = {
   myFamily: async () => {
     const db = read();
     const user = requireUser(db, "patient");
-    return delay(db.patients.filter((p) => p.account_id === user.id).map(({ id, name }) => ({ id, name })));
+    return delay(db.patients.filter((p) => p.account_id === user.id).map(({ id, name, relation }) => ({ id, name, relation: relation ?? "self" })));
   },
 
   myAppointments: async () => {
