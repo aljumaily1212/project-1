@@ -3,6 +3,7 @@ export type ApiEnvelope<T> =
   | { success: false; message: string; errors?: Record<string, unknown>; code?: string };
 
 export type Role = "patient" | "reception" | "doctor" | "pharmacy";
+export type StaffRole = Exclude<Role, "patient">;
 export type Day = "today" | "tomorrow";
 export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
 
@@ -111,6 +112,27 @@ export interface FinishVisitRequest {
   diagnosis: string;
   internal_note: string;
   medicines: Medicine[];
+}
+
+export interface StaffUser {
+  id: number;
+  name: string;
+  phone: string;
+  role: StaffRole;
+}
+
+export interface CreateStaffRequest {
+  name: string;
+  phone: string;
+  password: string;
+  role: StaffRole;
+  doctor?: {
+    name_en: string;
+    specialty_ar: string;
+    specialty_en: string;
+    branch: "main" | "second";
+    fee: number;
+  };
 }
 
 export interface Prescription {

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, type StaffRole } from "@/lib/api";
 import { canUseDashboard, clearSession, homeFor, useSession } from "@/lib/auth";
 import { USE_MOCK } from "@/lib/config";
 import { useT, type MessageKey } from "@/lib/i18n";
@@ -13,11 +13,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/skeleton";
 import { buttonClass } from "@/components/common";
 
-const ROLE_LABEL = {
-  reception: "nav.reception",
-  doctor: "nav.doctor",
-  pharmacy: "nav.pharmacy",
-} as const satisfies Record<string, MessageKey>;
+// Each staff role sees only its own pages. User management belongs to reception.
+const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
+  reception: [
+    { href: "/reception", label: "nav.reception" },
+    { href: "/reception/users", label: "nav.users" },
+  ],
+  doctor: [{ href: "/doctor", label: "nav.doctor" }],
+  pharmacy: [{ href: "/pharmacy", label: "nav.pharmacy" }],
+};
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -25,7 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { t } = useT();
   const { session, ready } = useSession();
   const home = session && canUseDashboard(session.user.role) ? homeFor(session.user.role) : null;
-  const allowed = home === pathname;
+  const allowed = !!home && (pathname === home || pathname.startsWith(`${home}/`));
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
@@ -53,7 +57,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.replace("/");
   }
 
-  const label = ROLE_LABEL[session.user.role];
+  const nav = NAV[session.user.role];
+  const label = nav[0].label;
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
@@ -70,9 +75,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex gap-1 overflow-x-auto scrollbar-thin px-2 pb-2 md:flex-col md:px-3">
-          <span className="whitespace-nowrap rounded-lg bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700">
-            {t(label)}
-          </span>
+          {nav.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              replace
+              className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium ${
+                pathname === item.href ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              {t(item.label)}
+            </Link>
+          ))}
         </nav>
 
         <div className="mt-auto hidden border-t border-slate-200 px-5 py-4 md:block">
