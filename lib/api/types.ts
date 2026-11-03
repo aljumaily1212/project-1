@@ -348,7 +348,8 @@ export type AuditAction =
   | "appointment.no_show"
   | "service.update"
   | "service.create"
-  | "payment.reverse";
+  | "payment.reverse"
+  | "account.delete";
 
 // One line in the accountant's book. Nothing here can be deleted.
 export interface LedgerEntry extends Payment {
@@ -402,7 +403,7 @@ export interface ManagerOverview {
   staff: number;
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near";
 
 export interface AppNotification {
   id: number;
@@ -417,4 +418,8 @@ export interface Prescription {
   patient_name: string;
   medicines: Medicine[];
   dispensed: boolean;
+  created_at: string;
+  // After this time the pharmacy can't dispense it.
+  expires_at: string;
+  expired: boolean;
 }

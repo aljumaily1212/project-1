@@ -120,3 +120,10 @@ export const reverseSchema = z.object({
   reason: z.string().trim().min(3, "validation.reason"),
 });
 export type ReverseForm = z.infer<typeof reverseSchema>;
+
+// Deleting an account needs the password and a clear yes.
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, "validation.required"),
+  confirm: z.boolean().refine((ticked) => ticked, "validation.confirmDelete"),
+});
+export type DeleteAccountForm = z.infer<typeof deleteAccountSchema>;

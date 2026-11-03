@@ -1,6 +1,7 @@
 import { getRefreshToken } from "../auth";
 import { http } from "./axios";
 import type {
+  AppNotification,
   AuditEntry,
   BookRequest,
   BookingRules,
@@ -163,6 +164,13 @@ export const httpApi = {
   doctorDues: (month: string) => http.get<DoctorDues[]>("/reports/doctor-dues", { params: { month } }).then((r) => r.data),
 
   report: (month: string) => http.get<Report>("/reports/summary", { params: { month } }).then((r) => r.data),
+
+  myNotifications: () => http.get<AppNotification[]>("/me/notifications").then((r) => r.data),
+
+  readNotifications: () => http.post<null>("/me/notifications/read", {}).then(() => undefined),
+
+  // The account is removed, but the medical file stays with the clinic.
+  deleteMyAccount: (password: string) => http.delete<null>("/me", { data: { password } }).then(() => undefined),
 };
 
 export type Api = typeof httpApi;

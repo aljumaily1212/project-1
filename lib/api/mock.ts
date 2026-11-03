@@ -47,7 +47,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v8";
+const STORAGE_KEY = "alrahma.mock.v9";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -114,6 +114,7 @@ type MockItem = InvoiceItem & { appointment_id: number };
 type MockPayment = Payment & { appointment_id: number; ref_id: number | null; key: string };
 type MockVisit = {
   id: number;
+  created_at: string;
   patient_id: number;
   doctor_id: number;
   diagnosis: string;
@@ -228,6 +229,7 @@ function seed(): Db {
     visits: [
       {
         id: 1,
+        created_at: `${addDays(day, -10)}T10:00:00`,
         patient_id: 1,
         doctor_id: 1,
         diagnosis: "التهاب لوزتين",
@@ -237,6 +239,7 @@ function seed(): Db {
       },
       {
         id: 2,
+        created_at: `${day}T08:00:00`,
         patient_id: 4,
         doctor_id: 1,
         diagnosis: "نقص فيتامين د",
@@ -541,6 +544,25 @@ function collectedOf(db: Db, payments: MockPayment[]) {
   return sumAmounts(payments.map((p) => ({ amount: p.kind === "payment" ? p.amount : -p.amount, currency: p.currency })));
 }
 
+const expiresAt = (db: Db, visit: MockVisit) => new Date(new Date(visit.created_at).getTime() + db.settings.prescription_days * 86_400_000);
+
+const REMINDER_HOURS = 24;
+
+// Messages that depend on time are made when the patient checks. The key makes each one only once.
+function makeTimedNotifications(db: Db, user: MockUser) {
+  for (const a of db.appointments.filter((x) => ownedPatientIds(db, user).includes(x.patient_id))) {
+    const doctor = doctorNameOf(db, a.doctor_id);
+    const hoursLeft = (startOf(a).getTime() - now().getTime()) / 3_600_000;
+    if (a.status === "booked" && hoursLeft > 0 && hoursLeft <= REMINDER_HOURS) {
+      notify(db, a.patient_id, `reminder:${a.id}`, "reminder", { doctor, date: a.date, time: a.time });
+    }
+    if (a.status === "arrived") {
+      const ahead = queueOf(db, a.doctor_id).findIndex((q) => q.id === a.id);
+      if (ahead >= 0 && ahead <= 2) notify(db, a.patient_id, `turn:${a.id}`, "turn_near", { doctor, n: ahead });
+    }
+  }
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -786,6 +808,7 @@ export const mockApi: Api = {
     const visitId = db.nextId++;
     db.visits.unshift({
       id: visitId,
+      created_at: now().toISOString(),
       patient_id: appointment.patient_id,
       doctor_id: appointment.doctor_id,
       diagnosis,
@@ -823,7 +846,18 @@ export const mockApi: Api = {
     return delay(
       db.visits
         .filter((v) => v.medicines.length > 0)
-        .map((v) => ({ id: v.id, patient_name: patientName(db, v.patient_id), medicines: v.medicines, dispensed: v.dispensed })),
+        .map((v) => {
+          const expires = expiresAt(db, v);
+          return {
+            id: v.id,
+            patient_name: patientName(db, v.patient_id),
+            medicines: v.medicines,
+            dispensed: v.dispensed,
+            created_at: v.created_at,
+            expires_at: expires.toISOString(),
+            expired: !v.dispensed && now() > expires,
+          };
+        }),
     );
   },
 
@@ -833,6 +867,7 @@ export const mockApi: Api = {
     const visit = db.visits.find((v) => v.id === id);
     if (!visit) fail(404);
     if (visit.dispensed) fail(409, "already_dispensed");
+    if (now() > expiresAt(db, visit)) fail(409, "expired");
     visit.dispensed = true;
     log(db, user, "prescription.dispense", patientName(db, visit.patient_id));
     write(db);
@@ -1210,5 +1245,38 @@ export const mockApi: Api = {
       today_billed: billedOf(db, new Set(todays.map((a) => a.id))),
       today_collected: collectedOf(db, todayPayments),
     });
+  },
+
+  myNotifications: async () => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    makeTimedNotifications(db, user);
+    write(db);
+    return delay(
+      db.notifications
+        .filter((n) => n.user_id === user.id)
+        .map(({ id, type, params, at, read }) => ({ id, type, params, at, read })),
+    );
+  },
+
+  readNotifications: async () => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    for (const n of db.notifications) if (n.user_id === user.id) n.read = true;
+    write(db);
+    return delay(undefined);
+  },
+
+  deleteMyAccount: async (password) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    if (user.password !== password) fail(401, "wrong_password");
+    // The login goes away. The people and their medical files stay, now without an account.
+    for (const p of db.patients) if (p.account_id === user.id) p.account_id = null;
+    db.notifications = db.notifications.filter((n) => n.user_id !== user.id);
+    db.users = db.users.filter((u) => u.id !== user.id);
+    log(db, user, "account.delete", user.name);
+    write(db);
+    return delay(undefined);
   },
 };

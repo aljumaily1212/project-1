@@ -2,13 +2,14 @@
 
 import { toast } from "sonner";
 import { api, type Prescription } from "@/lib/api";
+import { dateTime } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { Button, Card, EmptyState, ErrorState, MedicineList, PageHeader } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
 function PrescriptionCard({ prescription, onDispense }: { prescription: Prescription; onDispense: (id: number) => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   return (
     <Card className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -16,9 +17,15 @@ function PrescriptionCard({ prescription, onDispense }: { prescription: Prescrip
         {prescription.dispensed && (
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">{t("pharmacy.dispensed")}</span>
         )}
+        {prescription.expired && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("pharmacy.expired")}</span>
+        )}
       </div>
       <MedicineList medicines={prescription.medicines} />
       {!prescription.dispensed && (
+        <p className="text-xs text-slate-500">{t("pharmacy.validUntil", { date: dateTime(prescription.expires_at, locale) })}</p>
+      )}
+      {!prescription.dispensed && !prescription.expired && (
         <Button className="w-full" onClick={() => onDispense(prescription.id)}>
           {t("pharmacy.dispense")}
         </Button>
