@@ -5,8 +5,9 @@ import type {
   BookRequest,
   ClinicSettings,
   CreateStaffRequest,
-  Day,
   Doctor,
+  DoctorDay,
+  DoctorSchedule,
   DoctorVisit,
   FamilyMember,
   FinishVisitRequest,
@@ -17,9 +18,12 @@ import type {
   PatientVisit,
   Prescription,
   RegisterRequest,
+  RescheduleRequest,
   Slot,
   StaffAppointment,
   StaffUser,
+  UpdateScheduleRequest,
+  VisitKind,
   WalkInRequest,
   WalkInResult,
 } from "./types";
@@ -40,8 +44,10 @@ export const httpApi = {
 
   listDoctors: () => http.get<Doctor[]>("/public/doctors").then((r) => r.data),
 
-  doctorSlots: (doctorId: number, day: Day) =>
-    http.get<Slot[]>(`/doctors/${doctorId}/slots`, { params: { day } }).then((r) => r.data),
+  doctorDays: (doctorId: number) => http.get<DoctorDay[]>(`/doctors/${doctorId}/days`).then((r) => r.data),
+
+  doctorSlots: (doctorId: number, date: string, kind: VisitKind) =>
+    http.get<Slot[]>(`/doctors/${doctorId}/slots`, { params: { date, kind } }).then((r) => r.data),
 
   myFamily: () => http.get<FamilyMember[]>("/me/family").then((r) => r.data),
 
@@ -52,6 +58,9 @@ export const httpApi = {
   book: (body: BookRequest) => http.post<null>("/appointments", body).then(() => undefined),
 
   cancelAppointment: (id: number) => http.post<null>(`/appointments/${id}/cancel`, {}).then(() => undefined),
+
+  rescheduleAppointment: (id: number, body: RescheduleRequest) =>
+    http.post<null>(`/appointments/${id}/reschedule`, body).then(() => undefined),
 
   bookedToday: () => http.get<StaffAppointment[]>("/appointments/booked-today").then((r) => r.data),
 
@@ -86,6 +95,19 @@ export const httpApi = {
   listAudit: () => http.get<AuditEntry[]>("/audit").then((r) => r.data),
 
   managerOverview: () => http.get<ManagerOverview>("/manager/overview").then((r) => r.data),
+
+  listSchedules: () => http.get<DoctorSchedule[]>("/doctors/schedules").then((r) => r.data),
+
+  updateSchedule: (doctorId: number, body: UpdateScheduleRequest) =>
+    http.put<null>(`/doctors/${doctorId}/schedule`, body).then(() => undefined),
+
+  // Returns how many appointments were cancelled.
+  markAbsent: (doctorId: number, date: string) =>
+    http.post<{ cancelled: number }>(`/doctors/${doctorId}/absences`, { date }).then((r) => r.data),
+
+  // Returns how many patients were told.
+  markLate: (doctorId: number, minutes: number) =>
+    http.post<{ notified: number }>(`/doctors/${doctorId}/late`, { minutes }).then((r) => r.data),
 };
 
 export type Api = typeof httpApi;

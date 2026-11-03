@@ -3,57 +3,32 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { api, type Day, type Doctor, type FamilyMember } from "@/lib/api";
-import { doctorBranch, doctorName, doctorSpecialty, money } from "@/lib/display";
+import { api, type Doctor, type FamilyMember, type VisitKind } from "@/lib/api";
+import { doctorName, doctorSpecialty, money } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { Button, Card, EmptyState, ErrorState, Field, PageHeader, Select } from "@/components/common";
-import { FormSkeleton, Skeleton } from "@/components/skeleton";
-
-const DAYS: Day[] = ["today", "tomorrow"];
-
-function SlotPicker({ doctorId, day, time, onPick }: { doctorId: number; day: Day; time: string; onPick: (time: string) => void }) {
-  const { t } = useT();
-  const { state, reload } = useLoad(() => api.doctorSlots(doctorId, day), `${doctorId}|${day}`, { every: 4000 });
-
-  if (state.status === "loading") return <Skeleton className="h-24 w-full" />;
-  if (state.status === "error") return <ErrorState message={errorText(state.error, t)} onRetry={reload} />;
-  if (!state.data.some((s) => s.available)) return <EmptyState title={t("book.noSlots")} />;
-
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {state.data.map((slot) => (
-        <Button
-          key={slot.time}
-          type="button"
-          dir="ltr"
-          className="h-11"
-          variant={slot.time === time ? "primary" : "secondary"}
-          disabled={!slot.available}
-          onClick={() => onPick(slot.time)}
-        >
-          {slot.time}
-        </Button>
-      ))}
-    </div>
-  );
-}
+import { DayPicker, KindPicker, SlotPicker } from "@/components/booking";
+import { Button, Card, ErrorState, Field, PageHeader, Select } from "@/components/common";
+import { FormSkeleton } from "@/components/skeleton";
 
 function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMember[] }) {
   const router = useRouter();
   const { t, locale } = useT();
   const [patientId, setPatientId] = useState(family[0].id);
   const [doctorId, setDoctorId] = useState(doctors[0].id);
-  const [day, setDay] = useState<Day>("today");
+  const [kind, setKind] = useState<VisitKind>("new");
+  const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const doctor = doctors.find((d) => d.id === doctorId) ?? doctors[0];
 
   async function confirm() {
     setError("");
     setSaving(true);
     try {
-      await api.book({ patient_id: patientId, doctor_id: doctorId, day, time });
+      await api.book({ patient_id: patientId, doctor_id: doctorId, date, time, kind });
       toast.success(t("book.done"));
       router.replace("/account/appointments");
     } catch (err) {
@@ -83,6 +58,7 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
             type="button"
             onClick={() => {
               setDoctorId(d.id);
+              setDate("");
               setTime("");
             }}
             className={`w-full rounded-lg border p-3 text-start transition-colors ${
@@ -91,35 +67,39 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
           >
             <span className="block font-semibold">{doctorName(d, locale)}</span>
             <span className="block text-sm text-slate-600">
-              {doctorSpecialty(d, locale)} · {doctorBranch(d, locale)} · {money(d.fee)} {t("common.currency")}
+              {doctorSpecialty(d, locale)} · {money(d.fee)} {t("common.currency")}
             </span>
           </button>
         ))}
       </div>
 
       <div className="space-y-2">
+        <p className="text-sm font-medium">{t("book.kind")}</p>
+        <KindPicker
+          doctor={doctor}
+          value={kind}
+          onChange={(next) => {
+            setKind(next);
+            setTime("");
+          }}
+        />
+      </div>
+
+      <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.day")}</p>
-        <div className="grid grid-cols-2 gap-2">
-          {DAYS.map((item) => (
-            <Button
-              key={item}
-              type="button"
-              className="h-11"
-              variant={item === day ? "primary" : "secondary"}
-              onClick={() => {
-                setDay(item);
-                setTime("");
-              }}
-            >
-              {t(`day.${item}`)}
-            </Button>
-          ))}
-        </div>
+        <DayPicker
+          doctorId={doctorId}
+          value={date}
+          onChange={(next) => {
+            setDate(next);
+            setTime("");
+          }}
+        />
       </div>
 
       <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.time")}</p>
-        <SlotPicker doctorId={doctorId} day={day} time={time} onPick={setTime} />
+        <SlotPicker doctorId={doctorId} date={date} kind={kind} value={time} onPick={setTime} />
       </div>
 
       {error && (
@@ -128,7 +108,7 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
         </p>
       )}
 
-      <Button className="h-11 w-full" disabled={!time} loading={saving} onClick={confirm}>
+      <Button className="h-11 w-full" disabled={!date || !time} loading={saving} onClick={confirm}>
         {t("book.confirm")}
       </Button>
     </Card>

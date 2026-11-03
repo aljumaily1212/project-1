@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -39,7 +40,47 @@ function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
           ))}
         </ol>
       )}
+      <LateForm doctor={doctor} />
     </Card>
+  );
+}
+
+const LATE_MINUTES = [10, 15, 30, 60];
+
+// Tells every patient booked with this doctor today, so nobody has to phone them.
+function LateForm({ doctor }: { doctor: Doctor }) {
+  const { t } = useT();
+  const [minutes, setMinutes] = useState(String(LATE_MINUTES[1]));
+  const [saving, setSaving] = useState(false);
+
+  async function send() {
+    setSaving(true);
+    try {
+      const { notified } = await api.markLate(doctor.id, Number(minutes));
+      toast.success(t("reception.lateSent", { n: notified }));
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3">
+      <div className="w-32">
+        <Field label={t("reception.late")}>
+          <Select value={minutes} onChange={(e) => setMinutes(e.target.value)}>
+            {LATE_MINUTES.map((m) => (
+              <option key={m} value={m}>
+                {t("book.minutes", { n: m })}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <Button variant="secondary" loading={saving} onClick={send}>
+        {t("reception.notifyLate")}
+      </Button>
+    </div>
   );
 }
 

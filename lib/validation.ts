@@ -52,6 +52,17 @@ export const settingsSchema = z.object({
 });
 export type SettingsForm = z.infer<typeof settingsSchema>;
 
+// One choice per weekday: a day off, or a branch and a shift.
+export const DAY_CHOICES = ["off", "main-morning", "main-evening", "second-morning", "second-evening"] as const;
+
+export const scheduleSchema = z.object({
+  fee: wholeNumber(0, 10_000_000),
+  new_minutes: wholeNumber(5, 120),
+  followup_minutes: wholeNumber(5, 120),
+  days: z.array(z.enum(DAY_CHOICES)).length(7),
+});
+export type ScheduleForm = z.infer<typeof scheduleSchema>;
+
 export const medicineSchema = z.object({
   name: z.string().trim().min(1, "validation.required"),
   dose: z.string().trim().min(1, "validation.required"),

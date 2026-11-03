@@ -4,8 +4,12 @@ export type ApiEnvelope<T> =
 
 export type Role = "patient" | "reception" | "doctor" | "pharmacy" | "manager";
 export type StaffRole = Exclude<Role, "patient">;
-export type Day = "today" | "tomorrow";
 export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | "cancelled";
+
+export type BranchId = "main" | "second";
+export type Shift = "morning" | "evening";
+export type VisitKind = "new" | "followup";
+export type CancelReason = "patient" | "doctor_absent";
 
 export interface User {
   id: number;
@@ -36,9 +40,35 @@ export interface Doctor {
   name_ar: string;
   specialty: string;
   specialty_ar: string;
-  branch: string;
-  branch_ar: string;
   fee: number;
+  new_minutes: number;
+  followup_minutes: number;
+}
+
+// Where and when a doctor works on one weekday. null means a day off.
+export interface WorkDay {
+  branch: BranchId;
+  shift: Shift;
+}
+
+export interface DoctorDay {
+  date: string;
+  work: WorkDay | null;
+  absent: boolean;
+}
+
+export interface DoctorSchedule {
+  doctor: Doctor;
+  days: (WorkDay | null)[];
+  absences: string[];
+  late: { date: string; minutes: number } | null;
+}
+
+export interface UpdateScheduleRequest {
+  fee: number;
+  new_minutes: number;
+  followup_minutes: number;
+  days: (WorkDay | null)[];
 }
 
 export interface Slot {
@@ -57,7 +87,13 @@ export interface FamilyMember {
 export interface BookRequest {
   patient_id: number;
   doctor_id: number;
-  day: Day;
+  date: string;
+  time: string;
+  kind: VisitKind;
+}
+
+export interface RescheduleRequest {
+  date: string;
   time: string;
 }
 
@@ -65,10 +101,15 @@ export interface MyAppointment {
   id: number;
   patient_name: string;
   doctor: Doctor;
-  day: Day;
+  date: string;
   time: string;
+  kind: VisitKind;
+  branch: BranchId;
   status: AppointmentStatus;
   ahead: number | null;
+  can_change: boolean;
+  cancel_reason: CancelReason | null;
+  late_minutes: number;
 }
 
 export interface StaffAppointment {
@@ -76,8 +117,10 @@ export interface StaffAppointment {
   patient_id: number;
   patient_name: string;
   doctor_id: number;
-  day: Day;
+  date: string;
   time: string;
+  kind: VisitKind;
+  branch: BranchId;
   status: AppointmentStatus;
   emergency: boolean;
 }
@@ -133,7 +176,7 @@ export interface CreateStaffRequest {
     name_en: string;
     specialty_ar: string;
     specialty_en: string;
-    branch: "main" | "second";
+    branch: BranchId;
     fee: number;
   };
 }
@@ -155,8 +198,12 @@ export type AuditAction =
   | "settings.update"
   | "appointment.book"
   | "appointment.cancel"
+  | "appointment.reschedule"
   | "appointment.checkin"
-  | "walkin.add";
+  | "walkin.add"
+  | "doctor.update"
+  | "doctor.absent"
+  | "doctor.late";
 
 export interface AuditEntry {
   id: number;
@@ -173,6 +220,16 @@ export interface ManagerOverview {
   visits_done_today: number;
   doctors: number;
   staff: number;
+}
+
+export type NotificationType = "doctor_absent" | "doctor_late";
+
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  params: Record<string, string | number>;
+  at: string;
+  read: boolean;
 }
 
 export interface Prescription {

@@ -3,13 +3,28 @@ import type { Locale } from "./i18n";
 
 export const doctorName = (d: Doctor, locale: Locale) => (locale === "ar" ? d.name_ar : d.name);
 export const doctorSpecialty = (d: Doctor, locale: Locale) => (locale === "ar" ? d.specialty_ar : d.specialty);
-export const doctorBranch = (d: Doctor, locale: Locale) => (locale === "ar" ? d.branch_ar : d.branch);
 
 export const money = (amount: number) => amount.toLocaleString("en-US");
 
 // Latin digits in both languages, so numbers look the same everywhere.
+const intl = (locale: Locale) => (locale === "ar" ? "ar-IQ-u-nu-latn" : "en-GB");
+
 export const dateTime = (iso: string, locale: Locale) =>
-  new Intl.DateTimeFormat(locale === "ar" ? "ar-IQ-u-nu-latn" : "en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+  new Intl.DateTimeFormat(intl(locale), { dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
+
+// Dates are "YYYY-MM-DD". Adding a time stops the browser from shifting the day by time zone.
+const asDate = (date: string) => new Date(`${date}T00:00:00`);
+
+export const weekdayName = (date: string, locale: Locale) => new Intl.DateTimeFormat(intl(locale), { weekday: "short" }).format(asDate(date));
+
+// Built by hand: the Arabic format adds hidden direction marks that scramble "3/11" inside left-to-right text.
+export const shortDate = (date: string) => {
+  const d = asDate(date);
+  return `${d.getDate()}/${d.getMonth() + 1}`;
+};
+
+export const longDate = (date: string, locale: Locale) =>
+  new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long" }).format(asDate(date));
 
 export const STATUS_COLOR: Record<AppointmentStatus, string> = {
   booked: "bg-sky-100 text-sky-800",
