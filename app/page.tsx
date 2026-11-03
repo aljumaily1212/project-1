@@ -42,10 +42,7 @@ function BrandPanel() {
 
       <div className="relative flex items-center gap-3">
         <LogoMark size={48} />
-        <div>
-          <p className="text-lg font-bold">{t("app.name")}</p>
-          <p className="text-sm opacity-75">{t("login.panel.tagline")}</p>
-        </div>
+        <p className="text-lg font-bold">{t("login.panel.tagline")}</p>
       </div>
 
       <div className="relative max-w-lg space-y-6">
