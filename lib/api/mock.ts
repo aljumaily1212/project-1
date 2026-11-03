@@ -20,6 +20,8 @@ import type {
   Medicine,
   MyAppointment,
   NotificationType,
+  PatientFile,
+  PatientSummary,
   Payment,
   PaymentMethod,
   Relation,
@@ -47,7 +49,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v9";
+const STORAGE_KEY = "alrahma.mock.v10";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -170,7 +172,7 @@ const week = (sun: WorkDay | null, mon: WorkDay | null, tue: WorkDay | null, wed
 
 function seed(): Db {
   const day = today();
-  return {
+  const db: Db = {
     nextId: 100,
     nextArrival: 2,
     doctors: [
@@ -228,16 +230,6 @@ function seed(): Db {
     ],
     visits: [
       {
-        id: 1,
-        created_at: `${addDays(day, -10)}T10:00:00`,
-        patient_id: 1,
-        doctor_id: 1,
-        diagnosis: "التهاب لوزتين",
-        internal_note: "راجع الحالة بعد أسبوع",
-        medicines: [{ name: "Amoxicillin 500mg", dose: "3 / 1", days: 7 }],
-        dispensed: true,
-      },
-      {
         id: 2,
         created_at: `${day}T08:00:00`,
         patient_id: 4,
@@ -265,6 +257,139 @@ function seed(): Db {
     ],
     payments: [],
   };
+  addPastMonth(db);
+  return db;
+}
+
+// ---------- a month of fake history ----------
+
+// More fake patients, so the history and analytics pages have something to show.
+const MORE_PATIENTS = ["علي جبار", "فاطمة حسين", "كرار سلمان", "نور الهدى عادل", "عباس فاضل", "سجى محمد", "مرتضى رحيم", "زهراء قاسم", "حيدر صباح", "رقية علي"];
+
+const DIAGNOSES: { diagnosis: string; medicines: Medicine[] }[] = [
+  { diagnosis: "نزلة برد", medicines: [{ name: "Paracetamol 500mg", dose: "3 / 1", days: 5 }] },
+  { diagnosis: "التهاب لوزتين", medicines: [{ name: "Amoxicillin 500mg", dose: "3 / 1", days: 7 }] },
+  { diagnosis: "ارتفاع ضغط الدم", medicines: [{ name: "Amlodipine 5mg", dose: "1 / 1", days: 30 }] },
+  { diagnosis: "التهاب معدة", medicines: [{ name: "Omeprazole 20mg", dose: "1 / 1", days: 14 }] },
+  { diagnosis: "نقص فيتامين د", medicines: [{ name: "Vitamin D3 5000 IU", dose: "1 / 1", days: 30 }] },
+  { diagnosis: "حساسية موسمية", medicines: [{ name: "Cetirizine 10mg", dose: "1 / 1", days: 10 }] },
+  { diagnosis: "فحص دوري، لا توجد مشكلة", medicines: [] },
+];
+
+// The test's unit and a normal-looking range for a fake number result.
+const TEST_VALUES: Record<number, { unit: string; min: number; max: number }> = {
+  1: { unit: "mg/dL", min: 80, max: 190 },
+  2: { unit: "g/dL", min: 10, max: 16 },
+  3: { unit: "ng/mL", min: 8, max: 60 },
+};
+
+// The same "random" numbers every time, so everyone gets the same demo data.
+function randomFrom(seedNumber: number) {
+  let a = seedNumber;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function addPastMonth(db: Db) {
+  const random = randomFrom(7);
+  const pick = <T>(list: T[]) => list[Math.floor(random() * list.length)];
+  let id = 1000;
+  for (const [index, name] of MORE_PATIENTS.entries()) {
+    db.patients.push({ id: 5 + index, name, phone: `077000001${pad(index)}`, account_id: null });
+  }
+  const patientIds = db.patients.map((p) => p.id);
+  const visits: MockVisit[] = [];
+
+  for (let back = 30; back >= 1; back--) {
+    const date = addDays(today(), -back);
+    for (const doctor of db.doctors) {
+      const day = doctor.days[weekday(date)];
+      if (!day) continue;
+      let minute = toMinutes(SHIFTS[day.shift].start);
+      for (let n = 1 + Math.floor(random() * 3); n > 0; n--) {
+        const patientId = pick(patientIds);
+        const kind: VisitKind = random() < 0.3 ? "followup" : "new";
+        const walkIn = random() < 0.15;
+        const time = walkIn ? "" : toTime(minute);
+        minute += lengthOf(doctor, kind) + 10 * Math.floor(random() * 3);
+        const roll = random();
+        // Zainab and her son never miss, so the demo patient never needs a deposit.
+        const status: AppointmentStatus = roll < 0.08 ? "cancelled" : roll < 0.16 && patientId > 2 ? "no_show" : "done";
+        const appointmentId = id++;
+        db.appointments.push({
+          id: appointmentId,
+          patient_id: patientId,
+          doctor_id: doctor.id,
+          date,
+          time,
+          kind,
+          branch: day.branch,
+          status,
+          emergency: walkIn && random() < 0.3,
+          arrival_order: 0,
+          cancel_reason: status === "cancelled" ? "patient" : null,
+        });
+        db.items.push({ id: id++, appointment_id: appointmentId, ...visitFee(doctor) });
+        if (status !== "done") continue;
+
+        const at = new Date(`${date}T${time || SHIFTS[day.shift].start}:00`);
+        const visitId = id++;
+        const { diagnosis, medicines } = pick(DIAGNOSES);
+        visits.push({ id: visitId, created_at: at.toISOString(), patient_id: patientId, doctor_id: doctor.id, diagnosis, internal_note: "", medicines, dispensed: true });
+
+        const extras: Service[] = [];
+        if (random() < 0.25) extras.push(findService(db, 1 + Math.floor(random() * 3)));
+        if (random() < 0.1) extras.push(findService(db, 5));
+        if (random() < 0.05) extras.push(findService(db, 4));
+        for (const service of extras) {
+          db.items.push({ id: id++, appointment_id: appointmentId, label: service.name, label_ar: service.name_ar, kind: service.kind, price: service.price, currency: service.currency });
+          const range = TEST_VALUES[service.id];
+          if (!range) continue;
+          db.labOrders.push({
+            id: id++,
+            visit_id: visitId,
+            patient_id: patientId,
+            doctor_id: doctor.id,
+            service_id: service.id,
+            status: "confirmed",
+            result: { type: "number", value: Math.round(range.min + random() * (range.max - range.min)), unit: range.unit },
+            history: [],
+            requested_at: at.toISOString(),
+            confirmed_at: new Date(at.getTime() + 3_600_000).toISOString(),
+          });
+        }
+
+        // Everything was paid in full: online or cash for dinars, cash for dollars.
+        const total = zero();
+        for (const item of db.items) if (item.appointment_id === appointmentId) total[item.currency] += item.price;
+        const method: PaymentMethod = random() < 0.3 ? "online" : "cash";
+        for (const currency of ["IQD", "USD"] as Currency[]) {
+          if (total[currency] === 0) continue;
+          const paymentId = id++;
+          db.payments.push({
+            id: paymentId,
+            appointment_id: appointmentId,
+            amount: total[currency],
+            currency,
+            method: currency === "USD" ? "cash" : method,
+            kind: "payment",
+            at: new Date(at.getTime() + 1_800_000).toISOString(),
+            by: method === "online" && currency === "IQD" ? patientName(db, patientId) : "سارة موظفة",
+            reason: "",
+            ref_id: null,
+            key: `seed:${paymentId}`,
+          });
+        }
+      }
+    }
+  }
+  // Newest first, the same order new visits are added in.
+  db.visits = [...db.visits, ...visits].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  db.nextId = id;
 }
 
 function read(): Db {
@@ -563,6 +688,22 @@ function makeTimedNotifications(db: Db, user: MockUser) {
   }
 }
 
+function patientSummary(db: Db, p: MockPatient): PatientSummary {
+  const appointments = db.appointments.filter((a) => a.patient_id === p.id);
+  const visited = appointments.filter((a) => VISITED.includes(a.status)).map((a) => a.date).sort();
+  return {
+    id: p.id,
+    name: p.name,
+    phone: p.phone,
+    has_account: p.account_id !== null && p.relation === "self",
+    relation: p.account_id !== null ? (p.relation ?? "self") : null,
+    appointments: appointments.length,
+    visits: db.visits.filter((v) => v.patient_id === p.id).length,
+    no_shows: noShowsOf(db, p.id),
+    last_visit: visited.at(-1) ?? null,
+  };
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -845,7 +986,8 @@ export const mockApi: Api = {
     requireUser(db, "pharmacy");
     return delay(
       db.visits
-        .filter((v) => v.medicines.length > 0)
+        // Old prescriptions that were already given out stay in the patient's file, not on the pharmacy's list.
+        .filter((v) => v.medicines.length > 0 && (!v.dispensed || now() <= expiresAt(db, v)))
         .map((v) => {
           const expires = expiresAt(db, v);
           return {
@@ -1265,6 +1407,79 @@ export const mockApi: Api = {
     for (const n of db.notifications) if (n.user_id === user.id) n.read = true;
     write(db);
     return delay(undefined);
+  },
+
+  searchPatients: async (query) => {
+    const db = read();
+    requireUser(db, "reception", "manager");
+    const q = query.trim().toLowerCase();
+    return delay(
+      db.patients
+        .filter((p) => !q || p.name.toLowerCase().includes(q) || p.phone.includes(q))
+        .map((p) => patientSummary(db, p))
+        // Patients seen most recently come first. Never-seen patients go last.
+        .sort((a, b) => (b.last_visit ?? "").localeCompare(a.last_visit ?? "") || a.name.localeCompare(b.name)),
+    );
+  },
+
+  patientFile: async (patientId) => {
+    const db = read();
+    const user = requireUser(db, "reception", "manager");
+    const patient = db.patients.find((p) => p.id === patientId);
+    if (!patient) fail(404);
+    // Opening a medical file is always written in the audit log.
+    log(db, user, "file.open", patient.name);
+    write(db);
+    const appointments = db.appointments
+      .filter((a) => a.patient_id === patientId)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time));
+    const total = zero();
+    const paid = zero();
+    // Cancelled and didn't-come visits are not charged, so they don't count as money owed.
+    for (const a of appointments.filter((x) => x.status !== "cancelled" && x.status !== "no_show")) {
+      const m = moneyOf(db, a.id);
+      for (const c of ["IQD", "USD"] as Currency[]) {
+        total[c] += m.total[c];
+        paid[c] += m.paid[c];
+      }
+    }
+    const file: PatientFile = {
+      patient: patientSummary(db, patient),
+      family: db.patients
+        .filter((p) => patient.account_id !== null && p.account_id === patient.account_id && p.id !== patient.id)
+        .map(({ id, name, relation }) => ({ id, name, relation: relation ?? "self" })),
+      appointments: appointments.map((a) => ({
+        id: a.id,
+        doctor_name: doctorNameOf(db, a.doctor_id),
+        date: a.date,
+        time: a.time,
+        kind: a.kind,
+        branch: a.branch,
+        status: a.status,
+        emergency: a.emergency,
+        cancel_reason: a.cancel_reason,
+        money: moneyOf(db, a.id),
+      })),
+      visits: db.visits
+        .filter((v) => v.patient_id === patientId)
+        .map((v) => ({
+          id: v.id,
+          created_at: v.created_at,
+          doctor_name: doctorNameOf(db, v.doctor_id),
+          diagnosis: v.diagnosis,
+          medicines: v.medicines,
+          dispensed: v.dispensed,
+          tests: db.labOrders
+            .filter((o) => o.visit_id === v.id)
+            .map((o) => ({ id: o.id, test: findService(db, o.service_id), status: o.status, result: o.status === "confirmed" ? o.result : null })),
+        })),
+      payments: db.payments
+        .filter((p) => appointments.some((a) => a.id === p.appointment_id))
+        .sort((a, b) => b.at.localeCompare(a.at))
+        .map(({ ref_id: _r, key: _k, ...p }) => (void _r, void _k, p)),
+      money: { total, paid, balance: { IQD: total.IQD - paid.IQD, USD: total.USD - paid.USD } },
+    };
+    return delay(file);
   },
 
   deleteMyAccount: async (password) => {

@@ -21,6 +21,8 @@ import type {
   LoginResponse,
   ManagerOverview,
   MyAppointment,
+  PatientFile,
+  PatientSummary,
   PatientVisit,
   PayRequest,
   Prescription,
@@ -168,6 +170,11 @@ export const httpApi = {
   myNotifications: () => http.get<AppNotification[]>("/me/notifications").then((r) => r.data),
 
   readNotifications: () => http.post<null>("/me/notifications/read", {}).then(() => undefined),
+
+  // Reception and the manager search by name or phone. An empty search lists the latest patients.
+  searchPatients: (query: string) => http.get<PatientSummary[]>("/patients", { params: { q: query } }).then((r) => r.data),
+
+  patientFile: (patientId: number) => http.get<PatientFile>(`/patients/${patientId}/file`).then((r) => r.data),
 
   // The account is removed, but the medical file stays with the clinic.
   deleteMyAccount: (password: string) => http.delete<null>("/me", { data: { password } }).then(() => undefined),
