@@ -217,24 +217,24 @@ export function AboutSlide({ doctors, today }: { doctors: Doctor[]; today: Scree
   return (
     <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_1fr]">
       <motion.div variants={list} initial="hidden" animate="show" className="space-y-6">
-        <motion.span variants={rise} className="inline-block rounded-full bg-[#5eead4]/15 px-4 py-1.5 text-lg font-semibold text-[#5eead4] 2xl:text-2xl">
+        <motion.span variants={rise} className="inline-block rounded-full bg-[#5eead4]/15 px-4 py-1.5 font-semibold text-[#5eead4] 2xl:text-xl">
           {t("slides.aboutBadge")}
         </motion.span>
-        <motion.h2 variants={rise} className="text-4xl leading-tight font-bold lg:text-6xl 2xl:text-7xl">
+        <motion.h2 variants={rise} className="text-3xl leading-tight font-bold lg:text-5xl 2xl:text-6xl">
           {t("slides.aboutTitle")}
         </motion.h2>
-        <motion.p variants={rise} className="max-w-2xl text-xl opacity-80 lg:text-2xl 2xl:max-w-4xl 2xl:text-3xl 2xl:leading-snug">
+        <motion.p variants={rise} className="max-w-2xl text-lg opacity-80 lg:text-xl 2xl:max-w-4xl 2xl:text-2xl 2xl:leading-snug">
           {t("slides.aboutText")}
         </motion.p>
         <div className="grid gap-4 sm:grid-cols-2">
           {FEATURES.map(({ icon: Icon, key }) => (
             <motion.div key={key} variants={rise} className="flex gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-5 2xl:p-6">
-              <motion.span variants={pop} className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#5eead4]/15 text-[#5eead4] 2xl:size-20 2xl:rounded-2xl">
-                <Icon className="size-6 2xl:size-10" aria-hidden />
+              <motion.span variants={pop} className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#5eead4]/15 text-[#5eead4] 2xl:size-16 2xl:rounded-2xl">
+                <Icon className="size-5 2xl:size-8" aria-hidden />
               </motion.span>
               <span>
-                <span className="block text-xl font-semibold 2xl:text-3xl">{t(`slides.feature.${key}`)}</span>
-                <span className="block opacity-75 2xl:mt-1 2xl:text-2xl">{t(`slides.feature.${key}Text`)}</span>
+                <span className="block text-lg font-semibold 2xl:text-2xl">{t(`slides.feature.${key}`)}</span>
+                <span className="block text-sm opacity-75 2xl:mt-1 2xl:text-lg">{t(`slides.feature.${key}Text`)}</span>
               </span>
             </motion.div>
           ))}
@@ -253,10 +253,10 @@ export function AboutSlide({ doctors, today }: { doctors: Doctor[]; today: Scree
         <motion.div variants={list} initial="hidden" animate="show" className="grid w-full grid-cols-3 gap-3">
           {stats.map((s) => (
             <motion.div key={s.label} variants={pop} className="rounded-2xl bg-white/10 px-3 py-4 text-center backdrop-blur-sm">
-              <p className="text-4xl font-bold text-[#5eead4] lg:text-5xl 2xl:text-7xl">
+              <p className="text-3xl font-bold text-[#5eead4] lg:text-4xl 2xl:text-6xl">
                 <CountUp to={s.value} />
               </p>
-              <p className="mt-1 opacity-80 2xl:text-2xl">{s.label}</p>
+              <p className="mt-1 opacity-80 2xl:text-xl">{s.label}</p>
             </motion.div>
           ))}
         </motion.div>
@@ -348,37 +348,61 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
   );
 }
 
-// While an info slide is showing, this strip keeps every doctor's current number on screen.
+// While an info slide is showing, this bar keeps every doctor's "now in the clinic" on screen,
+// in the same style as the queue cards, so people waiting never lose their number.
 export function QueueStrip({ doctors, freshOf }: { doctors: ScreenDoctor[]; freshOf: (d: ScreenDoctor) => boolean }) {
   const { t, locale } = useT();
   return (
     <motion.div
-      initial={{ y: 80, opacity: 0 }}
+      initial={{ y: 140, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 80, opacity: 0 }}
+      exit={{ y: 140, opacity: 0 }}
       transition={{ type: "spring", stiffness: 120, damping: 18 }}
       data-queue-strip
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#041513]/85 px-6 py-3 backdrop-blur-md lg:px-10"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#041513]/90 px-6 py-3 backdrop-blur-md lg:px-10"
     >
-      <div className="flex items-center gap-4 overflow-hidden">
-        <span className="shrink-0 rounded-lg bg-[#5eead4] px-3 py-1 text-sm font-bold text-[#042f2e]">{t("slides.queueNow")}</span>
-        <div className="flex min-w-0 flex-1 flex-wrap gap-x-8 gap-y-2">
-          {doctors.map((d) => (
-            <span key={d.doctor.id} className="flex items-baseline gap-2 text-lg whitespace-nowrap">
-              <span className="opacity-80">{doctorName(d.doctor, locale)}</span>
+      <div className="flex flex-wrap justify-center gap-3">
+        {doctors.map((d) => {
+          const fresh = freshOf(d);
+          return (
+            <div
+              key={d.doctor.id}
+              data-strip-doctor={d.doctor.id}
+              className={`flex min-w-64 flex-1 basis-64 items-center justify-between gap-4 rounded-2xl border px-4 py-2 transition-colors lg:max-w-md 2xl:max-w-xl 2xl:px-6 2xl:py-3 ${
+                fresh ? "border-[#5eead4] bg-[#5eead4]/10 shadow-[0_0_30px_rgb(94_234_212/0.3)]" : "border-white/10 bg-white/5"
+              }`}
+            >
+              <div className="min-w-0">
+                <p className="truncate text-lg font-bold 2xl:text-2xl">{doctorName(d.doctor, locale)}</p>
+                <p className="truncate text-sm opacity-70 2xl:text-base">{doctorSpecialty(d.doctor, locale)}</p>
+                {!d.absent && (
+                  <p className="text-sm opacity-70 2xl:text-base">
+                    {d.next.length > 0 ? (
+                      <>
+                        {t("screen.next")}:{" "}
+                        <span dir="ltr" className="font-mono font-semibold">
+                          {d.next[0]}
+                        </span>
+                        {" · "}
+                      </>
+                    ) : null}
+                    {t("screen.waiting", { n: d.waiting })}
+                  </p>
+                )}
+              </div>
               {d.absent ? (
-                <span className="text-[#fecaca]">{t("screen.absent")}</span>
+                <span className="shrink-0 rounded-xl bg-[#ef4444]/20 px-3 py-2 text-sm font-semibold text-[#fecaca]">{t("screen.absent")}</span>
               ) : (
-                <>
-                  <span dir="ltr" className={`font-mono text-3xl font-bold ${freshOf(d) ? "animate-pulse text-[#5eead4]" : ""}`}>
+                <div className="shrink-0 text-center">
+                  <p className="text-xs opacity-70 2xl:text-sm">{t("screen.now")}</p>
+                  <p dir="ltr" data-strip-now className={`font-mono text-4xl font-bold 2xl:text-6xl ${fresh ? "animate-pulse text-[#5eead4]" : ""}`}>
                     {d.now ?? "—"}
-                  </span>
-                  <span className="text-sm opacity-60">{t("screen.waiting", { n: d.waiting })}</span>
-                </>
+                  </p>
+                </div>
               )}
-            </span>
-          ))}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </motion.div>
   );

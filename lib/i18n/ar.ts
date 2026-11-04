@@ -988,4 +988,5 @@ export const ar: Record<MessageKey, string> = {
   "audit.staff.enable": "أعاد تفعيل حساب",
   "paging.shown": "يُعرض {shown} من {total}",
   "paging.more": "عرض المزيد",
+  "slides.next": "الشريحة التالية",
 };

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, GalleryHorizontal, Maximize, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, GalleryHorizontal, Maximize, Volume2, VolumeX } from "lucide-react";
 import { api, type BranchId, type ScreenDoctor } from "@/lib/api";
 import { doctorName, doctorSpecialty } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
@@ -182,6 +182,21 @@ export default function QueueScreenPage() {
     return () => clearInterval(timer);
   }, []);
 
+  // Go to the next (or previous) slide now, from the button or the arrow keys (a TV remote's arrows work too).
+  const step = (by: number) => setAt((cur) => ({ step: (cur.step + by + SEQUENCE.length) % SEQUENCE.length, since: Date.now() }));
+  useEffect(() => {
+    if (!slidesOn) return;
+    const rtl = locale === "ar";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      // In Arabic the next slide is to the left.
+      if (e.key === (rtl ? "ArrowLeft" : "ArrowRight")) step(1);
+      else if (e.key === (rtl ? "ArrowRight" : "ArrowLeft")) step(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [slidesOn, locale]);
+
   // Chime when any doctor calls a new ticket. Not on the first load, only on changes.
   useEffect(() => {
     if (!data) return;
@@ -199,7 +214,7 @@ export default function QueueScreenPage() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`login-panel min-h-screen overflow-x-hidden p-6 text-[#f8fafc] lg:p-10 ${slide !== "queue" ? "pb-32 lg:pb-32" : ""}`}>
+      <div className={`login-panel min-h-screen overflow-x-hidden p-6 text-[#f8fafc] lg:p-10 ${slide !== "queue" ? "pb-44 lg:pb-44 2xl:pb-52" : ""}`}>
         <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <LogoMark size={56} />
@@ -208,7 +223,22 @@ export default function QueueScreenPage() {
               <p className="opacity-75">{t("screen.title")}</p>
             </div>
           </div>
-          <Clock />
+          <div className="flex items-center gap-4">
+            {/* Always on screen (the bottom bar can cover the footer), but faded until pointed at. */}
+            {slidesOn && (
+              <button
+                type="button"
+                onClick={() => step(1)}
+                data-next-slide
+                aria-label={t("slides.next")}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold opacity-50 transition-opacity hover:bg-white/20 hover:opacity-100 focus-visible:opacity-100"
+              >
+                {t("slides.next")}
+                {locale === "ar" ? <ChevronLeft className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+              </button>
+            )}
+            <Clock />
+          </div>
         </header>
         {slidesOn && at.since > 0 && (
           <div className="mb-6">
@@ -217,7 +247,7 @@ export default function QueueScreenPage() {
         )}
 
         <AnimatePresence mode="wait">
-          <motion.div key={`${at.step}-${slide}`} {...motionProps} data-slide={slide} className={slide === "queue" ? "" : "lg:flex lg:min-h-[calc(100vh-17rem)] lg:flex-col lg:justify-center"}>
+          <motion.div key={`${at.step}-${slide}`} {...motionProps} data-slide={slide} className={slide === "queue" ? "" : "lg:flex lg:min-h-[calc(100vh-25rem)] lg:flex-col lg:justify-center"}>
             {slide === "queue" && (
               <>
                 {state.status === "loading" && <p className="py-20 text-center text-xl opacity-70">{t("screen.loading")}</p>}

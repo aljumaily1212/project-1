@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Maximize } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, Maximize } from "lucide-react";
 import { api } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
@@ -28,6 +28,17 @@ export default function InfoScreenPage() {
   const slide = SEQUENCE[at.step];
   const ms = slide === "about" ? ABOUT_MS : doctorsMs;
   const Back = locale === "ar" ? ArrowRight : ArrowLeft;
+
+  const step = (by: number) => setAt((cur) => ({ step: (cur.step + by + SEQUENCE.length) % SEQUENCE.length, since: Date.now() }));
+  useEffect(() => {
+    const rtl = locale === "ar";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === (rtl ? "ArrowLeft" : "ArrowRight")) step(1);
+      else if (e.key === (rtl ? "ArrowRight" : "ArrowLeft")) step(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [locale]);
 
   // Start on the first slide right away, then show the next one each time a slide's time is up.
   useEffect(() => {
@@ -71,6 +82,15 @@ export default function InfoScreenPage() {
             {t("screen.back")}
           </Link>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => step(1)}
+              data-next-slide
+              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 font-semibold hover:bg-white/25"
+            >
+              {t("slides.next")}
+              {locale === "ar" ? <ChevronLeft className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+            </button>
             {SEQUENCE.map((s, i) => (
               <button
                 key={s}

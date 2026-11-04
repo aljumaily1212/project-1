@@ -986,6 +986,7 @@ export const en = {
   "audit.staff.enable": "Restarted the account of",
   "paging.shown": "Showing {shown} of {total}",
   "paging.more": "Show more",
+  "slides.next": "Next slide",
 };
 
 export type MessageKey = keyof typeof en;
