@@ -32,6 +32,7 @@ import type {
   Report,
   RescheduleRequest,
   ResultInput,
+  ScreenDoctor,
   Service,
   ServiceInput,
   Slot,
@@ -59,6 +60,9 @@ export const httpApi = {
   },
 
   listDoctors: () => http.get<Doctor[]>("/public/doctors").then((r) => r.data),
+
+  // For the waiting room TV. Public: no sign-in, and no patient names.
+  queueScreen: () => http.get<ScreenDoctor[]>("/public/queue-screen").then((r) => r.data),
 
   doctorDays: (doctorId: number) => http.get<DoctorDay[]>(`/doctors/${doctorId}/days`).then((r) => r.data),
 

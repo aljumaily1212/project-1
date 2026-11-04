@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarCheck, Eye, EyeOff, ListOrdered, Pill, ShieldCheck } from "lucide-react";
+import { CalendarCheck, Eye, EyeOff, ListOrdered, Monitor, Pill, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
@@ -201,6 +201,18 @@ export default function LoginPage() {
               {t("login.register")}
             </Link>
           </p>
+
+          {/* The waiting room TV. Open it on the TV's browser; it needs no account. */}
+          <Link
+            href="/screen"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm hover:border-brand-300 hover:bg-brand-50"
+          >
+            <Monitor className="size-5 shrink-0 text-brand-600" aria-hidden />
+            <span>
+              <span className="block font-semibold">{t("screen.open")}</span>
+              <span className="block text-slate-500">{t("screen.openHint")}</span>
+            </span>
+          </Link>
 
           {SHOW_DEMO_ACCOUNTS && (
             <>

@@ -298,6 +298,20 @@ export interface FinishVisitRequest {
   procedure_ids: number[];
 }
 
+// One doctor on the waiting room TV. Public, so it holds ticket numbers only, never patient names.
+export interface ScreenDoctor {
+  doctor: Doctor;
+  branch: BranchId;
+  absent: boolean;
+  late_minutes: number;
+  // The ticket in the room now, and when it was called.
+  now: string | null;
+  called_at: string | null;
+  // The next few tickets in order.
+  next: string[];
+  waiting: number;
+}
+
 export interface FinishVisitResult {
   next_ticket: string | null;
 }

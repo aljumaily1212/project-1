@@ -490,6 +490,23 @@ export const en = {
   "analytics.asTable": "Show as a table",
   "analytics.noData": "Nothing in this period",
   "appointments.ticket": "Your number",
+
+  "screen.title": "Waiting room screen",
+  "screen.open": "Waiting room screen",
+  "screen.openHint": "For the TV in the waiting room.",
+  "screen.now": "Now in the room",
+  "screen.next": "Next",
+  "screen.nobody": "Nobody waiting",
+  "screen.waiting": "{n} waiting",
+  "screen.late": "Doctor is {n} minutes late",
+  "screen.absent": "Doctor is absent today",
+  "screen.loading": "Loading…",
+  "screen.noDoctors": "No doctors are working at this branch today",
+  "screen.back": "Back to sign-in",
+  "screen.allBranches": "All branches",
+  "screen.soundOn": "Sound on",
+  "screen.soundOff": "Turn sound on",
+  "screen.fullscreen": "Full screen",
 };
 
 export type MessageKey = keyof typeof en;
