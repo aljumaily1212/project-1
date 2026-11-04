@@ -1271,19 +1271,28 @@ export const mockApi: Api = {
 
   listStaff: async () => {
     const db = read();
-    requireUser(db, "reception", "manager");
+    const viewer = requireUser(db, "reception", "manager");
     return delay(
       db.users
-        .filter((u): u is MockUser & { role: StaffUser["role"] } => u.role !== "patient")
-        .map(({ id, name, phone, role }) => ({ id, name, phone, role })),
+        .filter((u) => viewer.role === "manager" || u.role !== "patient")
+        .map(({ id, name, phone, role }): StaffUser => ({ id, name, phone, role })),
     );
   },
 
   createStaff: async ({ name, phone, password, role, doctor }: CreateStaffRequest) => {
     const db = read();
     const creator = requireUser(db, "reception", "manager");
+    // Only the manager can make another manager, or an account for a patient.
+    if ((role === "manager" || role === "patient") && creator.role !== "manager") fail(403);
     if (db.users.some((u) => u.phone === phone)) fail(409, "phone_taken");
     const user: MockUser = { id: db.nextId++, name, phone, role, password };
+    if (role === "patient") {
+      // A walk-in with this phone already has a medical file. The account takes it over,
+      // so their earlier visits, results and prescriptions show in the app straight away.
+      const file = db.patients.find((p) => p.phone === phone && p.account_id === null);
+      if (file) Object.assign(file, { account_id: user.id, relation: "self" as const });
+      else db.patients.push({ id: db.nextId++, name, phone, account_id: user.id, relation: "self" });
+    }
     if (role === "doctor") {
       if (!doctor) fail(422);
       const id = db.nextId++;

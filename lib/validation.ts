@@ -25,7 +25,7 @@ export const staffSchema = z
     name: z.string().trim().min(2, "validation.name"),
     phone,
     password,
-    role: z.enum(["reception", "doctor", "pharmacy", "lab", "accountant"]),
+    role: z.enum(["reception", "doctor", "pharmacy", "lab", "accountant", "manager", "patient"]),
     name_en: z.string().trim(),
     specialty_ar: z.string().trim(),
     specialty_en: z.string().trim(),
