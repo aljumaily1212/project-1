@@ -555,8 +555,19 @@ function log(db: Db, user: MockUser, action: AuditAction, target: string) {
 // Sends a message to the account that owns this patient. The key stops the same message twice.
 function notify(db: Db, patientId: number, key: string, type: NotificationType, params: Record<string, string | number>) {
   const userId = db.patients.find((p) => p.id === patientId)?.account_id;
-  if (!userId || db.notifications.some((n) => n.key === key)) return;
+  if (userId) notifyUser(db, userId, key, type, params);
+}
+
+// Sends a message straight to one account: a patient's, or a member of staff's.
+function notifyUser(db: Db, userId: number, key: string, type: NotificationType, params: Record<string, string | number>) {
+  if (db.notifications.some((n) => n.key === key)) return;
   db.notifications.unshift({ id: db.nextId++, user_id: userId, key, type, params, at: now().toISOString(), read: false });
+}
+
+// True when any reading is outside its normal range. Files and old one-number results can't be judged.
+function isAbnormal(result: LabResult | null) {
+  if (result?.type !== "values") return false;
+  return result.rows.some((r) => (r.ref_low !== null && r.value < r.ref_low) || (r.ref_high !== null && r.value > r.ref_high));
 }
 
 function findDoctor(db: Db, id: number) {
@@ -1755,6 +1766,15 @@ export const mockApi: Api = {
     order.status = "confirmed";
     order.confirmed_at = now().toISOString();
     notify(db, order.patient_id, `result:${order.id}`, "result_ready", { test: findService(db, order.service_id).name_ar });
+    // The doctor who asked for the test is told too, with a warning when a reading is out of range.
+    const doctorUser = db.users.find((u) => u.role === "doctor" && u.doctor_id === order.doctor_id);
+    if (doctorUser) {
+      notifyUser(db, doctorUser.id, `doctor-result:${order.id}`, "result_for_doctor", {
+        test: findService(db, order.service_id).name_ar,
+        patient: patientName(db, order.patient_id),
+        abnormal: isAbnormal(order.result) ? 1 : 0,
+      });
+    }
     log(db, user, "lab.confirm", patientName(db, order.patient_id));
     write(db);
     return delay(undefined);
@@ -1934,10 +1954,11 @@ export const mockApi: Api = {
     });
   },
 
+  // Patients and staff each see their own messages.
   myNotifications: async () => {
     const db = read();
-    const user = requireUser(db, "patient");
-    makeTimedNotifications(db, user);
+    const user = requireUser(db);
+    if (user.role === "patient") makeTimedNotifications(db, user);
     write(db);
     return delay(
       db.notifications
@@ -1948,7 +1969,7 @@ export const mockApi: Api = {
 
   readNotifications: async () => {
     const db = read();
-    const user = requireUser(db, "patient");
+    const user = requireUser(db);
     for (const n of db.notifications) if (n.user_id === user.id) n.read = true;
     write(db);
     return delay(undefined);

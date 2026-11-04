@@ -9,6 +9,7 @@ import { USE_MOCK } from "@/lib/config";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Logo } from "@/components/logo";
+import { StaffBell } from "@/components/staff-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/skeleton";
 import { buttonClass } from "@/components/common";
@@ -91,11 +92,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link href="/" className="whitespace-nowrap text-base">
             <Logo size={32} />
           </Link>
-          {USE_MOCK && (
-            <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-              {t("app.mockBadge")}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {USE_MOCK && (
+              <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                {t("app.mockBadge")}
+              </span>
+            )}
+            {/* Messages for staff, like a lab result ready for the doctor. */}
+            <StaffBell />
+          </div>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto scrollbar-thin px-2 pb-2 md:flex-col md:px-3">

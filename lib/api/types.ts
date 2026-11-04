@@ -715,7 +715,7 @@ export interface Analytics {
   };
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit" | "follow_up";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit" | "follow_up" | "result_for_doctor";
 
 export interface AppNotification {
   id: number;

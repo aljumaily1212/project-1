@@ -782,4 +782,7 @@ export const ar: Record<MessageKey, string> = {
   "followUp.late": "كان موعدها {date}، يُرجى الحجز قريباً",
   "followUp.book": "احجز المراجعة",
   "notifications.follow_up": "طلب {doctor} أن تراجعه بحدود {date}. احجز المراجعة من صفحة مواعيدي.",
+
+  "notifications.result_for_doctor": "نتيجة {test} للمريض {patient} جاهزة.",
+  "notifications.abnormal": "⚠ فيها قيم خارج المعدل الطبيعي.",
 };

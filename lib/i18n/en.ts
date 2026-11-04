@@ -780,6 +780,9 @@ export const en = {
   "followUp.late": "It was due {date}. Please book soon.",
   "followUp.book": "Book the follow-up",
   "notifications.follow_up": "{doctor} asked you to come back for a follow-up by {date}. Book it from My appointments.",
+
+  "notifications.result_for_doctor": "The {test} result for {patient} is ready.",
+  "notifications.abnormal": "⚠ Some readings are out of range.",
 };
 
 export type MessageKey = keyof typeof en;
