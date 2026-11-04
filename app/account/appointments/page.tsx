@@ -9,7 +9,7 @@ import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { DayPicker, SlotPicker } from "@/components/booking";
 import { AmountsText, amountText } from "@/components/money";
-import { Button, Card, EmptyState, ErrorState, PageHeader, StatusBadge, buttonClass } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, PageHeader, StatusBadge, TicketBadge, buttonClass } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
 function TurnText({ appointment }: { appointment: MyAppointment }) {
@@ -135,9 +135,14 @@ function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointme
         </p>
       )}
       {a.ahead !== null && (
-        <p className="rounded-lg bg-brand-50 px-3 py-2 text-lg font-bold text-brand-700">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-lg font-bold text-brand-700">
           <TurnText appointment={a} />
-        </p>
+          {a.ticket && (
+            <span className="text-sm font-medium">
+              {t("appointments.ticket")} <TicketBadge ticket={a.ticket} className="bg-white text-lg" />
+            </span>
+          )}
+        </div>
       )}
 
       {a.status === "booked" && a.can_change && !moving && (

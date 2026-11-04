@@ -10,7 +10,7 @@ import { errorText, useT } from "@/lib/i18n";
 import { flush, queue, useOnline, useOutbox } from "@/lib/offline";
 import { useLoad } from "@/lib/useLoad";
 import { walkInSchema, type WalkInForm } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge, TicketBadge } from "@/components/common";
 import { CardsSkeleton, FormSkeleton } from "@/components/skeleton";
 
 function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
@@ -32,10 +32,11 @@ function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
       {state.status === "success" && state.data.length === 0 && <p className="text-sm text-slate-500">{t("queue.empty")}</p>}
       {state.status === "success" && (
         <ol className="space-y-2">
-          {state.data.map((a, index) => (
+          {state.data.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-              <span>
-                {index + 1}. {a.patient_name}
+              <span className="flex items-center gap-2">
+                <TicketBadge ticket={a.ticket} />
+                {a.patient_name}
               </span>
               {a.emergency ? (
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
