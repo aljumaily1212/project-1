@@ -15,6 +15,7 @@ import type {
   DoctorVisit,
   FamilyMember,
   FinishVisitRequest,
+  FinishVisitResult,
   Invoice,
   LoginRequest,
   LabOrder,
@@ -92,8 +93,9 @@ export const httpApi = {
   patientHistory: (patientId: number) =>
     http.get<DoctorVisit[]>(`/patients/${patientId}/visits`).then((r) => r.data),
 
+  // Answers with the ticket of the next patient called in, or null when nobody is waiting.
   finishVisit: (id: number, body: FinishVisitRequest) =>
-    http.post<null>(`/appointments/${id}/finish`, body).then(() => undefined),
+    http.post<FinishVisitResult>(`/appointments/${id}/finish`, body).then((r) => r.data),
 
   listPrescriptions: () => http.get<Prescription[]>("/prescriptions").then((r) => r.data),
 

@@ -138,6 +138,7 @@ export const en = {
   "doctor.addMedicine": "Add medicine",
   "doctor.finish": "Finish visit and save prescription",
   "doctor.finished": "Visit saved",
+  "doctor.finishedNext": "Visit saved. Next: {ticket}",
 
   "pharmacy.title": "Pharmacy",
   "pharmacy.subtitle": "Prescriptions only, nothing else from the file",
@@ -488,6 +489,7 @@ export const en = {
   "analytics.busyHours": "Busiest hours",
   "analytics.asTable": "Show as a table",
   "analytics.noData": "Nothing in this period",
+  "appointments.ticket": "Your number",
 };
 
 export type MessageKey = keyof typeof en;

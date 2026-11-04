@@ -8,7 +8,7 @@ import { useSession } from "@/lib/auth";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { visitSchema, type VisitForm } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea, TicketBadge } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
 import { CardsSkeleton } from "@/components/skeleton";
 
@@ -59,12 +59,13 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
 
   async function onSubmit(values: VisitForm) {
     try {
-      await api.finishVisit(appointment.id, {
+      const { next_ticket } = await api.finishVisit(appointment.id, {
         ...values,
         test_ids: values.test_ids.map(Number),
         procedure_ids: values.procedure_ids.map(Number),
       });
-      toast.success(t("doctor.finished"));
+      // Finishing also calls the next patient in, so the doctor sees who comes next.
+      toast.success(next_ticket ? t("doctor.finishedNext", { ticket: next_ticket }) : t("doctor.finished"));
       onDone();
     } catch (err) {
       toast.error(errorText(err, t));
@@ -75,7 +76,10 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
     <Card>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">{appointment.patient_name}</h2>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <TicketBadge ticket={appointment.ticket} />
+            {appointment.patient_name}
+          </h2>
           <StatusBadge status={appointment.status} />
         </div>
 
@@ -188,10 +192,11 @@ export default function DoctorPage() {
             <h2 className="font-semibold">{t("queue.title")}</h2>
             {waiting.length === 0 && <p className="text-sm text-slate-500">{t("queue.empty")}</p>}
             <ol className="space-y-2">
-              {waiting.map((a, index) => (
+              {waiting.map((a) => (
                 <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span>
-                    {index + 1}. {a.patient_name}
+                  <span className="flex items-center gap-2">
+                    <TicketBadge ticket={a.ticket} />
+                    {a.patient_name}
                   </span>
                   {a.emergency && (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>

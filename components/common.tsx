@@ -120,6 +120,16 @@ export function StatusBadge({ status }: { status: AppointmentStatus }) {
   );
 }
 
+// The patient's queue number, like "A-012". Left to right so the letter stays first in Arabic too.
+export function TicketBadge({ ticket, className = "" }: { ticket: string | null; className?: string }) {
+  if (!ticket) return null;
+  return (
+    <span dir="ltr" className={cn("inline-block rounded-md bg-brand-50 px-2 py-0.5 font-mono font-bold text-brand-700", className)}>
+      {ticket}
+    </span>
+  );
+}
+
 export function MedicineList({ medicines }: { medicines: Medicine[] }) {
   const { t } = useT();
   return (

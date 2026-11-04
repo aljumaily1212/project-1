@@ -50,7 +50,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v10";
+const STORAGE_KEY = "alrahma.mock.v11";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -107,8 +107,12 @@ type MockDoctor = Doctor & {
 type MockUser = User & { password: string };
 // relation says who this person is to the account owner. Walk-ins have no account.
 type MockPatient = { id: number; name: string; phone: string; account_id: number | null; relation?: Relation };
-type MockAppointment = Omit<StaffAppointment, "patient_name"> & {
+type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket"> & {
   arrival_order: number;
+  // The queue number for the day, counted per doctor. Given when the patient arrives.
+  ticket?: number;
+  // When the doctor called this patient in. The waiting room screen uses it.
+  called_at?: string;
   cancel_reason: CancelReason | null;
   idempotency_key?: string;
 };
@@ -226,7 +230,7 @@ function seed(): Db {
       { id: 4, name: "مريم ناصر", phone: "07700000004", account_id: null },
     ],
     appointments: [
-      { id: 1, patient_id: 4, doctor_id: 1, date: day, time: "09:00", kind: "new", branch: "main", status: "arrived", emergency: false, arrival_order: 1, cancel_reason: null },
+      { id: 1, patient_id: 4, doctor_id: 1, date: day, time: "09:00", kind: "new", branch: "main", status: "arrived", emergency: false, arrival_order: 1, cancel_reason: null, ticket: 1 },
       { id: 2, patient_id: 3, doctor_id: 1, date: day, time: "09:20", kind: "new", branch: "main", status: "booked", emergency: false, arrival_order: 0, cancel_reason: null },
     ],
     visits: [
@@ -486,8 +490,45 @@ function patientName(db: Db, id: number) {
   return db.patients.find((p) => p.id === id)?.name ?? "";
 }
 
-function staffView(db: Db, { arrival_order: _order, cancel_reason: _reason, ...a }: MockAppointment): StaffAppointment {
-  return (void _order, void _reason, { ...a, patient_name: patientName(db, a.patient_id) });
+// One letter per doctor (A, B, C…) and the day's number, like "A-012".
+function ticketLabel(db: Db, a: MockAppointment) {
+  if (!a.ticket) return null;
+  const letter = String.fromCharCode(65 + Math.max(0, db.doctors.findIndex((d) => d.id === a.doctor_id)));
+  return `${letter}-${String(a.ticket).padStart(3, "0")}`;
+}
+
+// The next number for this doctor today. Numbers start again from 1 every day.
+function issueTicket(db: Db, a: MockAppointment) {
+  if (a.ticket) return;
+  const used = db.appointments.filter((x) => x.doctor_id === a.doctor_id && x.date === a.date && x.ticket).map((x) => x.ticket!);
+  a.ticket = Math.max(0, ...used) + 1;
+}
+
+function staffView(db: Db, a: MockAppointment): StaffAppointment {
+  return {
+    id: a.id,
+    patient_id: a.patient_id,
+    patient_name: patientName(db, a.patient_id),
+    doctor_id: a.doctor_id,
+    date: a.date,
+    time: a.time,
+    kind: a.kind,
+    branch: a.branch,
+    status: a.status,
+    emergency: a.emergency,
+    ticket: ticketLabel(db, a),
+  };
+}
+
+// Calls the first waiting patient in to this doctor, unless someone is already in the room.
+function callNextPatient(db: Db, doctorId: number) {
+  const queue = queueOf(db, doctorId);
+  if (queue.some((a) => a.status === "in_progress")) return null;
+  const next = queue.find((a) => a.status === "arrived");
+  if (!next) return null;
+  next.status = "in_progress";
+  next.called_at = now().toISOString();
+  return next;
 }
 
 function findAppointment(db: Db, id: number) {
@@ -784,6 +825,7 @@ export const mockApi: Api = {
           can_change: canChange(db, a),
           cancel_reason: a.cancel_reason,
           late_minutes: late,
+          ticket: ticketLabel(db, a),
           money: moneyOf(db, a.id),
         };
       });
@@ -877,6 +919,7 @@ export const mockApi: Api = {
     const db = read();
     const user = requireUser(db, "reception");
     const appointment = changeAppointment(db, id, { status: "arrived", emergency, arrival_order: db.nextArrival++ });
+    issueTicket(db, appointment);
     log(db, user, "appointment.checkin", patientName(db, appointment.patient_id));
     write(db);
     return delay(undefined);
@@ -902,7 +945,9 @@ export const mockApi: Api = {
       arrival_order: db.nextArrival++,
       cancel_reason: null,
     });
-    addItem(db, db.appointments[db.appointments.length - 1].id, visitFee(doctor));
+    const walkIn = db.appointments[db.appointments.length - 1];
+    issueTicket(db, walkIn);
+    addItem(db, walkIn.id, visitFee(doctor));
     log(db, user, "walkin.add", patient.name);
     write(db);
     return delay({ duplicate: Boolean(existing) });
@@ -911,7 +956,7 @@ export const mockApi: Api = {
   startVisit: async (id) => {
     const db = read();
     requireUser(db, "doctor");
-    changeAppointment(db, id, { status: "in_progress" });
+    changeAppointment(db, id, { status: "in_progress", called_at: now().toISOString() });
     write(db);
     return delay(undefined);
   },
@@ -978,8 +1023,10 @@ export const mockApi: Api = {
         confirmed_at: null,
       });
     }
+    // The room is free, so the next patient in line is called straight away.
+    const next = callNextPatient(db, appointment.doctor_id);
     write(db);
-    return delay(undefined);
+    return delay({ next_ticket: next ? ticketLabel(db, next) : null });
   },
 
   listPrescriptions: async () => {

@@ -127,6 +127,8 @@ export interface MyAppointment {
   can_change: boolean;
   cancel_reason: CancelReason | null;
   late_minutes: number;
+  // The queue number, like "A-012". null until the patient arrives at the clinic.
+  ticket: string | null;
   money: MoneySummary;
 }
 
@@ -141,6 +143,7 @@ export interface StaffAppointment {
   branch: BranchId;
   status: AppointmentStatus;
   emergency: boolean;
+  ticket: string | null;
 }
 
 export interface WalkInRequest {
@@ -293,6 +296,10 @@ export interface FinishVisitRequest {
   medicines: Medicine[];
   test_ids: number[];
   procedure_ids: number[];
+}
+
+export interface FinishVisitResult {
+  next_ticket: string | null;
 }
 
 export interface StaffUser {

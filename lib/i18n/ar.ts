@@ -139,7 +139,8 @@ export const ar: Record<MessageKey, string> = {
   "doctor.days": "عدد الأيام",
   "doctor.addMedicine": "إضافة دواء",
   "doctor.finish": "إنهاء الكشف وحفظ الوصفة",
-  "doctor.finished": "تم حفظ الزيارة",
+  "doctor.finished": "حُفظت الزيارة",
+  "doctor.finishedNext": "حُفظت الزيارة. التالي: {ticket}",
 
   "pharmacy.title": "الصيدلية",
   "pharmacy.subtitle": "الوصفات فقط، دون بقية الملف",
@@ -490,4 +491,5 @@ export const ar: Record<MessageKey, string> = {
   "analytics.busyHours": "أكثر الساعات ازدحاماً",
   "analytics.asTable": "عرض كجدول",
   "analytics.noData": "لا توجد بيانات في هذه الفترة",
+  "appointments.ticket": "رقمك",
 };
