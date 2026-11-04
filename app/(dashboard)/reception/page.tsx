@@ -133,15 +133,17 @@ function WalkInCard({ doctors, onAdded }: { doctors: Doctor[]; onAdded: () => vo
 
   async function onSubmit(values: WalkInForm) {
     const body = { name: values.name, phone: values.phone, doctor_id: Number(values.doctor_id), emergency: values.emergency };
+    // One key per walk-in, used for the first send and for any retry.
+    const key = crypto.randomUUID();
     // No internet: keep it in this browser and send it later, so reception never has to stop.
     if (!navigator.onLine) {
-      queue({ id: crypto.randomUUID(), type: "walkIn", body, label: values.name });
+      queue({ id: key, type: "walkIn", body, label: values.name });
       toast.info(t("offline.saved"));
       reset();
       return;
     }
     try {
-      const { duplicate } = await api.addWalkIn(body);
+      const { duplicate } = await api.addWalkIn({ ...body, idempotency_key: key });
       if (duplicate) toast.info(t("reception.duplicate"));
       else toast.success(t("reception.added"));
       reset();
@@ -220,13 +222,14 @@ export default function ReceptionPage() {
   }
 
   async function checkIn(id: number, emergency: boolean, label: string) {
+    const key = crypto.randomUUID();
     if (!navigator.onLine) {
-      queue({ id: crypto.randomUUID(), type: "checkIn", appointmentId: id, emergency, label });
+      queue({ id: key, type: "checkIn", appointmentId: id, emergency, label });
       toast.info(t("offline.saved"));
       return;
     }
     try {
-      await api.checkIn(id, emergency);
+      await api.checkIn(id, emergency, key);
       toast.success(t("reception.checkedIn"));
       afterChange();
     } catch (err) {

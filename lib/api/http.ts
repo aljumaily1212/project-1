@@ -125,8 +125,9 @@ export const httpApi = {
   doctorQueue: (doctorId: number) =>
     http.get<StaffAppointment[]>(`/doctors/${doctorId}/queue`).then((r) => r.data),
 
-  checkIn: (id: number, emergency: boolean) =>
-    http.post<null>(`/appointments/${id}/check-in`, { emergency }).then(() => undefined),
+  // idempotency_key: sending the same check-in twice must not move the patient to the back of the line.
+  checkIn: (id: number, emergency: boolean, idempotency_key: string) =>
+    http.post<null>(`/appointments/${id}/check-in`, { emergency, idempotency_key }).then(() => undefined),
 
   addWalkIn: (body: WalkInRequest) => http.post<WalkInResult>("/walk-ins", body).then((r) => r.data),
 

@@ -5,12 +5,14 @@ import { api, type WalkInRequest } from "./api";
 
 // When the internet drops at reception, check-ins and walk-ins wait here, in this browser,
 // and are sent in the same order as soon as the connection is back.
+// Each item's id is also its request key: if a send reaches the server but the answer is lost,
+// the next try sends the same key, and the server knows it already did it.
 
 const KEY = "alrahma.outbox";
 
 export type OutboxItem =
   | { id: string; type: "checkIn"; appointmentId: number; emergency: boolean; label: string }
-  | { id: string; type: "walkIn"; body: WalkInRequest; label: string };
+  | { id: string; type: "walkIn"; body: Omit<WalkInRequest, "idempotency_key">; label: string };
 
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
@@ -43,8 +45,8 @@ export async function flush() {
   let sent = 0;
   try {
     for (const item of read()) {
-      if (item.type === "checkIn") await api.checkIn(item.appointmentId, item.emergency);
-      else await api.addWalkIn(item.body);
+      if (item.type === "checkIn") await api.checkIn(item.appointmentId, item.emergency, item.id);
+      else await api.addWalkIn({ ...item.body, idempotency_key: item.id });
       save(read().filter((x) => x.id !== item.id));
       sent++;
     }

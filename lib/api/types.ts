@@ -213,6 +213,9 @@ export interface WalkInRequest {
   phone: string;
   doctor_id: number;
   emergency: boolean;
+  // Made once per walk-in, in the browser. If the same request reaches the server twice
+  // (a retry, or the offline outbox sending again), the server must add the patient only once.
+  idempotency_key: string;
 }
 
 export interface WalkInResult {

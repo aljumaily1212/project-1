@@ -139,6 +139,7 @@ type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket" | "has_v
   called_at?: string;
   cancel_reason: CancelReason | null;
   idempotency_key?: string;
+  checkin_key?: string;
   vitals?: Omit<VitalsRecord, "appointment_id">;
 };
 type MockItem = InvoiceItem & { appointment_id: number };
@@ -1361,19 +1362,25 @@ export const mockApi: Api = {
     return delay(queueOf(db, doctorId).map((a) => staffView(db, a)));
   },
 
-  checkIn: async (id, emergency) => {
+  checkIn: async (id, emergency, idempotency_key) => {
     const db = read();
     const user = requireUser(db, "reception");
-    const appointment = changeAppointment(db, id, { status: "arrived", emergency, arrival_order: db.nextArrival++ });
+    const current = findAppointment(db, id);
+    // Already checked in (the same request sent again, or another reception computer did it first):
+    // nothing to do. Doing it again would send the patient to the back of the line.
+    if (current.checkin_key === idempotency_key || current.status !== "booked") return delay(undefined);
+    const appointment = changeAppointment(db, id, { status: "arrived", emergency, arrival_order: db.nextArrival++, checkin_key: idempotency_key });
     issueTicket(db, appointment);
     log(db, user, "appointment.checkin", patientName(db, appointment.patient_id));
     write(db);
     return delay(undefined);
   },
 
-  addWalkIn: async ({ name, phone, doctor_id, emergency }) => {
+  addWalkIn: async ({ name, phone, doctor_id, emergency, idempotency_key }) => {
     const db = read();
     const user = requireUser(db, "reception");
+    // The same walk-in sent again: it's already in the line, so don't add a second one.
+    if (db.appointments.some((a) => a.idempotency_key === idempotency_key)) return delay({ duplicate: false });
     const doctor = findDoctor(db, doctor_id);
     const existing = db.patients.find((p) => p.phone === phone);
     const patient = existing ?? { id: db.nextId++, name, phone, account_id: null };
@@ -1390,6 +1397,7 @@ export const mockApi: Api = {
       emergency,
       arrival_order: db.nextArrival++,
       cancel_reason: null,
+      idempotency_key,
     });
     const walkIn = db.appointments[db.appointments.length - 1];
     issueTicket(db, walkIn);
