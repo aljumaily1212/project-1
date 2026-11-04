@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { api, type Doctor, type FamilyMember, type PayChoice, type VisitKind } from "@/lib/api";
 import { USE_MOCK } from "@/lib/config";
@@ -17,9 +17,14 @@ import { FormSkeleton } from "@/components/skeleton";
 function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMember[] }) {
   const router = useRouter();
   const { t, locale } = useT();
-  const [patientId, setPatientId] = useState(family[0].id);
-  const [doctorId, setDoctorId] = useState(doctors[0].id);
-  const [kind, setKind] = useState<VisitKind>("new");
+  // A follow-up link opens this page with the doctor, the person and "followup" already chosen.
+  // Values that don't match anything (an old link, a removed family member) are ignored.
+  const params = useSearchParams();
+  const wantedDoctor = doctors.find((d) => String(d.id) === params.get("doctor"));
+  const wantedPatient = family.find((p) => String(p.id) === params.get("patient"));
+  const [patientId, setPatientId] = useState((wantedPatient ?? family[0]).id);
+  const [doctorId, setDoctorId] = useState((wantedDoctor ?? doctors[0]).id);
+  const [kind, setKind] = useState<VisitKind>(params.get("kind") === "followup" ? "followup" : "new");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [error, setError] = useState("");
@@ -174,7 +179,12 @@ export default function BookPage() {
       <PageHeader title={t("book.title")} description={t("book.subtitle")} />
       {state.status === "loading" && <FormSkeleton />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
-      {state.status === "success" && <BookingForm doctors={state.data[0]} family={state.data[1]} />}
+      {/* useSearchParams needs a Suspense boundary in a static export: the address is only known in the browser. */}
+      {state.status === "success" && (
+        <Suspense fallback={<FormSkeleton />}>
+          <BookingForm doctors={state.data[0]} family={state.data[1]} />
+        </Suspense>
+      )}
     </>
   );
 }

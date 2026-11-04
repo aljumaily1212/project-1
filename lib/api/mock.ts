@@ -149,6 +149,7 @@ type MockVisit = {
   medicines: Medicine[];
   dispensed: boolean;
   rating?: VisitRating;
+  follow_up_on?: string;
 };
 type MockLabOrder = {
   id: number;
@@ -1133,6 +1134,27 @@ export const mockApi: Api = {
     );
   },
 
+  myFollowUps: async () => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const ids = ownedPatientIds(db, user);
+    return delay(
+      db.visits
+        .filter((v) => v.follow_up_on && ids.includes(v.patient_id))
+        // Done once any new appointment with the same doctor exists for this person, made after the visit.
+        .filter(
+          (v) =>
+            !db.appointments.some(
+              (a) => a.patient_id === v.patient_id && a.doctor_id === v.doctor_id && a.status !== "cancelled" && a.date > dateOf(new Date(v.created_at)),
+            ),
+        )
+        // Long overdue ones (more than 30 days late) are dropped, so the list doesn't nag forever.
+        .filter((v) => v.follow_up_on! >= addDays(today(), -30))
+        .map((v) => ({ visit_id: v.id, patient_id: v.patient_id, patient_name: patientName(db, v.patient_id), doctor: doctorOf(db, v.doctor_id), due: v.follow_up_on! }))
+        .sort((a, b) => a.due.localeCompare(b.due)),
+    );
+  },
+
   rateVisit: async (visitId, { stars, comment }) => {
     const db = read();
     const user = requireUser(db, "patient");
@@ -1343,6 +1365,7 @@ export const mockApi: Api = {
           doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,
           internal_note: v.internal_note,
+          follow_up_on: v.follow_up_on ?? null,
           medicines: v.medicines,
           tests: db.labOrders
             .filter((o) => o.visit_id === v.id)
@@ -1351,7 +1374,7 @@ export const mockApi: Api = {
     );
   },
 
-  finishVisit: async (id, { diagnosis, internal_note, medicines, test_ids, procedure_ids }) => {
+  finishVisit: async (id, { diagnosis, internal_note, medicines, test_ids, procedure_ids, follow_up_days }) => {
     const db = read();
     const user = requireUser(db, "doctor");
     const appointment = changeAppointment(db, id, { status: "done" });
@@ -1367,7 +1390,14 @@ export const mockApi: Api = {
       internal_note,
       medicines,
       dispensed: medicines.length === 0,
+      follow_up_on: follow_up_days ? addDays(today(), follow_up_days) : undefined,
     });
+    if (follow_up_days) {
+      notify(db, appointment.patient_id, `followup:${visitId}`, "follow_up", {
+        doctor: doctorNameOf(db, appointment.doctor_id),
+        date: addDays(today(), follow_up_days),
+      });
+    }
     // Tests, X-rays and procedures go on the bill at today's price.
     for (const serviceId of [...test_ids, ...procedure_ids]) {
       const service = findService(db, serviceId);

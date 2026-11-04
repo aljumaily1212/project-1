@@ -768,4 +768,18 @@ export const ar: Record<MessageKey, string> = {
   "apiError.not_here": "المريض غير موجود في المجمع اليوم",
   "apiError.no_vitals": "أدخل قراءة واحدة على الأقل",
   "audit.vitals.save": "سجّل العلامات الحيوية لـ",
+
+  "followUp.label": "موعد المراجعة",
+  "followUp.hint": "يُطلب من المريض حجزه",
+  "followUp.none": "لا حاجة لمراجعة",
+  "followUp.d3": "بعد 3 أيام",
+  "followUp.d7": "بعد أسبوع",
+  "followUp.d14": "بعد أسبوعين",
+  "followUp.d30": "بعد شهر",
+  "followUp.asked": "طُلبت مراجعة بتاريخ {date}",
+  "followUp.cardTitle": "طلب {doctor} مراجعة",
+  "followUp.by": "يُرجى المراجعة بحدود {date}",
+  "followUp.late": "كان موعدها {date}، يُرجى الحجز قريباً",
+  "followUp.book": "احجز المراجعة",
+  "notifications.follow_up": "طلب {doctor} أن تراجعه بحدود {date}. احجز المراجعة من صفحة مواعيدي.",
 };

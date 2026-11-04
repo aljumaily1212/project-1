@@ -398,6 +398,17 @@ export interface VisitTest {
 export interface DoctorVisit extends PatientVisit {
   internal_note: string;
   tests: VisitTest[];
+  // The date the doctor asked the patient to come back by, if they did.
+  follow_up_on: string | null;
+}
+
+// A follow-up the doctor asked for that the patient hasn't booked yet.
+export interface FollowUp {
+  visit_id: number;
+  patient_id: number;
+  patient_name: string;
+  doctor: Doctor;
+  due: string;
 }
 
 export interface FinishVisitRequest {
@@ -406,6 +417,8 @@ export interface FinishVisitRequest {
   medicines: Medicine[];
   test_ids: number[];
   procedure_ids: number[];
+  // "Come back in N days". null means no follow-up is needed.
+  follow_up_days: number | null;
 }
 
 // One doctor on the waiting room TV. Public, so it holds ticket numbers only, never patient names.
@@ -702,7 +715,7 @@ export interface Analytics {
   };
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit" | "follow_up";
 
 export interface AppNotification {
   id: number;

@@ -766,6 +766,20 @@ export const en = {
   "apiError.not_here": "The patient isn't at the clinic today",
   "apiError.no_vitals": "Enter at least one reading",
   "audit.vitals.save": "Recorded vital signs for",
+
+  "followUp.label": "Follow-up",
+  "followUp.hint": "The patient is asked to book it",
+  "followUp.none": "No follow-up",
+  "followUp.d3": "In 3 days",
+  "followUp.d7": "In 1 week",
+  "followUp.d14": "In 2 weeks",
+  "followUp.d30": "In 1 month",
+  "followUp.asked": "Follow-up asked for by {date}",
+  "followUp.cardTitle": "{doctor} asked for a follow-up visit",
+  "followUp.by": "Please come by {date}",
+  "followUp.late": "It was due {date}. Please book soon.",
+  "followUp.book": "Book the follow-up",
+  "notifications.follow_up": "{doctor} asked you to come back for a follow-up by {date}. Book it from My appointments.",
 };
 
 export type MessageKey = keyof typeof en;

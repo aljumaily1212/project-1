@@ -172,6 +172,38 @@ function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointme
   );
 }
 
+// Follow-ups the doctor asked for, each with a button that opens booking already set to that doctor.
+function FollowUps() {
+  const { t, locale } = useT();
+  const { state } = useLoad(api.myFollowUps);
+  if (state.status !== "success" || state.data.length === 0) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {state.data.map((f) => {
+        const late = f.due < new Date().toISOString().slice(0, 10);
+        return (
+          <Card key={f.visit_id} className="flex flex-wrap items-center justify-between gap-3 border-brand-200 bg-brand-50">
+            <p className="text-sm">
+              <span className="font-semibold">{t("followUp.cardTitle", { doctor: doctorName(f.doctor, locale) })}</span>
+              <span className="block text-slate-600">
+                {f.patient_name} · {late ? t("followUp.late", { date: longDate(f.due, locale) }) : t("followUp.by", { date: longDate(f.due, locale) })}
+              </span>
+            </p>
+            <Link
+              href={`/account?doctor=${f.doctor.id}&kind=followup&patient=${f.patient_id}`}
+              replace
+              className={buttonClass("primary", "", "default")}
+              data-follow-up-book
+            >
+              {t("followUp.book")}
+            </Link>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function AppointmentsPage() {
   const { t } = useT();
   const { state, reload } = useLoad(() => Promise.all([api.myAppointments(), api.getSettings()]), "", { every: 4000 });
@@ -179,6 +211,7 @@ export default function AppointmentsPage() {
   return (
     <>
       <PageHeader title={t("appointments.title")} description={t("appointments.subtitle")} />
+      <FollowUps />
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
       {state.status === "success" && state.data[0].length === 0 && (

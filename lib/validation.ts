@@ -99,6 +99,8 @@ export const visitSchema = z.object({
   // Checkbox values are text, so the ids are numbers written as text.
   test_ids: z.array(z.string()),
   procedure_ids: z.array(z.string()),
+  // "" means no follow-up; otherwise the number of days, as text from the select box.
+  follow_up_days: z.enum(["", "3", "7", "14", "30"]),
 });
 export type VisitForm = z.infer<typeof visitSchema>;
 

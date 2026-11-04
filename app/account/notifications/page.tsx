@@ -27,6 +27,8 @@ function messageText(n: AppNotification, t: TFunction, locale: Locale) {
       return t("notifications.booked", { doctor: p.doctor, date, time: p.time });
     case "rate_visit":
       return t("notifications.rate_visit", { doctor: p.doctor });
+    case "follow_up":
+      return t("notifications.follow_up", { doctor: p.doctor, date });
     default: {
       // A new message type without a sentence here fails the type check, instead of showing an empty message.
       const missing: never = n.type;

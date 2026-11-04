@@ -19,6 +19,7 @@ import type {
   FamilyMember,
   FinishVisitRequest,
   FinishVisitResult,
+  FollowUp,
   Invoice,
   LoginRequest,
   LabOrder,
@@ -93,6 +94,9 @@ export const httpApi = {
   removeFamilyMember: (id: number) => http.delete<null>(`/me/family/${id}`).then(() => undefined),
 
   myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => r.data),
+
+  // Follow-ups doctors asked for that aren't booked yet, for everyone on the account.
+  myFollowUps: () => http.get<FollowUp[]>("/me/follow-ups").then((r) => r.data),
 
   myVisits: () => http.get<MyVisit[]>("/me/visits").then((r) => r.data),
 

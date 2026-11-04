@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import { api, type MedicalAlerts, type Service, type StaffAppointment } from "@/lib/api";
 import { allergyMatch } from "@/lib/allergies";
 import { useSession } from "@/lib/auth";
-import { dateTime, doctorName } from "@/lib/display";
+import { dateTime, doctorName, fullDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { visitSchema, type VisitForm } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, StatusBadge, Textarea, TicketBadge } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, Select, StatusBadge, Textarea, TicketBadge } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
 import { AlertsBanner, AlertsEditor } from "@/components/medical-alerts";
@@ -60,6 +60,7 @@ function History({ patientId, patientName, alerts }: { patientId: number; patien
             {t("visit.diagnosis")}: {v.diagnosis}
           </p>
           {v.internal_note && <p className="text-slate-600">{v.internal_note}</p>}
+          {v.follow_up_on && <p className="text-brand-700">{t("followUp.asked", { date: fullDate(v.follow_up_on) })}</p>}
           {v.tests.map((test) => (
             <div key={test.id} className="mt-2 border-t border-brand-100 pt-2">
               <p className="font-medium">
@@ -86,7 +87,7 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
     formState: { errors, isSubmitting },
   } = useForm<VisitForm>({
     resolver: zodResolver(visitSchema),
-    defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [], procedure_ids: [] },
+    defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [], procedure_ids: [], follow_up_days: "" },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
   const alerts = useLoad(() => api.patientAlerts(appointment.patient_id), String(appointment.patient_id));
@@ -117,6 +118,7 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
         ...values,
         test_ids: values.test_ids.map(Number),
         procedure_ids: values.procedure_ids.map(Number),
+        follow_up_days: values.follow_up_days ? Number(values.follow_up_days) : null,
       });
       // Finishing also calls the next patient in, so the doctor sees who comes next.
       toast.success(next_ticket ? t("doctor.finishedNext", { ticket: next_ticket }) : t("doctor.finished"));
@@ -290,6 +292,19 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
             </div>
           </fieldset>
         )}
+
+        <div className="w-56">
+          <Field label={t("followUp.label")} hint={t("followUp.hint")}>
+            <Select {...register("follow_up_days")}>
+              <option value="">{t("followUp.none")}</option>
+              {(["3", "7", "14", "30"] as const).map((n) => (
+                <option key={n} value={n}>
+                  {t(`followUp.d${n}`)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
 
         <Button type="submit" className="h-11 w-full" loading={isSubmitting}>
           {t("doctor.finish")}
