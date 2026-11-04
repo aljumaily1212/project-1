@@ -5,22 +5,49 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type Service, type StaffAppointment } from "@/lib/api";
 import { useSession } from "@/lib/auth";
+import { dateTime, doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { visitSchema, type VisitForm } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, StatusBadge, Textarea, TicketBadge } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, StatusBadge, Textarea, TicketBadge } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
+import { PrintButton, PrintSection } from "@/components/print";
 import { CardsSkeleton } from "@/components/skeleton";
 
-function History({ patientId }: { patientId: number }) {
+function History({ patientId, patientName }: { patientId: number; patientName: string }) {
   const { t, locale } = useT();
   const { state, reload } = useLoad(() => api.patientHistory(patientId), String(patientId));
 
   if (state.status === "loading") return <CardsSkeleton count={1} />;
   if (state.status === "error") return <ErrorState message={errorText(state.error, t)} onRetry={reload} />;
   if (state.data.length === 0) return <p className="text-sm text-slate-500">{t("doctor.noHistory")}</p>;
+  const visits = state.data;
   return (
     <div className="space-y-2">
+      {/* The doctor's private notes stay out of the printout: paper leaves the clinic. */}
+      <PrintButton title={t("print.medicalFile")} subject={patientName}>
+        {() => (
+          <PrintSection title={t("doctor.history")}>
+            {visits.map((v) => (
+              <div key={v.id} className="print-keep space-y-1 border-b border-[#e2e8f0] pb-2">
+                <p className="font-semibold">
+                  {dateTime(v.created_at, locale)} · {doctorName(v.doctor, locale)}
+                </p>
+                <p>
+                  {t("visit.diagnosis")}: {v.diagnosis}
+                </p>
+                {v.medicines.length > 0 ? <MedicineList medicines={v.medicines} /> : <p>{t("visit.noMedicines")}</p>}
+                {v.tests.map((test) => (
+                  <div key={test.id} className="space-y-1">
+                    <p className="font-medium">{serviceName(test.test, locale)}</p>
+                    {test.result ? <ResultView result={test.result} /> : <p>{t(`lab.status.${test.status}`)}</p>}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </PrintSection>
+        )}
+      </PrintButton>
       {state.data.map((v) => (
         <div key={v.id} className="rounded-lg bg-brand-50 p-3 text-sm">
           <p>
@@ -85,7 +112,7 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
 
         <div className="space-y-2">
           <h3 className="text-sm font-medium">{t("doctor.history")}</h3>
-          <History patientId={appointment.patient_id} />
+          <History patientId={appointment.patient_id} patientName={appointment.patient_name} />
         </div>
 
         <Field label={t("visit.diagnosis")} error={errors.diagnosis?.message}>

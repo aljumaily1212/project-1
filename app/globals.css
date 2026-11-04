@@ -257,3 +257,39 @@ html[data-vt="fade"]::view-transition-new(root) {
     @apply font-sans;
   }
 }
+
+/* ---------- printing ---------- */
+
+/* The paper version only exists while printing, and only shows on paper. */
+.print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  /* On paper, hide the whole app and show only the paper version. */
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block;
+    color: #0f172a;
+    background: #fff;
+    font-size: 12pt;
+  }
+
+  /* Try not to cut a section in half between two pages. */
+  .print-keep {
+    break-inside: avoid;
+  }
+
+  /* Buttons inside reused parts (like "download") are useless on paper. */
+  .print-root button {
+    display: none !important;
+  }
+}

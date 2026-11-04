@@ -10,6 +10,7 @@ import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { dispenseSchema, type DispenseForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, Select } from "@/components/common";
+import { PrintButton, PrintSection } from "@/components/print";
 import { CardsSkeleton } from "@/components/skeleton";
 import { StockAlerts, unitText } from "@/components/stock";
 
@@ -156,6 +157,18 @@ function PrescriptionCard({ prescription, stock, onDispensed }: { prescription: 
       {!prescription.dispensed && (
         <p className="text-xs text-slate-500">{t("pharmacy.validUntil", { date: dateTime(prescription.expires_at, locale) })}</p>
       )}
+      <PrintButton title={t("print.prescription")} subject={prescription.patient_name} label={t("print.prescriptionButton")}>
+        {() => (
+          <>
+            <PrintSection title={t("visit.prescription")}>
+              <p>{t("print.issued", { date: dateTime(prescription.created_at, locale) })}</p>
+              <MedicineList medicines={prescription.medicines} />
+              <p>{prescription.dispensed ? t("pharmacy.dispensed") : t("pharmacy.validUntil", { date: dateTime(prescription.expires_at, locale) })}</p>
+            </PrintSection>
+            <p className="pt-10">{t("print.pharmacistSign")} ____________________</p>
+          </>
+        )}
+      </PrintButton>
       {!prescription.dispensed && !prescription.expired && !open && (
         <Button className="w-full" onClick={() => setOpen(true)}>
           {t("pharmacy.dispense")}

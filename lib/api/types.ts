@@ -175,6 +175,7 @@ export interface Medicine {
 
 export interface PatientVisit {
   id: number;
+  created_at: string;
   patient_name: string;
   doctor: Doctor;
   diagnosis: string;

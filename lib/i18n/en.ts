@@ -635,6 +635,19 @@ export const en = {
   "users.listAll": "All accounts",
   "users.patientHint": "If this patient already has a file from a walk-in visit with the same phone number, the account is linked to it, so their earlier visits show up.",
   "users.createAny": "New account",
+
+  "print.button": "Print / Save PDF",
+  "print.prescriptionButton": "Print prescription",
+  "print.resultButton": "Print result",
+  "print.medicalFile": "Medical file",
+  "print.prescription": "Prescription",
+  "print.labReport": "Lab result",
+  "print.patientInfo": "Patient",
+  "print.address": "Karbala",
+  "print.issued": "Written on {date}",
+  "print.pharmacistSign": "Pharmacist's signature:",
+  "print.labSign": "Lab's signature:",
+  "print.footer": "Printed from the Al-Rahma Medical Complex platform on {date}. Confidential medical information.",
 };
 
 export type MessageKey = keyof typeof en;

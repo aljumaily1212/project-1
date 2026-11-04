@@ -11,6 +11,7 @@ import { useLoad } from "@/lib/useLoad";
 import { resultSchema, type ResultForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, FieldError, Input, PageHeader, Select, Textarea } from "@/components/common";
 import { FlagBadge, ResultView, rowFlag, serviceName } from "@/components/result-view";
+import { PrintButton, PrintSection } from "@/components/print";
 import { CardsSkeleton } from "@/components/skeleton";
 
 const TABS: LabStatus[] = ["requested", "entered", "confirmed"];
@@ -209,9 +210,27 @@ function OrderCard({ order, onChanged }: { order: LabOrder; onChanged: () => voi
         </div>
       )}
       {order.status === "confirmed" && !editing && (
-        <Button variant="secondary" onClick={() => setEditing(true)}>
-          {t("lab.correct")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => setEditing(true)}>
+            {t("lab.correct")}
+          </Button>
+          {/* Only confirmed results can be printed: an unconfirmed one may still change. */}
+          {order.result && (
+            <PrintButton title={t("print.labReport")} subject={order.patient_name} label={t("print.resultButton")}>
+              {() => (
+                <>
+                  <PrintSection title={serviceName(order.test, locale)}>
+                    <p>
+                      {t("lab.requestedBy", { name: order.doctor_name })} · {dateTime(order.requested_at, locale)}
+                    </p>
+                    {order.result && <ResultView result={order.result} />}
+                  </PrintSection>
+                  <p className="pt-10">{t("print.labSign")} ____________________</p>
+                </>
+              )}
+            </PrintButton>
+          )}
+        </div>
       )}
       {editing && (
         <ResultEntry
