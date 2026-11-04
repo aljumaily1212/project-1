@@ -602,6 +602,16 @@ export const en = {
   "scan.linked": "The barcode was saved on the item",
   "scan.newItem": "Add as a new item",
   "apiError.barcode_taken": "This barcode already belongs to another item",
+
+  "stockLog.title": "Latest stock changes",
+  "stockLog.empty": "No changes yet",
+  "stockLog.kind.create": "Added",
+  "stockLog.kind.receive": "Received",
+  "stockLog.kind.dispense": "Dispensed",
+  "stockLog.kind.edit": "Edited",
+  "stockLog.left": "Left: {n}",
+  "stockLog.for": "for {name}",
+  "stockLog.more": "Show more",
 };
 
 export type MessageKey = keyof typeof en;

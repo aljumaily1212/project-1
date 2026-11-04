@@ -35,6 +35,8 @@ import type {
   StockExpiry,
   StockItem,
   StockLevel,
+  StockMove,
+  StockMoveKind,
   User,
   VisitKind,
   WorkDay,
@@ -170,6 +172,8 @@ type Db = {
   items: MockItem[];
   payments: MockPayment[];
   stock: MockStock[];
+  // Newest first.
+  stockLog: StockMove[];
 };
 
 // The stored item. Level and expiry warnings are worked out when it is sent.
@@ -282,6 +286,7 @@ function seed(): Db {
       { id: 66, name: "Ibuprofen 400mg", unit: "tablet", quantity: 45, low_level: 20, expires_on: addDays(day, -3), barcode: null },
       { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null, barcode: null },
     ],
+    stockLog: [],
   };
   addPastMonth(db);
   return db;
@@ -420,7 +425,12 @@ function addPastMonth(db: Db) {
 
 function read(): Db {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) return JSON.parse(saved) as Db;
+  if (saved) {
+    const db = JSON.parse(saved) as Db;
+    // Data saved before the stock log existed starts with an empty log, instead of losing everything.
+    db.stockLog ??= [];
+    return db;
+  }
   // Save the starting data once, so every tab works on the same copy from the start.
   const db = seed();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
@@ -786,6 +796,21 @@ function findStock(db: Db, id: number) {
   return item;
 }
 
+function logStock(db: Db, user: MockUser, item: MockStock, kind: StockMoveKind, change: number, note = "") {
+  db.stockLog.unshift({
+    id: db.nextId++,
+    at: now().toISOString(),
+    by: user.name,
+    kind,
+    stock_id: item.id,
+    item_name: item.name,
+    unit: item.unit,
+    change,
+    quantity_after: item.quantity,
+    note,
+  });
+}
+
 // One barcode belongs to one item, or a scan wouldn't know which item it means.
 function requireFreeBarcode(db: Db, barcode: string | null, ignoreId?: number) {
   if (barcode && db.stock.some((s) => s.barcode === barcode && s.id !== ignoreId)) fail(409, "barcode_taken");
@@ -1143,7 +1168,11 @@ export const mockApi: Api = {
       if (stockExpiry(item) === "expired") fail(409, "stock_expired");
       if (item.quantity < quantity) fail(409, "out_of_stock");
     }
-    for (const [stockId, quantity] of needed) findStock(db, stockId).quantity -= quantity;
+    for (const [stockId, quantity] of needed) {
+      const item = findStock(db, stockId);
+      item.quantity -= quantity;
+      logStock(db, user, item, "dispense", -quantity, patientName(db, visit.patient_id));
+    }
     // The pharmacist's instructions are saved on each medicine, so the patient sees them in their file.
     visit.medicines = visit.medicines.map((m, i) => ({ ...m, instructions: { ...lines[i].instructions, note: lines[i].instructions.note.trim() } }));
     visit.dispensed = true;
@@ -1169,7 +1198,9 @@ export const mockApi: Api = {
     const user = requireUser(db, "pharmacy");
     if (db.stock.some((s) => s.name.toLowerCase() === input.name.trim().toLowerCase())) fail(409, "stock_exists");
     requireFreeBarcode(db, input.barcode);
-    db.stock.push({ id: db.nextId++, ...input, name: input.name.trim() });
+    const item = { id: db.nextId++, ...input, name: input.name.trim() };
+    db.stock.push(item);
+    logStock(db, user, item, "create", item.quantity);
     log(db, user, "stock.create", input.name);
     write(db);
     return delay(undefined);
@@ -1179,7 +1210,11 @@ export const mockApi: Api = {
     const db = read();
     const user = requireUser(db, "pharmacy");
     requireFreeBarcode(db, input.barcode, id);
-    Object.assign(findStock(db, id), input);
+    const item = findStock(db, id);
+    const before = item.quantity;
+    Object.assign(item, input);
+    // A quantity typed in by hand (for example after counting the shelf) shows as a change too.
+    logStock(db, user, item, "edit", item.quantity - before);
     log(db, user, "stock.update", input.name);
     write(db);
     return delay(undefined);
@@ -1192,9 +1227,16 @@ export const mockApi: Api = {
     const item = findStock(db, id);
     item.quantity += quantity;
     if (expires_on) item.expires_on = expires_on;
+    logStock(db, user, item, "receive", quantity);
     log(db, user, "stock.receive", `${item.name} · ${quantity}`);
     write(db);
     return delay(undefined);
+  },
+
+  stockLog: async (limit) => {
+    const db = read();
+    requireUser(db, "pharmacy", "manager");
+    return delay(db.stockLog.slice(0, limit));
   },
 
   listStaff: async () => {

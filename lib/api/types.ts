@@ -358,6 +358,24 @@ export interface ReceiveStockRequest {
   expires_on: string | null;
 }
 
+export type StockMoveKind = "create" | "receive" | "dispense" | "edit";
+
+// One change to the stock, kept forever, so the pharmacy can see who changed what and when.
+export interface StockMove {
+  id: number;
+  at: string;
+  by: string;
+  kind: StockMoveKind;
+  stock_id: number;
+  item_name: string;
+  unit: string;
+  // How much the quantity went up (+) or down (-). 0 when only details like the name changed.
+  change: number;
+  quantity_after: number;
+  // For a dispense, the patient's name.
+  note: string;
+}
+
 // One line per medicine on the prescription, in the same order. stock_id null means it came from outside the pharmacy.
 export interface DispenseLine {
   stock_id: number | null;

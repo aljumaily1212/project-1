@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ScanLine } from "lucide-react";
+import { ArrowDownToLine, PackagePlus, Pencil, Pill, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 import { api, type StockItem } from "@/lib/api";
 import { SHOW_DEMO_ACCOUNTS } from "@/lib/config";
-import { fullDate } from "@/lib/display";
+import { dateTime, fullDate } from "@/lib/display";
 import { barcodeKey, parseBarcode, type ScannedCode } from "@/lib/gs1";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
@@ -299,9 +299,77 @@ function ScanPanel({ stock, onChanged, onClose }: { stock: StockItem[]; onChange
   );
 }
 
+const MOVE_ICON = { create: PackagePlus, receive: ArrowDownToLine, dispense: Pill, edit: Pencil } as const;
+
+// The latest changes to the stock, newest first: who did what, by how much, and what is left.
+function StockLog({ version }: { version: number }) {
+  const { t, locale } = useT();
+  const [limit, setLimit] = useState(10);
+  const { state, reload, refresh } = useLoad(() => api.stockLog(limit), String(limit), { every: 10000, keepPrevious: true });
+
+  // Changes made on this page show in the log straight away.
+  useEffect(() => {
+    if (version > 0) refresh();
+  }, [version, refresh]);
+
+  return (
+    <Card className="space-y-3">
+      <h2 className="font-semibold">{t("stockLog.title")}</h2>
+      {state.status === "loading" && <CardsSkeleton count={1} />}
+      {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
+      {state.status === "success" && state.data.length === 0 && <p className="text-sm text-slate-500">{t("stockLog.empty")}</p>}
+      {state.status === "success" && (
+        <ol className="space-y-3">
+          {state.data.map((move) => {
+            const Icon = MOVE_ICON[move.kind];
+            return (
+              <li key={move.id} data-stock-move={move.kind} className="flex gap-3 text-sm">
+                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600">
+                  <Icon className="size-4" aria-hidden />
+                </span>
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-2">
+                    <span className="font-medium">
+                      {t(`stockLog.kind.${move.kind}`)} · <span dir="ltr">{move.item_name}</span>
+                    </span>
+                    {move.change !== 0 && (
+                      <span dir="ltr" className={`font-semibold ${move.change > 0 ? "text-emerald-700" : "text-red-700"}`}>
+                        {move.change > 0 ? "+" : "−"}
+                        {Math.abs(move.change)}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-slate-500">
+                    {t("stockLog.left", { n: unitText(move.quantity_after, move.unit, t) })}
+                    {move.note && ` · ${t("stockLog.for", { name: move.note })}`}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {move.by} · {dateTime(move.at, locale)}
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {state.status === "success" && state.data.length === limit && (
+        <Button variant="secondary" className="w-full" onClick={() => setLimit(limit + 20)}>
+          {t("stockLog.more")}
+        </Button>
+      )}
+    </Card>
+  );
+}
+
 export default function StockPage() {
   const { t } = useT();
   const { state, reload, refresh } = useLoad(api.listStock);
+  // Goes up after every change made here, so the log on the side updates too.
+  const [version, setVersion] = useState(0);
+  const changed = useCallback(() => {
+    refresh();
+    setVersion((v) => v + 1);
+  }, [refresh]);
   const [adding, setAdding] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [query, setQuery] = useState("");
@@ -330,39 +398,44 @@ export default function StockPage() {
         }
       />
       {state.status === "success" && <StockAlerts items={state.data} />}
-      {scanning && state.status === "success" && <ScanPanel stock={state.data} onChanged={refresh} onClose={() => setScanning(false)} />}
+      {scanning && state.status === "success" && <ScanPanel stock={state.data} onChanged={changed} onClose={() => setScanning(false)} />}
       {adding && (
         <Card className="mb-4">
           <h2 className="mb-3 font-semibold">{t("stock.add")}</h2>
           <StockItemForm
             onDone={() => {
               setAdding(false);
-              refresh();
+              changed();
             }}
             onCancel={() => setAdding(false)}
           />
         </Card>
       )}
-      {state.status === "loading" && <CardsSkeleton count={2} />}
-      {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
-      {state.status === "success" && (
-        <Card className="space-y-3 p-0">
-          <div className="px-4 pt-4">
-            <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("stock.search")} aria-label={t("stock.search")} />
-          </div>
-          {items.length === 0 ? (
-            <div className="p-4">
-              <EmptyState title={t("stock.empty")} />
-            </div>
-          ) : (
-            <ul className="divide-y divide-slate-200">
-              {items.map((item) => (
-                <StockRow key={item.id} item={item} onChanged={refresh} />
-              ))}
-            </ul>
+      <div className="grid items-start gap-4 xl:grid-cols-3">
+        <div className="xl:col-span-2">
+          {state.status === "loading" && <CardsSkeleton count={2} />}
+          {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
+          {state.status === "success" && (
+            <Card className="space-y-3 p-0">
+              <div className="px-4 pt-4">
+                <Input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("stock.search")} aria-label={t("stock.search")} />
+              </div>
+              {items.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title={t("stock.empty")} />
+                </div>
+              ) : (
+                <ul className="divide-y divide-slate-200">
+                  {items.map((item) => (
+                    <StockRow key={item.id} item={item} onChanged={changed} />
+                  ))}
+                </ul>
+              )}
+            </Card>
           )}
-        </Card>
-      )}
+        </div>
+        <StockLog version={version} />
+      </div>
     </>
   );
 }

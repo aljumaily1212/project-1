@@ -604,4 +604,14 @@ export const ar: Record<MessageKey, string> = {
   "scan.linked": "حُفظ الباركود على الصنف",
   "scan.newItem": "إضافته كصنف جديد",
   "apiError.barcode_taken": "هذا الباركود مسجل لصنف آخر",
+
+  "stockLog.title": "آخر تغييرات المخزون",
+  "stockLog.empty": "لا توجد تغييرات بعد",
+  "stockLog.kind.create": "إضافة صنف",
+  "stockLog.kind.receive": "استلام",
+  "stockLog.kind.dispense": "صرف",
+  "stockLog.kind.edit": "تعديل",
+  "stockLog.left": "المتبقي: {n}",
+  "stockLog.for": "لـ {name}",
+  "stockLog.more": "عرض المزيد",
 };
