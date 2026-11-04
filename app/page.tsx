@@ -233,7 +233,8 @@ export default function LoginPage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-slate-500">{t("login.footer")}</p>
+        {/* Like the demo accounts, this note is only for the developer's computer, never the live site. */}
+        {SHOW_DEMO_ACCOUNTS && <p className="text-center text-xs text-slate-500">{t("login.footer")}</p>}
       </main>
     </div>
   );
