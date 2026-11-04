@@ -566,6 +566,22 @@ export const en = {
   "audit.stock.update": "Edited a stock item:",
   "audit.stock.receive": "Received stock:",
   "common.cancel": "Cancel",
+
+  "dose.times.1": "Once a day",
+  "dose.times.2": "Twice a day",
+  "dose.times.3": "3 times a day",
+  "dose.times.4": "4 times a day",
+  "dose.times.0": "Only when needed",
+  "dose.timing.before_food": "Before food",
+  "dose.timing.after_food": "After food",
+  "dose.timing.any": "Any time",
+  "pharmacy.howToTake": "How the patient takes it",
+  "pharmacy.timesPerDay": "How often",
+  "pharmacy.timing": "When",
+  "pharmacy.note": "Note for the patient (optional)",
+  "pharmacy.notePlaceholder": "For example: with a full glass of water",
+  "pharmacy.courseNeeds": "For {days} days the patient needs {n}",
+  "validation.tooLong": "Keep it shorter",
 };
 
 export type MessageKey = keyof typeof en;

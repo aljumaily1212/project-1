@@ -13,6 +13,12 @@ import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageH
 import { CardsSkeleton } from "@/components/skeleton";
 import { StockAlerts, unitText } from "@/components/stock";
 
+// The doctor writes the dose like "3 / 1". Its first number is a good first guess for times a day.
+function timesFromDose(dose: string) {
+  const times = parseInt(dose, 10);
+  return times >= 1 && times <= 4 ? (String(times) as "1" | "2" | "3" | "4") : "1";
+}
+
 // Guesses which shelf item a prescribed medicine is: the same name, or else the same first word ("Paracetamol").
 function matchStock(medicine: Medicine, stock: StockItem[]) {
   const name = medicine.name.trim().toLowerCase();
@@ -34,7 +40,9 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
     defaultValues: {
       lines: prescription.medicines.map((m) => {
         const match = matchStock(m, stock);
-        return { stock_id: match ? String(match.id) : "", quantity: match ? m.days : 0 };
+        const times = timesFromDose(m.dose);
+        // Enough for the whole course: times a day × days.
+        return { stock_id: match ? String(match.id) : "", quantity: match ? Number(times) * m.days : 0, times_per_day: times, timing: "after_food", note: "" };
       }),
     },
   });
@@ -43,7 +51,11 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
   async function onSubmit(values: DispenseForm) {
     try {
       await api.dispense(prescription.id, {
-        lines: values.lines.map((l) => ({ stock_id: l.stock_id ? Number(l.stock_id) : null, quantity: l.stock_id ? l.quantity : 0 })),
+        lines: values.lines.map((l) => ({
+          stock_id: l.stock_id ? Number(l.stock_id) : null,
+          quantity: l.stock_id ? l.quantity : 0,
+          instructions: { times_per_day: Number(l.times_per_day), timing: l.timing, note: l.note },
+        })),
       });
       toast.success(t("pharmacy.done"));
       onDone();
@@ -57,6 +69,7 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
       {prescription.medicines.map((m, index) => {
         const chosen = stock.find((s) => String(s.id) === lines?.[index]?.stock_id);
         const tooMany = chosen && (lines?.[index]?.quantity ?? 0) > chosen.quantity;
+        const times = Number(lines?.[index]?.times_per_day ?? 0);
         return (
           <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
             <p className="text-sm font-semibold" dir="ltr">
@@ -85,6 +98,31 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
               </Field>
             </div>
             {tooMany && <p className="text-xs text-red-700">{t("pharmacy.notEnough", { n: unitText(chosen.quantity, chosen.unit, t) })}</p>}
+            {chosen && times > 0 && (
+              <p className="text-xs text-slate-500">{t("pharmacy.courseNeeds", { days: m.days, n: unitText(times * m.days, chosen.unit, t) })}</p>
+            )}
+            <p className="pt-1 text-sm font-medium">{t("pharmacy.howToTake")}</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field label={t("pharmacy.timesPerDay")}>
+                <Select {...register(`lines.${index}.times_per_day`)}>
+                  {(["1", "2", "3", "4", "0"] as const).map((n) => (
+                    <option key={n} value={n}>
+                      {t(`dose.times.${n}`)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t("pharmacy.timing")}>
+                <Select {...register(`lines.${index}.timing`)}>
+                  <option value="after_food">{t("dose.timing.after_food")}</option>
+                  <option value="before_food">{t("dose.timing.before_food")}</option>
+                  <option value="any">{t("dose.timing.any")}</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label={t("pharmacy.note")} error={errors.lines?.[index]?.note?.message}>
+              <Input placeholder={t("pharmacy.notePlaceholder")} invalid={!!errors.lines?.[index]?.note} {...register(`lines.${index}.note`)} />
+            </Field>
           </div>
         );
       })}

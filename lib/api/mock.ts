@@ -1139,6 +1139,8 @@ export const mockApi: Api = {
       if (item.quantity < quantity) fail(409, "out_of_stock");
     }
     for (const [stockId, quantity] of needed) findStock(db, stockId).quantity -= quantity;
+    // The pharmacist's instructions are saved on each medicine, so the patient sees them in their file.
+    visit.medicines = visit.medicines.map((m, i) => ({ ...m, instructions: { ...lines[i].instructions, note: lines[i].instructions.note.trim() } }));
     visit.dispensed = true;
     log(db, user, "prescription.dispense", patientName(db, visit.patient_id));
     write(db);
