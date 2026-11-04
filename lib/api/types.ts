@@ -81,12 +81,23 @@ export interface Slot {
   available: boolean;
 }
 
-export type Relation = "self" | "child" | "parent" | "spouse";
+export type Relation = "self" | "child" | "parent" | "spouse" | "sibling" | "other";
 
 export interface FamilyMember {
   id: number;
   name: string;
   relation: Relation;
+  // Both optional: a small child has no phone, and some people don't know an exact birth date.
+  birth_date: string | null;
+  phone: string | null;
+}
+
+// What a patient sends to add or edit someone on their account. "self" is the account owner and can't be added.
+export interface FamilyInput {
+  name: string;
+  relation: Exclude<Relation, "self">;
+  birth_date: string | null;
+  phone: string | null;
 }
 
 // clinic: pay everything at the clinic. deposit: pay part online now. full: pay everything online now.
@@ -484,6 +495,8 @@ export type AuditAction =
   | "service.create"
   | "payment.reverse"
   | "account.delete"
+  | "family.add"
+  | "family.remove"
   | "stock.create"
   | "stock.update"
   | "stock.receive";

@@ -112,7 +112,8 @@ type MockDoctor = Doctor & {
 };
 type MockUser = User & { password: string };
 // relation says who this person is to the account owner. Walk-ins have no account.
-type MockPatient = { id: number; name: string; phone: string; account_id: number | null; relation?: Relation };
+// A family member added by a patient may have no phone of their own (""), and no known birth date.
+type MockPatient = { id: number; name: string; phone: string; account_id: number | null; relation?: Relation; birth_date?: string | null };
 type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket"> & {
   arrival_order: number;
   // The queue number for the day, counted per doctor. Given when the patient arrives.
@@ -920,7 +921,50 @@ export const mockApi: Api = {
   myFamily: async () => {
     const db = read();
     const user = requireUser(db, "patient");
-    return delay(db.patients.filter((p) => p.account_id === user.id).map(({ id, name, relation }) => ({ id, name, relation: relation ?? "self" })));
+    return delay(
+      db.patients
+        .filter((p) => p.account_id === user.id)
+        // The account owner first, then the others in the order they were added.
+        .sort((a, b) => Number(a.relation !== "self") - Number(b.relation !== "self") || a.id - b.id)
+        .map((p) => ({ id: p.id, name: p.name, relation: p.relation ?? "self", birth_date: p.birth_date ?? null, phone: p.phone || null })),
+    );
+  },
+
+  addFamilyMember: async ({ name, relation, birth_date, phone }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    db.patients.push({ id: db.nextId++, name: name.trim(), relation, birth_date, phone: phone ?? "", account_id: user.id });
+    log(db, user, "family.add", name.trim());
+    write(db);
+    return delay(undefined);
+  },
+
+  updateFamilyMember: async (id, { name, relation, birth_date, phone }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const member = db.patients.find((p) => p.id === id && p.account_id === user.id);
+    if (!member) fail(404);
+    // The account owner's own details are changed from the profile page, not here.
+    if (member.relation === "self" || !member.relation) fail(403);
+    Object.assign(member, { name: name.trim(), relation, birth_date, phone: phone ?? "" });
+    write(db);
+    return delay(undefined);
+  },
+
+  removeFamilyMember: async (id) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const member = db.patients.find((p) => p.id === id && p.account_id === user.id);
+    if (!member) fail(404);
+    if (member.relation === "self" || !member.relation) fail(403);
+    // Someone with a coming appointment stays, so the booking isn't left without an account.
+    const upcoming = db.appointments.some((a) => a.patient_id === id && a.date >= today() && (a.status === "booked" || a.status === "arrived"));
+    if (upcoming) fail(409, "member_has_bookings");
+    // Only the link to the account goes. The medical file stays with the clinic.
+    member.account_id = null;
+    log(db, user, "family.remove", member.name);
+    write(db);
+    return delay(undefined);
   },
 
   myAppointments: async () => {
@@ -1825,7 +1869,7 @@ export const mockApi: Api = {
       patient: patientSummary(db, patient),
       family: db.patients
         .filter((p) => patient.account_id !== null && p.account_id === patient.account_id && p.id !== patient.id)
-        .map(({ id, name, relation }) => ({ id, name, relation: relation ?? "self" })),
+        .map((p) => ({ id: p.id, name: p.name, relation: p.relation ?? "self", birth_date: p.birth_date ?? null, phone: p.phone || null })),
       appointments: appointments.map((a) => ({
         id: a.id,
         doctor_name: doctorNameOf(db, a.doctor_id),

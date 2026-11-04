@@ -26,6 +26,15 @@ export const newPatientSchema = z.object({
 });
 export type NewPatientForm = z.infer<typeof newPatientSchema>;
 
+// Someone on a patient's account. Birth date and phone are optional; empty boxes give "".
+export const familySchema = z.object({
+  name: z.string().trim().min(2, "validation.name"),
+  relation: z.enum(["child", "parent", "spouse", "sibling", "other"]),
+  birth_date: z.string().refine((d) => d === "" || d <= new Date().toISOString().slice(0, 10), "validation.futureDate"),
+  phone: z.string().trim().refine((p) => p === "" || /^07\d{9}$/.test(p), "validation.phone"),
+});
+export type FamilyForm = z.infer<typeof familySchema>;
+
 // Staff accounts are made by reception. Doctors also need their profile.
 export const staffSchema = z
   .object({

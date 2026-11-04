@@ -14,6 +14,7 @@ import type {
   DoctorSchedule,
   DispenseRequest,
   DoctorVisit,
+  FamilyInput,
   FamilyMember,
   FinishVisitRequest,
   FinishVisitResult,
@@ -77,6 +78,13 @@ export const httpApi = {
     http.get<Slot[]>(`/doctors/${doctorId}/slots`, { params: { date, kind } }).then((r) => r.data),
 
   myFamily: () => http.get<FamilyMember[]>("/me/family").then((r) => r.data),
+
+  addFamilyMember: (body: FamilyInput) => http.post<null>("/me/family", body).then(() => undefined),
+
+  updateFamilyMember: (id: number, body: FamilyInput) => http.put<null>(`/me/family/${id}`, body).then(() => undefined),
+
+  // Takes the person off the account. Their medical file stays with the clinic.
+  removeFamilyMember: (id: number) => http.delete<null>(`/me/family/${id}`).then(() => undefined),
 
   myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => r.data),
 

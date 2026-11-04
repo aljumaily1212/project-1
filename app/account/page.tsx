@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, type Doctor, type FamilyMember, type PayChoice, type VisitKind } from "@/lib/api";
@@ -65,6 +66,9 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
           ))}
         </Select>
       </Field>
+      <Link href="/account/family" replace className="-mt-3 inline-block text-sm font-medium text-brand-600 hover:underline">
+        {t("family.addFromBooking")}
+      </Link>
 
       <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.doctor")}</p>

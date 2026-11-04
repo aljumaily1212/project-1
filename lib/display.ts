@@ -26,6 +26,15 @@ export const shortDate = (date: string) => {
 // "31/8/2027": with the year, for dates that can be far away, like an expiry date.
 export const fullDate = (date: string) => `${shortDate(date)}/${asDate(date).getFullYear()}`;
 
+// "7 سنوات" or, for babies under 2, "8 أشهر". Counted from a "YYYY-MM-DD" birth date to today.
+export function age(birth: string) {
+  const born = asDate(birth);
+  const now = new Date();
+  let months = (now.getFullYear() - born.getFullYear()) * 12 + now.getMonth() - born.getMonth();
+  if (now.getDate() < born.getDate()) months--;
+  return months < 24 ? { unit: "months" as const, n: Math.max(0, months) } : { unit: "years" as const, n: Math.floor(months / 12) };
+}
+
 export const longDate = (date: string, locale: Locale) =>
   new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long" }).format(asDate(date));
 
