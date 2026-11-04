@@ -11,6 +11,18 @@ export type Shift = "morning" | "evening";
 export type VisitKind = "new" | "followup";
 export type CancelReason = "patient" | "doctor_absent";
 
+// A long list comes in parts. `limit` is how many to send (the server sends at most 200),
+// `offset` how many to skip from the start. `total` is how many there are in all, with the same filters.
+export interface PageQuery {
+  limit: number;
+  offset?: number;
+}
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
+
 export interface User {
   id: number;
   name: string;

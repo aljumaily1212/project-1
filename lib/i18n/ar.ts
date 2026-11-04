@@ -986,4 +986,6 @@ export const ar: Record<MessageKey, string> = {
   "audit.staff.update": "عدّل حساب",
   "audit.staff.disable": "أوقف حساب",
   "audit.staff.enable": "أعاد تفعيل حساب",
+  "paging.shown": "يُعرض {shown} من {total}",
+  "paging.more": "عرض المزيد",
 };

@@ -157,3 +157,19 @@ export function MedicineList({ medicines }: { medicines: Medicine[] }) {
     </ul>
   );
 }
+
+// Under a list shown in parts: how many are shown, and a button for the next part.
+export function ShowMore({ shown, total, loading, onMore }: { shown: number; total: number; loading: boolean; onMore: () => void }) {
+  const { t } = useT();
+  if (total === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm text-slate-500" data-show-more>
+      <span>{t("paging.shown", { shown, total })}</span>
+      {shown < total && (
+        <Button type="button" variant="secondary" loading={loading} onClick={onMore}>
+          {t("paging.more")}
+        </Button>
+      )}
+    </div>
+  );
+}

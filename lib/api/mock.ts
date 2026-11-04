@@ -21,6 +21,7 @@ import type {
   LabResult,
   LabStatus,
   LoginResponse,
+  PageQuery,
   MedicalAlerts,
   Medicine,
   MyAppointment,
@@ -594,6 +595,12 @@ function requireUser(db: Db, ...roles: Role[]) {
   if (!user || user.disabled) fail(401);
   if (roles.length > 0 && !roles.includes(user.role)) fail(403);
   return user;
+}
+
+// One part of a long list, the way the real server answers: at most 200 at a time, plus the total.
+function pageOf<T>(list: T[], { limit, offset = 0 }: PageQuery) {
+  const size = Math.max(1, Math.min(limit, 200));
+  return { items: list.slice(offset, offset + size), total: list.length };
 }
 
 // Every sensitive action is written here, so the manager can see who did what and when.
@@ -1844,10 +1851,10 @@ export const mockApi: Api = {
     return delay(db.settings);
   },
 
-  listAudit: async () => {
+  listAudit: async ({ action, ...q }) => {
     const db = read();
     requireUser(db, "manager");
-    return delay(db.audit);
+    return delay(pageOf(db.audit.filter((e) => !action || e.action === action), q));
   },
 
   managerOverview: async () => {
@@ -2143,15 +2150,15 @@ export const mockApi: Api = {
     return delay(expense);
   },
 
-  listLedger: async () => {
+  listLedger: async (q) => {
     const db = read();
     requireUser(db, "accountant", "manager");
     const undone = (id: number) => db.payments.some((p) => p.ref_id === id);
-    return delay(
-      db.payments
-        .slice()
-        .reverse()
-        .map(({ ref_id: _r, key: _k, ...p }) => {
+    // Only the part asked for is built, so a long history stays fast.
+    const part = pageOf(db.payments.slice().reverse(), q);
+    return delay({
+      total: part.total,
+      items: part.items.map(({ ref_id: _r, key: _k, ...p }) => {
           void _r;
           void _k;
           const appointment = findAppointment(db, p.appointment_id);
@@ -2162,7 +2169,7 @@ export const mockApi: Api = {
             reversible: p.kind === "payment" && !undone(p.id),
           };
         }),
-    );
+    });
   },
 
   reversePayment: async (paymentId, reason) => {
@@ -2333,16 +2340,19 @@ export const mockApi: Api = {
     return delay(result);
   },
 
-  searchPatients: async (query) => {
+  searchPatients: async (query, paging) => {
     const db = read();
     requireUser(db, "reception", "manager");
     const q = query.trim().toLowerCase();
     return delay(
-      db.patients
-        .filter((p) => !q || p.name.toLowerCase().includes(q) || p.phone.includes(q))
-        .map((p) => patientSummary(db, p))
-        // Patients seen most recently come first. Never-seen patients go last.
-        .sort((a, b) => (b.last_visit ?? "").localeCompare(a.last_visit ?? "") || a.name.localeCompare(b.name)),
+      pageOf(
+        db.patients
+          .filter((p) => !q || p.name.toLowerCase().includes(q) || p.phone.includes(q))
+          .map((p) => patientSummary(db, p))
+          // Patients seen most recently come first. Never-seen patients go last.
+          .sort((a, b) => (b.last_visit ?? "").localeCompare(a.last_visit ?? "") || a.name.localeCompare(b.name)),
+        paging,
+      ),
     );
   },
 

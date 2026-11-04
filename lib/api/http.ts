@@ -32,6 +32,8 @@ import type {
   LabOrder,
   LedgerEntry,
   LoginResponse,
+  Page,
+  PageQuery,
   ManagerOverview,
   MedicalAlerts,
   MyAppointment,
@@ -205,7 +207,8 @@ export const httpApi = {
 
   updateSettings: (body: ClinicSettings) => http.put<ClinicSettings>("/settings", body).then((r) => r.data),
 
-  listAudit: () => http.get<AuditEntry[]>("/audit").then((r) => r.data),
+  // Newest first. `action` keeps only one kind of action.
+  listAudit: (q: PageQuery & { action?: string }) => http.get<Page<AuditEntry>>("/audit", { params: q }).then((r) => r.data),
 
   managerOverview: () => http.get<ManagerOverview>("/manager/overview").then((r) => r.data),
 
@@ -271,7 +274,8 @@ export const httpApi = {
 
   voidExpense: (id: number, reason: string) => http.post<Expense>(`/expenses/${id}/void`, { reason }).then((r) => r.data),
 
-  listLedger: () => http.get<LedgerEntry[]>("/ledger").then((r) => r.data),
+  // Newest first.
+  listLedger: (q: PageQuery) => http.get<Page<LedgerEntry>>("/ledger", { params: q }).then((r) => r.data),
 
   // There is no delete. A mistake is fixed with an opposite entry that says why.
   reversePayment: (paymentId: number, reason: string) =>
@@ -290,7 +294,8 @@ export const httpApi = {
   analytics: (days: number) => http.get<Analytics>("/manager/analytics", { params: { days } }).then((r) => r.data),
 
   // Reception and the manager search by name or phone. An empty search lists the latest patients.
-  searchPatients: (query: string) => http.get<PatientSummary[]>("/patients", { params: { q: query } }).then((r) => r.data),
+  searchPatients: (query: string, q: PageQuery) =>
+    http.get<Page<PatientSummary>>("/patients", { params: { q: query, ...q } }).then((r) => r.data),
 
   patientFile: (patientId: number) => http.get<PatientFile>(`/patients/${patientId}/file`).then((r) => r.data),
 

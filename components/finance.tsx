@@ -7,9 +7,10 @@ import { toast } from "sonner";
 import { api, type CountRow, type LedgerEntry } from "@/lib/api";
 import { dateTime, money } from "@/lib/display";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
+import { fetchAll, usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
 import { localToday, type ReverseForm, reverseSchema } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, ShowMore } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
 import { ExportButton } from "@/components/export-button";
@@ -108,15 +109,16 @@ function LedgerRow({ entry, canReverse, onChanged }: { entry: LedgerEntry; canRe
 
 export function LedgerView({ canReverse }: { canReverse: boolean }) {
   const { t, locale } = useT();
-  const { state, reload } = useLoad(api.listLedger, "", { every: 10000 });
-  const entries = state.status === "success" ? state.data : [];
+  const ledger = usePaged(api.listLedger, "", { every: 10000 });
+  const { state, reload, refresh, items: entries } = ledger;
   return (
     <Card className="space-y-3">
       <div className="flex justify-end">
         <ExportButton
           fileName={`ledger-${localToday()}`}
           disabled={entries.length === 0}
-          sheets={() => [
+          // The whole ledger, not only the part on screen.
+          sheets={async () => [
             sheet(t("ledger.title"), [
               { header: t("export.date"), value: (e) => dateTime(e.at, locale), width: 22 },
               { header: t("export.patient"), value: (e) => e.patient_name, width: 22 },
@@ -128,20 +130,21 @@ export function LedgerView({ canReverse }: { canReverse: boolean }) {
               { header: t("export.currency"), value: (e) => e.currency, width: 10 },
               { header: t("export.by"), value: (e) => e.by, width: 16 },
               { header: t("export.reason"), value: (e) => e.reason || null, width: 24 },
-            ], entries),
+            ], await fetchAll(api.listLedger)),
           ]}
         />
       </div>
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
-      {state.status === "success" && state.data.length === 0 && <EmptyState title={t("ledger.empty")} />}
+      {state.status === "success" && entries.length === 0 && <EmptyState title={t("ledger.empty")} />}
       {state.status === "success" && (
         <ul className="divide-y divide-slate-200">
-          {state.data.map((entry) => (
-            <LedgerRow key={entry.id} entry={entry} canReverse={canReverse} onChanged={reload} />
+          {entries.map((entry) => (
+            <LedgerRow key={entry.id} entry={entry} canReverse={canReverse} onChanged={refresh} />
           ))}
         </ul>
       )}
+      <ShowMore shown={entries.length} total={ledger.total} loading={ledger.loadingMore} onMore={ledger.more} />
     </Card>
   );
 }

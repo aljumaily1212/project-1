@@ -6,8 +6,9 @@ import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { api, type PatientFile, type PatientSummary } from "@/lib/api";
 import { dateTime, shortDate } from "@/lib/display";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
+import { usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
-import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, StatusBadge } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, ShowMore, StatusBadge } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
@@ -54,7 +55,8 @@ function PatientSearch({ onOpen }: { onOpen: (id: number) => void }) {
     const timer = setTimeout(() => setSearch(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
-  const { state, reload } = useLoad(() => api.searchPatients(search), search, { keepPrevious: true });
+  const patients = usePaged((q) => api.searchPatients(search, q), search, { pageSize: 30 });
+  const { state, reload, items } = patients;
 
   return (
     <Card className="space-y-3">
@@ -71,14 +73,15 @@ function PatientSearch({ onOpen }: { onOpen: (id: number) => void }) {
       </div>
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
-      {state.status === "success" && state.data.length === 0 && <EmptyState title={t("patients.empty")} />}
+      {state.status === "success" && items.length === 0 && <EmptyState title={t("patients.empty")} />}
       {state.status === "success" && (
         <ul className="divide-y divide-slate-200">
-          {state.data.map((p) => (
+          {items.map((p) => (
             <PatientRow key={p.id} patient={p} onOpen={() => onOpen(p.id)} />
           ))}
         </ul>
       )}
+      <ShowMore shown={items.length} total={patients.total} loading={patients.loadingMore} onMore={patients.more} />
     </Card>
   );
 }

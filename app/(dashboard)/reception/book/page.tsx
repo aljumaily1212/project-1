@@ -28,7 +28,7 @@ function PatientPicker({ noShowLimit, onPick }: { noShowLimit: number; onPick: (
     const timer = setTimeout(() => setSearch(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
-  const { state, reload } = useLoad(() => api.searchPatients(search), search, { keepPrevious: true });
+  const { state, reload } = useLoad(() => api.searchPatients(search, { limit: 20 }).then((page) => page.items), search, { keepPrevious: true });
   const {
     register,
     handleSubmit,
@@ -79,7 +79,7 @@ function PatientPicker({ noShowLimit, onPick }: { noShowLimit: number; onPick: (
       {state.status === "success" && state.data.length === 0 && <EmptyState title={t("patients.empty")} />}
       {state.status === "success" && (
         <ul className="max-h-72 divide-y divide-slate-200 overflow-y-auto">
-          {state.data.slice(0, 20).map((p) => (
+          {state.data.map((p) => (
             <li key={p.id}>
               <button
                 type="button"

@@ -74,7 +74,7 @@ function SearchDialog({ nav, patientsHref, onClose, onGo }: {
     const timer = setTimeout(() => setSearch(query.trim()), 250);
     return () => clearTimeout(timer);
   }, [query]);
-  const patients = useLoad(() => (patientsHref && search.length >= 2 ? api.searchPatients(search) : Promise.resolve([])), search, { keepPrevious: true });
+  const patients = useLoad(() => (patientsHref && search.length >= 2 ? api.searchPatients(search, { limit: 6 }).then((page) => page.items) : Promise.resolve([])), search, { keepPrevious: true });
 
   const q = query.trim().toLowerCase();
   const pages: Result[] = nav.filter((item) => !q || t(item.label).toLowerCase().includes(q)).map((item) => ({ kind: "page", href: item.href, label: t(item.label) }));

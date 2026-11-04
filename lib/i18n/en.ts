@@ -984,6 +984,8 @@ export const en = {
   "audit.staff.update": "Edited the account of",
   "audit.staff.disable": "Stopped the account of",
   "audit.staff.enable": "Restarted the account of",
+  "paging.shown": "Showing {shown} of {total}",
+  "paging.more": "Show more",
 };
 
 export type MessageKey = keyof typeof en;

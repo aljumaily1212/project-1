@@ -20,7 +20,7 @@ const STATS = [
 export default function ManagerPage() {
   const { t } = useT();
   const overview = useLoad(api.managerOverview, "", { every: 10000 });
-  const audit = useLoad(api.listAudit);
+  const audit = useLoad(() => api.listAudit({ limit: 5 }));
 
   return (
     <>
@@ -51,8 +51,8 @@ export default function ManagerPage() {
         </div>
         {audit.state.status === "loading" && <CardsSkeleton count={1} />}
         {audit.state.status === "error" && <ErrorState message={errorText(audit.state.error, t)} onRetry={audit.reload} />}
-        {audit.state.status === "success" && audit.state.data.length === 0 && <EmptyState title={t("audit.empty")} />}
-        {audit.state.status === "success" && <AuditList entries={audit.state.data.slice(0, 5)} />}
+        {audit.state.status === "success" && audit.state.data.items.length === 0 && <EmptyState title={t("audit.empty")} />}
+        {audit.state.status === "success" && <AuditList entries={audit.state.data.items} />}
       </Card>
     </>
   );

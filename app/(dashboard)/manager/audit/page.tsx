@@ -5,10 +5,10 @@ import { api, type AuditAction, type AuditEntry } from "@/lib/api";
 import { dateTime } from "@/lib/display";
 import { sheet } from "@/lib/excel";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
-import { useLoad } from "@/lib/useLoad";
+import { fetchAll, usePaged } from "@/lib/paging";
 import { localToday } from "@/lib/validation";
 import { AuditList } from "@/components/audit-list";
-import { Card, EmptyState, ErrorState, Field, PageHeader, Select } from "@/components/common";
+import { Card, EmptyState, ErrorState, Field, PageHeader, Select, ShowMore } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 import { ExportButton } from "@/components/export-button";
 import { ROLE_LABEL } from "@/components/staff-users";
@@ -37,15 +37,26 @@ const ACTIONS: AuditAction[] = [
   "doctor.absent",
   "doctor.late",
   "staff.create",
+  "staff.update",
+  "staff.disable",
+  "staff.enable",
   "settings.update",
+  "alerts.update",
+  "vitals.save",
+  "cash.close",
+  "pharmacy.sale",
+  "expense.add",
+  "expense.void",
+  "password.reset",
+  "password.change",
 ];
 
 export default function AuditPage() {
   const { t, locale } = useT();
-  const { state, reload } = useLoad(api.listAudit, "", { every: 10000 });
   const [action, setAction] = useState("");
-
-  const entries = state.status === "success" ? state.data.filter((e) => !action || e.action === action) : [];
+  // The filter is applied by the server, so "show more" brings more of the same kind.
+  const audit = usePaged((q) => api.listAudit({ ...q, action: action || undefined }), action, { every: 10000 });
+  const { state, reload, items: entries } = audit;
 
   return (
     <>
@@ -56,15 +67,15 @@ export default function AuditPage() {
           <ExportButton
             fileName={`audit-${localToday()}`}
             disabled={entries.length === 0}
-            // Exports what the filter shows.
-            sheets={() => [
+            // Exports every entry the filter matches, not only the part on screen.
+            sheets={async () => [
               sheet(t("audit.title"), [
                 { header: t("export.date"), value: (e: AuditEntry) => dateTime(e.at, locale), width: 22 },
                 { header: t("export.by"), value: (e: AuditEntry) => e.user_name, width: 18 },
                 { header: t("export.role"), value: (e: AuditEntry) => (e.role === "patient" ? t("nav.patient") : t(ROLE_LABEL[e.role])), width: 14 },
                 { header: t("export.action"), value: (e: AuditEntry) => t(`audit.${e.action}` as MessageKey), width: 34 },
                 { header: t("export.target"), value: (e: AuditEntry) => e.target, width: 26 },
-              ], entries),
+              ], await fetchAll((q) => api.listAudit({ ...q, action: action || undefined }))),
             ]}
           />
         }
@@ -86,6 +97,7 @@ export default function AuditPage() {
         {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
         {state.status === "success" && entries.length === 0 && <EmptyState title={t("audit.empty")} />}
         {state.status === "success" && <AuditList entries={entries} />}
+        <ShowMore shown={entries.length} total={audit.total} loading={audit.loadingMore} onMore={audit.more} />
       </Card>
     </>
   );
