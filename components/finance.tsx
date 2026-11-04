@@ -206,6 +206,9 @@ export function ReportView({ month }: { month: string }) {
           <p>
             {t("reports.collected")}: <AmountsText amounts={r.today_collected} />
           </p>
+          <p data-report="pharmacy-today">
+            {t("reports.pharmacy")}: {amountText(r.pharmacy_today, "IQD", t)}
+          </p>
         </Card>
         <Card className="space-y-1">
           <p className="text-sm text-slate-500">{t("reports.thisMonth")}</p>
@@ -214,6 +217,9 @@ export function ReportView({ month }: { month: string }) {
           </p>
           <p>
             {t("reports.collected")}: <AmountsText amounts={r.collected} />
+          </p>
+          <p>
+            {t("reports.pharmacy")}: {amountText(r.pharmacy_month, "IQD", t)}
           </p>
         </Card>
       </div>

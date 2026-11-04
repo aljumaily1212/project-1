@@ -9,6 +9,7 @@ import type {
   CatalogMedicine,
   CashClosing,
   ClinicSettings,
+  CounterSaleRequest,
   CloseShiftRequest,
   CreateStaffRequest,
   Doctor,
@@ -34,6 +35,7 @@ import type {
   PatientFile,
   PatientSummary,
   PayRequest,
+  PharmacySale,
   Prescription,
   RateVisitRequest,
   RegisterRequest,
@@ -151,8 +153,14 @@ export const httpApi = {
 
   listPrescriptions: () => http.get<Prescription[]>("/prescriptions").then((r) => r.data),
 
-  // Takes the dispensed amounts out of the pharmacy's stock.
-  dispense: (id: number, body: DispenseRequest) => http.post<null>(`/prescriptions/${id}/dispense`, body).then(() => undefined),
+  // Takes the dispensed amounts out of the pharmacy's stock and records what the patient paid for them.
+  dispense: (id: number, body: DispenseRequest) => http.post<PharmacySale | null>(`/prescriptions/${id}/dispense`, body).then((r) => r.data),
+
+  // A sale without a prescription.
+  sellOverCounter: (body: CounterSaleRequest) => http.post<PharmacySale>("/pharmacy/sales", body).then((r) => r.data),
+
+  // The sales of one day ("YYYY-MM-DD"), newest first.
+  listSales: (date: string) => http.get<PharmacySale[]>("/pharmacy/sales", { params: { date } }).then((r) => r.data),
 
   listStock: () => http.get<StockItem[]>("/pharmacy/stock").then((r) => r.data),
 

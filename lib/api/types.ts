@@ -451,6 +451,8 @@ export interface StockItem {
   expires_on: string | null;
   // The product number from the box's barcode, so scanning finds the item. null until one is scanned.
   barcode: string | null;
+  // The selling price of one unit (one tablet, one bottle…), in dinars.
+  price: number;
   // Worked out by the server, so every screen agrees on what "low" and "expiring" mean.
   level: StockLevel;
   expiry: StockExpiry;
@@ -458,6 +460,7 @@ export interface StockItem {
 
 export interface StockInput {
   name: string;
+  price: number;
   unit: string;
   quantity: number;
   low_level: number;
@@ -471,7 +474,35 @@ export interface ReceiveStockRequest {
   expires_on: string | null;
 }
 
-export type StockMoveKind = "create" | "receive" | "dispense" | "edit";
+export type StockMoveKind = "create" | "receive" | "dispense" | "edit" | "sale";
+
+// One line of a pharmacy sale. The price is copied at the time of sale, so later price changes don't touch it.
+export interface SaleLine {
+  stock_id: number;
+  name: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+}
+
+// Money the pharmacy took in, in dinars: for a prescription, or sold over the counter.
+export interface PharmacySale {
+  id: number;
+  at: string;
+  by: string;
+  kind: "prescription" | "counter";
+  // The patient for a prescription; an optional name for a counter sale.
+  customer: string;
+  lines: SaleLine[];
+  total: number;
+}
+
+export interface CounterSaleRequest {
+  customer: string;
+  lines: { stock_id: number; quantity: number }[];
+  idempotency_key: string;
+}
 
 // One change to the stock, kept forever, so the pharmacy can see who changed what and when.
 export interface StockMove {
@@ -571,6 +602,7 @@ export type AuditAction =
   | "alerts.update"
   | "vitals.save"
   | "cash.close"
+  | "pharmacy.sale"
   | "family.add"
   | "family.remove"
   | "stock.create"
@@ -635,6 +667,9 @@ export interface Report {
   collected: Amounts;
   today_billed: Amounts;
   today_collected: Amounts;
+  // Pharmacy sales in dinars, kept apart from visit money.
+  pharmacy_month: number;
+  pharmacy_today: number;
 }
 
 export interface AuditEntry {

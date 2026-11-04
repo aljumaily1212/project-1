@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type Medicine, type Prescription, type StockItem } from "@/lib/api";
 import { allergyMatch } from "@/lib/allergies";
-import { dateTime } from "@/lib/display";
+import { dateTime, money } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { dispenseSchema, type DispenseForm } from "@/lib/validation";
@@ -50,17 +50,22 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
     },
   });
   const lines = useWatch({ control, name: "lines" });
+  // What the patient pays: each line from our shelves, quantity × that item's price.
+  const total = (lines ?? []).reduce((sum, l) => {
+    const item = stock.find((s) => String(s.id) === l?.stock_id);
+    return item && l.quantity > 0 ? sum + item.price * l.quantity : sum;
+  }, 0);
 
   async function onSubmit(values: DispenseForm) {
     try {
-      await api.dispense(prescription.id, {
+      const sale = await api.dispense(prescription.id, {
         lines: values.lines.map((l) => ({
           stock_id: l.stock_id ? Number(l.stock_id) : null,
           quantity: l.stock_id ? l.quantity : 0,
           instructions: { times_per_day: Number(l.times_per_day), timing: l.timing, note: l.note },
         })),
       });
-      toast.success(t("pharmacy.done"));
+      toast.success(sale ? t("sales.dispensedPaid", { amount: money(sale.total) }) : t("pharmacy.done"));
       onDone();
     } catch (err) {
       toast.error(errorText(err, t));
@@ -101,6 +106,11 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
               </Field>
             </div>
             {tooMany && <p className="text-xs text-red-700">{t("pharmacy.notEnough", { n: unitText(chosen.quantity, chosen.unit, t) })}</p>}
+            {chosen && (lines?.[index]?.quantity ?? 0) > 0 && (
+              <p className="text-xs text-slate-600">
+                {t("sales.lineCost", { qty: lines[index].quantity, price: money(chosen.price), total: money(chosen.price * lines[index].quantity) })}
+              </p>
+            )}
             {chosen && times > 0 && (
               <p className="text-xs text-slate-500">{t("pharmacy.courseNeeds", { days: m.days, n: unitText(times * m.days, chosen.unit, t) })}</p>
             )}
@@ -129,6 +139,11 @@ function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription:
           </div>
         );
       })}
+      {total > 0 && (
+        <p className="text-base font-bold" data-dispense-total>
+          {t("sales.total")}: {money(total)} {t("common.currency")}
+        </p>
+      )}
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" loading={isSubmitting}>
           {t("pharmacy.confirmDispense")}

@@ -27,6 +27,8 @@ import type {
   PatientSummary,
   Payment,
   PaymentMethod,
+  PharmacySale,
+  SaleLine,
   Relation,
   ResultEdit,
   ResultTemplateRow,
@@ -60,7 +62,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v16";
+const STORAGE_KEY = "alrahma.mock.v17";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -194,10 +196,11 @@ type Db = {
   stockLog: StockMove[];
   // Newest first.
   closings: CashClosing[];
+  sales: PharmacySale[];
 };
 
 // The stored item. Level and expiry warnings are worked out when it is sent.
-type MockStock = Omit<StockItem, "level" | "expiry">;
+type MockStock = Omit<StockItem, "level" | "expiry" | "price"> & { price?: number };
 
 // An item expiring within this many days shows a warning.
 const EXPIRY_WARNING_DAYS = 30;
@@ -332,17 +335,18 @@ function seed(): Db {
     payments: [],
     // Fake stock, set up so the demo shows every kind of warning.
     stock: [
-      { id: 60, name: "Paracetamol 500mg", unit: "tablet", quantity: 240, low_level: 50, expires_on: addDays(day, 200), barcode: "06290000000011" },
-      { id: 61, name: "Amoxicillin 500mg", unit: "capsule", quantity: 30, low_level: 40, expires_on: addDays(day, 120), barcode: "06290000000028" },
-      { id: 62, name: "Vitamin D3 5000 IU", unit: "capsule", quantity: 0, low_level: 20, expires_on: addDays(day, 300), barcode: null },
-      { id: 63, name: "Omeprazole 20mg", unit: "capsule", quantity: 120, low_level: 30, expires_on: addDays(day, 18), barcode: "06290000000035" },
-      { id: 64, name: "Amlodipine 5mg", unit: "tablet", quantity: 90, low_level: 30, expires_on: addDays(day, 400), barcode: null },
-      { id: 65, name: "Cetirizine 10mg", unit: "tablet", quantity: 60, low_level: 20, expires_on: addDays(day, 150), barcode: null },
-      { id: 66, name: "Ibuprofen 400mg", unit: "tablet", quantity: 45, low_level: 20, expires_on: addDays(day, -3), barcode: null },
-      { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null, barcode: null },
+      { id: 60, name: "Paracetamol 500mg", unit: "tablet", price: 250, quantity: 240, low_level: 50, expires_on: addDays(day, 200), barcode: "06290000000011" },
+      { id: 61, name: "Amoxicillin 500mg", unit: "capsule", price: 500, quantity: 30, low_level: 40, expires_on: addDays(day, 120), barcode: "06290000000028" },
+      { id: 62, name: "Vitamin D3 5000 IU", unit: "capsule", price: 750, quantity: 0, low_level: 20, expires_on: addDays(day, 300), barcode: null },
+      { id: 63, name: "Omeprazole 20mg", unit: "capsule", price: 400, quantity: 120, low_level: 30, expires_on: addDays(day, 18), barcode: "06290000000035" },
+      { id: 64, name: "Amlodipine 5mg", unit: "tablet", price: 300, quantity: 90, low_level: 30, expires_on: addDays(day, 400), barcode: null },
+      { id: 65, name: "Cetirizine 10mg", unit: "tablet", price: 250, quantity: 60, low_level: 20, expires_on: addDays(day, 150), barcode: null },
+      { id: 66, name: "Ibuprofen 400mg", unit: "tablet", price: 250, quantity: 45, low_level: 20, expires_on: addDays(day, -3), barcode: null },
+      { id: 67, name: "Cough syrup 100ml", unit: "bottle", price: 3000, quantity: 12, low_level: 5, expires_on: null, barcode: null },
     ],
     stockLog: [],
     closings: [],
+    sales: [],
   };
   addPastMonth(db);
   return db;
@@ -514,6 +518,7 @@ function read(): Db {
     // Data saved before the stock log existed starts with an empty log, instead of losing everything.
     db.stockLog ??= [];
     db.closings ??= [];
+    db.sales ??= [];
     return db;
   }
   // Save the starting data once, so every tab works on the same copy from the start.
@@ -899,7 +904,7 @@ function stockExpiry(item: MockStock): StockExpiry {
   return item.expires_on <= addDays(today(), EXPIRY_WARNING_DAYS) ? "soon" : "ok";
 }
 
-const stockView = (item: MockStock): StockItem => ({ ...item, level: stockLevel(item), expiry: stockExpiry(item) });
+const stockView = (item: MockStock): StockItem => ({ ...item, price: item.price ?? 0, level: stockLevel(item), expiry: stockExpiry(item) });
 
 function findStock(db: Db, id: number) {
   const item = db.stock.find((s) => s.id === id);
@@ -959,6 +964,22 @@ function shiftOf(db: Db, user: MockUser) {
   }
   return { opened_at, payments: mine.length, expected };
 }
+
+// The price is copied now, so a later price change doesn't rewrite old sales.
+function saleLine(item: MockStock, quantity: number): SaleLine {
+  const unit_price = item.price ?? 0;
+  return { stock_id: item.id, name: item.name, unit: item.unit, quantity, unit_price, total: unit_price * quantity };
+}
+
+function recordSale(db: Db, user: MockUser, kind: PharmacySale["kind"], customer: string, lines: SaleLine[]) {
+  const sale: PharmacySale = { id: db.nextId++, at: now().toISOString(), by: user.name, kind, customer, lines, total: lines.reduce((sum, l) => sum + l.total, 0) };
+  db.sales.unshift(sale);
+  log(db, user, "pharmacy.sale", `${customer || "—"} · ${sale.total.toLocaleString("en-US")} IQD`);
+  return sale;
+}
+
+// Which counter sale a request key made, so a double press sells only once. Kept in memory: enough for a demo.
+const saleKeys = new Map<string, number>();
 
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
@@ -1498,17 +1519,57 @@ export const mockApi: Api = {
       if (stockExpiry(item) === "expired") fail(409, "stock_expired");
       if (item.quantity < quantity) fail(409, "out_of_stock");
     }
+    const saleLines: SaleLine[] = [];
     for (const [stockId, quantity] of needed) {
       const item = findStock(db, stockId);
       item.quantity -= quantity;
       logStock(db, user, item, "dispense", -quantity, patientName(db, visit.patient_id));
+      saleLines.push(saleLine(item, quantity));
     }
+    const sale = saleLines.length ? recordSale(db, user, "prescription", patientName(db, visit.patient_id), saleLines) : null;
     // The pharmacist's instructions are saved on each medicine, so the patient sees them in their file.
     visit.medicines = visit.medicines.map((m, i) => ({ ...m, instructions: { ...lines[i].instructions, note: lines[i].instructions.note.trim() } }));
     visit.dispensed = true;
     log(db, user, "prescription.dispense", patientName(db, visit.patient_id));
     write(db);
-    return delay(undefined);
+    return delay(sale);
+  },
+
+  sellOverCounter: async ({ customer, lines, idempotency_key }) => {
+    const db = read();
+    const user = requireUser(db, "pharmacy");
+    // Pressed twice: the same key gives back the sale that was already made.
+    const repeated = db.sales.find((s) => s.id === saleKeys.get(idempotency_key));
+    if (repeated) return delay(repeated);
+    if (lines.length === 0) fail(422, "empty_sale");
+    const needed = new Map<number, number>();
+    for (const line of lines) {
+      if (!Number.isInteger(line.quantity) || line.quantity <= 0) fail(422, "bad_amount");
+      needed.set(line.stock_id, (needed.get(line.stock_id) ?? 0) + line.quantity);
+    }
+    // Check everything first, so a problem with one line sells nothing.
+    for (const [stockId, quantity] of needed) {
+      const item = findStock(db, stockId);
+      if (stockExpiry(item) === "expired") fail(409, "stock_expired");
+      if (item.quantity < quantity) fail(409, "out_of_stock");
+    }
+    const saleLines: SaleLine[] = [];
+    for (const [stockId, quantity] of needed) {
+      const item = findStock(db, stockId);
+      item.quantity -= quantity;
+      logStock(db, user, item, "sale", -quantity, customer.trim());
+      saleLines.push(saleLine(item, quantity));
+    }
+    const sale = recordSale(db, user, "counter", customer.trim(), saleLines);
+    saleKeys.set(idempotency_key, sale.id);
+    write(db);
+    return delay(sale);
+  },
+
+  listSales: async (date) => {
+    const db = read();
+    requireUser(db, "pharmacy", "accountant", "manager");
+    return delay(db.sales.filter((s) => dateOf(new Date(s.at)) === date));
   },
 
   // Problems first: out of stock or expired, then low or expiring soon, then the rest by name.
@@ -2005,6 +2066,8 @@ export const mockApi: Api = {
       collected: collectedOf(db, monthPayments),
       today_billed: billedOf(db, new Set(todays.map((a) => a.id))),
       today_collected: collectedOf(db, todayPayments),
+      pharmacy_month: db.sales.filter((s) => s.at.slice(0, 7) === month).reduce((sum, s) => sum + s.total, 0),
+      pharmacy_today: db.sales.filter((s) => dateOf(new Date(s.at)) === today()).reduce((sum, s) => sum + s.total, 0),
     });
   },
 

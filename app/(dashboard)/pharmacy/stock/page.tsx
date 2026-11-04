@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowDownToLine, PackagePlus, Pencil, Pill, ScanLine } from "lucide-react";
+import { ArrowDownToLine, PackagePlus, Pencil, Pill, ScanLine, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { api, type StockItem } from "@/lib/api";
 import { SHOW_DEMO_ACCOUNTS } from "@/lib/config";
-import { dateTime, fullDate } from "@/lib/display";
+import { dateTime, fullDate, money } from "@/lib/display";
 import { barcodeKey, parseBarcode, type ScannedCode } from "@/lib/gs1";
-import { errorText, useT } from "@/lib/i18n";
+import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { STOCK_UNITS, receiveSchema, stockSchema, type ReceiveForm, type StockForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
@@ -17,7 +17,7 @@ import { BarcodeScanner } from "@/components/barcode-scanner";
 import { CardsSkeleton } from "@/components/skeleton";
 import { StockAlerts, StockBadges, unitText } from "@/components/stock";
 
-const EMPTY: StockForm = { name: "", unit: "tablet", quantity: 0, low_level: 10, expires_on: "", barcode: "" };
+const EMPTY: StockForm = { name: "", price: 0, unit: "tablet", quantity: 0, low_level: 10, expires_on: "", barcode: "" };
 
 // Adds a new item, or edits one. An empty date box means the item has no expiry date.
 // preset fills in what a scanned barcode already told us (its code and expiry).
@@ -40,7 +40,15 @@ function StockItemForm({
   } = useForm<StockForm>({
     resolver: zodResolver(stockSchema),
     defaultValues: item
-      ? { name: item.name, unit: item.unit as StockForm["unit"], quantity: item.quantity, low_level: item.low_level, expires_on: item.expires_on ?? "", barcode: item.barcode ?? "" }
+      ? {
+          name: item.name,
+          price: item.price,
+          unit: item.unit as StockForm["unit"],
+          quantity: item.quantity,
+          low_level: item.low_level,
+          expires_on: item.expires_on ?? "",
+          barcode: item.barcode ?? "",
+        }
       : { ...EMPTY, ...preset },
   });
 
@@ -61,6 +69,9 @@ function StockItemForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t("stock.name")} error={errors.name?.message}>
           <Input dir="ltr" placeholder="Paracetamol 500mg" invalid={!!errors.name} {...register("name")} />
+        </Field>
+        <Field label={t("stock.price")} hint={t("stock.priceHint")} error={errors.price?.message}>
+          <Input type="number" min={0} step={50} dir="ltr" invalid={!!errors.price} {...register("price", { valueAsNumber: true })} />
         </Field>
         <Field label={t("stock.unit")}>
           <Select {...register("unit")}>
@@ -155,7 +166,7 @@ function StockRow({ item, onChanged }: { item: StockItem; onChanged: () => void 
             {item.name}
           </p>
           <p className="text-sm text-slate-500">
-            {t("stock.lowAt", { n: item.low_level })}
+            {t("stock.lowAt", { n: item.low_level })} · {t("stock.pricePer", { price: money(item.price), unit: t(`stock.unitOne.${item.unit}` as MessageKey) })}
           </p>
           <StockBadges item={item} />
         </div>
@@ -210,7 +221,15 @@ function ScanPanel({ stock, onChanged, onClose }: { stock: StockItem[]; onChange
     const item = stock.find((s) => String(s.id) === linkTo);
     if (!item || !key) return;
     try {
-      await api.updateStock(item.id, { name: item.name, unit: item.unit, quantity: item.quantity, low_level: item.low_level, expires_on: item.expires_on, barcode: key });
+      await api.updateStock(item.id, {
+        name: item.name,
+        price: item.price,
+        unit: item.unit,
+        quantity: item.quantity,
+        low_level: item.low_level,
+        expires_on: item.expires_on,
+        barcode: key,
+      });
       toast.success(t("scan.linked"));
       onChanged();
     } catch (err) {
@@ -299,7 +318,7 @@ function ScanPanel({ stock, onChanged, onClose }: { stock: StockItem[]; onChange
   );
 }
 
-const MOVE_ICON = { create: PackagePlus, receive: ArrowDownToLine, dispense: Pill, edit: Pencil } as const;
+const MOVE_ICON = { create: PackagePlus, receive: ArrowDownToLine, dispense: Pill, edit: Pencil, sale: ShoppingCart } as const;
 
 // The latest changes to the stock, newest first: who did what, by how much, and what is left.
 function StockLog({ version }: { version: number }) {

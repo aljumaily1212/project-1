@@ -212,6 +212,7 @@ const count = z.number("validation.number").int("validation.number").min(0, "val
 // An empty date box gives "", which means "no expiry date".
 export const stockSchema = z.object({
   name: z.string().trim().min(2, "validation.required"),
+  price: count,
   unit: z.enum(STOCK_UNITS),
   quantity: count,
   low_level: count,
