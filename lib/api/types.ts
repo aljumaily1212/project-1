@@ -336,6 +336,8 @@ export interface StockItem {
   // At or below this number the item counts as running low.
   low_level: number;
   expires_on: string | null;
+  // The product number from the box's barcode, so scanning finds the item. null until one is scanned.
+  barcode: string | null;
   // Worked out by the server, so every screen agrees on what "low" and "expiring" mean.
   level: StockLevel;
   expiry: StockExpiry;
@@ -347,6 +349,7 @@ export interface StockInput {
   quantity: number;
   low_level: number;
   expires_on: string | null;
+  barcode: string | null;
 }
 
 // A new delivery: adds to the quantity. A new expiry date replaces the old one.
