@@ -41,6 +41,7 @@ import type {
   StaffAppointment,
   StaffUser,
   StockInput,
+  StockMove,
   StockItem,
   TestResult,
   UpdateScheduleRequest,
@@ -117,6 +118,9 @@ export const httpApi = {
   updateStock: (id: number, body: StockInput) => http.put<null>(`/pharmacy/stock/${id}`, body).then(() => undefined),
 
   receiveStock: (id: number, body: ReceiveStockRequest) => http.post<null>(`/pharmacy/stock/${id}/receive`, body).then(() => undefined),
+
+  // The latest changes to the stock, newest first.
+  stockLog: (limit: number) => http.get<StockMove[]>("/pharmacy/stock/log", { params: { limit } }).then((r) => r.data),
 
   listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
 
