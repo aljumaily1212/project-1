@@ -84,21 +84,51 @@ export type VisitForm = z.infer<typeof visitSchema>;
 export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const FILE_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 
-// The lab enters either a number with its unit, or a file.
-export const resultSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("number"),
+// An empty number box gives "", which means "no value". Used for the optional normal range.
+const optionalNumber = z.number("validation.number").nullable();
+
+// One reading: its name, the value (required), the unit, and an optional normal range.
+const resultRowSchema = z
+  .object({
+    name: z.string().trim().min(1, "validation.required"),
     value: z.number("validation.resultValue"),
-    unit: z.string().trim().min(1, "validation.required"),
-  }),
-  z.object({
-    type: z.literal("file"),
-    file: z
-      .instanceof(File, { message: "validation.file" })
-      .refine((f) => FILE_TYPES.includes(f.type), "validation.fileType")
-      .refine((f) => f.size <= MAX_FILE_BYTES, "validation.fileSize"),
-  }),
-]);
+    unit: z.string().trim(),
+    ref_low: optionalNumber,
+    ref_high: optionalNumber,
+  })
+  .refine((row) => row.ref_low === null || row.ref_high === null || row.ref_low <= row.ref_high, {
+    path: ["ref_high"],
+    message: "validation.range",
+  });
+
+const note = z.string().trim().max(300, "validation.tooLong");
+
+// The lab enters readings (one or more, like the parts of a blood count), or a file. Both can have a note.
+// One flat shape for both, so the form can keep a list of rows; the checks depend on the type.
+// Switching to "file" empties the rows, so only the chosen type's fields are ever checked.
+export const resultSchema = z
+  .object({
+    type: z.enum(["values", "file"]),
+    rows: z.array(resultRowSchema),
+    sample: z.enum(["blood", "urine", "stool", "swab", "other"]),
+    note,
+    file: z.instanceof(File).optional(),
+  })
+  .superRefine((entry, ctx) => {
+    if (entry.type === "values" && entry.rows.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["rows"], message: "validation.oneReading" });
+    }
+    if (entry.type !== "file") return;
+    const issue = !entry.file
+      ? "validation.file"
+      : !FILE_TYPES.includes(entry.file.type)
+        ? "validation.fileType"
+        : entry.file.size > MAX_FILE_BYTES
+          ? "validation.fileSize"
+          : null;
+    if (issue) ctx.addIssue({ code: "custom", path: ["file"], message: issue });
+  });
+export type ResultForm = z.infer<typeof resultSchema>;
 
 export const serviceSchema = z.object({
   name: z.string().trim().min(2, "validation.required"),

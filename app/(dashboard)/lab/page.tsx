@@ -1,22 +1,45 @@
 "use client";
 
 import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { z } from "zod";
-import { api, type LabOrder, type LabStatus } from "@/lib/api";
+import { api, type LabOrder, type LabStatus, type ResultInput, type SampleType } from "@/lib/api";
 import { dateTime } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { resultSchema } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader } from "@/components/common";
-import { ResultView, serviceName } from "@/components/result-view";
+import { resultSchema, type ResultForm } from "@/lib/validation";
+import { Button, Card, EmptyState, ErrorState, Field, FieldError, Input, PageHeader, Select, Textarea } from "@/components/common";
+import { FlagBadge, ResultView, rowFlag, serviceName } from "@/components/result-view";
 import { CardsSkeleton } from "@/components/skeleton";
 
-type ResultForm = z.input<typeof resultSchema>;
-
 const TABS: LabStatus[] = ["requested", "entered", "confirmed"];
+const SAMPLES: SampleType[] = ["blood", "urine", "stool", "swab", "other"];
+
+// An empty number box means "no range".
+const numberOrNull = (value: string) => (value === "" ? null : Number(value));
+
+// The form starts from what is already saved when correcting a result, otherwise from the test's usual readings.
+function startValues(order: LabOrder): ResultForm {
+  const saved = order.result;
+  if (saved?.type === "values") return { type: "values", rows: saved.rows, sample: saved.sample, note: saved.note };
+  if (saved?.type === "file" || order.test.kind === "xray") return { type: "file", rows: [], sample: "other", note: saved?.type === "file" ? (saved.note ?? "") : "" };
+  const template = order.test.template ?? [{ name: "", unit: "", ref_low: null, ref_high: null }];
+  // NaN leaves the value box empty, so the lab has to type it.
+  return { type: "values", rows: template.map((row) => ({ ...row, value: NaN })), sample: "blood", note: "" };
+}
+
+function toInput(values: ResultForm): ResultInput {
+  if (values.type === "file") return { type: "file", file: values.file!, note: values.note };
+  return { type: "values", rows: values.rows, sample: values.sample, note: values.note };
+}
+
+// Shows "high ↑" or "low ↓" next to a reading as soon as the value is typed.
+function LiveFlag({ control, index }: { control: Control<ResultForm>; index: number }) {
+  const row = useWatch({ control, name: `rows.${index}` });
+  if (!row || !Number.isFinite(row.value)) return null;
+  return <FlagBadge flag={rowFlag(row)} />;
+}
 
 function ResultEntry({ order, onSaved, onCancel }: { order: LabOrder; onSaved: () => void; onCancel?: () => void }) {
   const { t } = useT();
@@ -26,17 +49,20 @@ function ResultEntry({ order, onSaved, onCancel }: { order: LabOrder; onSaved: (
     control,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<ResultForm>({
-    resolver: zodResolver(resultSchema),
-    // X-rays usually come back as images, so they start on the file option.
-    defaultValues: order.test.kind === "xray" ? { type: "file" } : { type: "number", unit: "" },
-  });
+  } = useForm<ResultForm>({ resolver: zodResolver(resultSchema), defaultValues: startValues(order) });
   const type = useWatch({ control, name: "type" });
-  const fieldErrors = errors as Partial<Record<"value" | "unit" | "file", { message?: string }>>;
+  const { fields, append, remove, replace } = useFieldArray({ control, name: "rows" });
+
+  // Switching to a file clears the readings; switching back brings the test's usual readings again.
+  function pickType(next: "values" | "file") {
+    setValue("type", next);
+    if (next === "file") replace([]);
+    else if (fields.length === 0) replace(startValues({ ...order, result: null, test: { ...order.test, kind: "test" } }).rows);
+  }
 
   async function onSubmit(values: ResultForm) {
     try {
-      await api.saveResult(order.id, resultSchema.parse(values));
+      await api.saveResult(order.id, toInput(values));
       toast.success(t("lab.saved"));
       onSaved();
     } catch (err) {
@@ -47,31 +73,92 @@ function ResultEntry({ order, onSaved, onCancel }: { order: LabOrder; onSaved: (
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3 rounded-lg border border-slate-200 p-3">
       <div className="grid grid-cols-2 gap-2">
-        {(["number", "file"] as const).map((option) => (
-          <Button key={option} type="button" variant={type === option ? "primary" : "secondary"} onClick={() => setValue("type", option)}>
+        {(["values", "file"] as const).map((option) => (
+          <Button key={option} type="button" variant={type === option ? "primary" : "secondary"} onClick={() => pickType(option)}>
             {t(`lab.type.${option}`)}
           </Button>
         ))}
       </div>
-      {type === "number" ? (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t("lab.value")} error={fieldErrors.value?.message}>
-            <Input type="number" step="any" dir="ltr" invalid={!!fieldErrors.value} {...register("value", { valueAsNumber: true })} />
-          </Field>
-          <Field label={t("lab.unit")} error={fieldErrors.unit?.message}>
-            <Input dir="ltr" placeholder="mg/dL" invalid={!!fieldErrors.unit} {...register("unit")} />
-          </Field>
-        </div>
+
+      {type === "values" ? (
+        <>
+          <div className="w-48">
+            <Field label={t("lab.sample")}>
+              <Select {...register("sample")}>
+                {SAMPLES.map((sample) => (
+                  <option key={sample} value={sample}>
+                    {t(`lab.sample.${sample}`)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <div className="space-y-2">
+            {fields.map((field, index) => {
+              const rowErrors = errors.rows?.[index];
+              return (
+                <div key={field.id} data-reading className="space-y-2 rounded-lg bg-slate-50 p-3">
+                  <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr]">
+                    <Field label={t("lab.reading")} error={rowErrors?.name?.message}>
+                      <Input dir="ltr" invalid={!!rowErrors?.name} {...register(`rows.${index}.name`)} />
+                    </Field>
+                    <Field label={t("lab.value")} error={rowErrors?.value?.message}>
+                      <Input type="number" step="any" dir="ltr" invalid={!!rowErrors?.value} {...register(`rows.${index}.value`, { valueAsNumber: true })} />
+                    </Field>
+                    <Field label={t("lab.unit")}>
+                      <Input dir="ltr" placeholder="mg/dL" {...register(`rows.${index}.unit`)} />
+                    </Field>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <div className="w-32">
+                      <Field label={t("lab.refLow")}>
+                        <Input type="number" step="any" dir="ltr" {...register(`rows.${index}.ref_low`, { setValueAs: numberOrNull })} />
+                      </Field>
+                    </div>
+                    <div className="w-32">
+                      <Field label={t("lab.refHigh")} error={rowErrors?.ref_high?.message}>
+                        <Input
+                          type="number"
+                          step="any"
+                          dir="ltr"
+                          invalid={!!rowErrors?.ref_high}
+                          {...register(`rows.${index}.ref_high`, { setValueAs: numberOrNull })}
+                        />
+                      </Field>
+                    </div>
+                    <div className="mb-2.5 flex-1">
+                      <LiveFlag control={control} index={index} />
+                    </div>
+                    {fields.length > 1 && (
+                      <Button type="button" variant="ghost" onClick={() => remove(index)}>
+                        {t("lab.removeReading")}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {errors.rows?.message && <FieldError error={errors.rows.message} />}
+            <Button type="button" variant="secondary" onClick={() => append({ name: "", value: NaN, unit: "", ref_low: null, ref_high: null })}>
+              {t("lab.addReading")}
+            </Button>
+          </div>
+        </>
       ) : (
-        <Field label={t("lab.file")} hint={t("lab.fileHint")} error={fieldErrors.file?.message}>
+        <Field label={t("lab.file")} hint={t("lab.fileHint")} error={errors.file?.message}>
           <Input
             type="file"
             accept="application/pdf,image/png,image/jpeg"
-            invalid={!!fieldErrors.file}
-            onChange={(e) => setValue("file", e.target.files?.[0] as File, { shouldValidate: true })}
+            invalid={!!errors.file}
+            onChange={(e) => setValue("file", e.target.files?.[0], { shouldValidate: true })}
           />
         </Field>
       )}
+
+      <Field label={t("lab.note")} error={errors.note?.message}>
+        <Textarea placeholder={t("lab.notePlaceholder")} {...register("note")} />
+      </Field>
+
       <div className="flex gap-2">
         <Button type="submit" loading={isSubmitting}>
           {t("lab.save")}
