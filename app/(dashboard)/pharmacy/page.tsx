@@ -1,15 +1,108 @@
 "use client";
 
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type Prescription } from "@/lib/api";
+import { api, type Medicine, type Prescription, type StockItem } from "@/lib/api";
 import { dateTime } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { Button, Card, EmptyState, ErrorState, MedicineList, PageHeader } from "@/components/common";
+import { dispenseSchema, type DispenseForm } from "@/lib/validation";
+import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
+import { StockAlerts, unitText } from "@/components/stock";
 
-function PrescriptionCard({ prescription, onDispense }: { prescription: Prescription; onDispense: (id: number) => void }) {
+// Guesses which shelf item a prescribed medicine is: the same name, or else the same first word ("Paracetamol").
+function matchStock(medicine: Medicine, stock: StockItem[]) {
+  const name = medicine.name.trim().toLowerCase();
+  const usable = stock.filter((s) => s.level !== "out" && s.expiry !== "expired");
+  const exact = usable.find((s) => s.name.toLowerCase() === name);
+  const firstWord = name.split(" ")[0];
+  return exact ?? usable.find((s) => s.name.toLowerCase().split(" ")[0] === firstWord);
+}
+
+function DispenseForm({ prescription, stock, onDone, onCancel }: { prescription: Prescription; stock: StockItem[]; onDone: () => void; onCancel: () => void }) {
+  const { t } = useT();
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<DispenseForm>({
+    resolver: zodResolver(dispenseSchema),
+    defaultValues: {
+      lines: prescription.medicines.map((m) => {
+        const match = matchStock(m, stock);
+        return { stock_id: match ? String(match.id) : "", quantity: match ? m.days : 0 };
+      }),
+    },
+  });
+  const lines = useWatch({ control, name: "lines" });
+
+  async function onSubmit(values: DispenseForm) {
+    try {
+      await api.dispense(prescription.id, {
+        lines: values.lines.map((l) => ({ stock_id: l.stock_id ? Number(l.stock_id) : null, quantity: l.stock_id ? l.quantity : 0 })),
+      });
+      toast.success(t("pharmacy.done"));
+      onDone();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3 border-t border-slate-200 pt-3">
+      {prescription.medicines.map((m, index) => {
+        const chosen = stock.find((s) => String(s.id) === lines?.[index]?.stock_id);
+        const tooMany = chosen && (lines?.[index]?.quantity ?? 0) > chosen.quantity;
+        return (
+          <div key={index} className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <p className="text-sm font-semibold" dir="ltr">
+              {m.name}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
+              <Field label={t("pharmacy.fromStock")}>
+                <Select {...register(`lines.${index}.stock_id`)}>
+                  <option value="">{t("pharmacy.notFromStock")}</option>
+                  {stock.map((s) => (
+                    <option key={s.id} value={s.id} disabled={s.level === "out" || s.expiry === "expired"}>
+                      {s.name} · {unitText(s.quantity, s.unit, t)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label={t("pharmacy.quantity")} error={errors.lines?.[index]?.quantity?.message}>
+                <Input
+                  type="number"
+                  min={0}
+                  dir="ltr"
+                  disabled={!chosen}
+                  invalid={!!errors.lines?.[index]?.quantity}
+                  {...register(`lines.${index}.quantity`, { valueAsNumber: true })}
+                />
+              </Field>
+            </div>
+            {tooMany && <p className="text-xs text-red-700">{t("pharmacy.notEnough", { n: unitText(chosen.quantity, chosen.unit, t) })}</p>}
+          </div>
+        );
+      })}
+      <div className="flex gap-2">
+        <Button type="submit" className="flex-1" loading={isSubmitting}>
+          {t("pharmacy.confirmDispense")}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          {t("common.cancel")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function PrescriptionCard({ prescription, stock, onDispensed }: { prescription: Prescription; stock: StockItem[]; onDispensed: () => void }) {
   const { t, locale } = useT();
+  const [open, setOpen] = useState(false);
   return (
     <Card className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -25,10 +118,21 @@ function PrescriptionCard({ prescription, onDispense }: { prescription: Prescrip
       {!prescription.dispensed && (
         <p className="text-xs text-slate-500">{t("pharmacy.validUntil", { date: dateTime(prescription.expires_at, locale) })}</p>
       )}
-      {!prescription.dispensed && !prescription.expired && (
-        <Button className="w-full" onClick={() => onDispense(prescription.id)}>
+      {!prescription.dispensed && !prescription.expired && !open && (
+        <Button className="w-full" onClick={() => setOpen(true)}>
           {t("pharmacy.dispense")}
         </Button>
+      )}
+      {open && (
+        <DispenseForm
+          prescription={prescription}
+          stock={stock}
+          onCancel={() => setOpen(false)}
+          onDone={() => {
+            setOpen(false);
+            onDispensed();
+          }}
+        />
       )}
     </Card>
   );
@@ -36,16 +140,14 @@ function PrescriptionCard({ prescription, onDispense }: { prescription: Prescrip
 
 export default function PharmacyPage() {
   const { t } = useT();
-  const { state, reload } = useLoad(api.listPrescriptions, "", { every: 4000 });
+  const { state, reload, refresh } = useLoad(api.listPrescriptions, "", { every: 4000 });
+  const stock = useLoad(api.listStock, "", { every: 10000 });
+  const stockItems = stock.state.status === "success" ? stock.state.data : [];
 
-  async function dispense(id: number) {
-    try {
-      await api.dispense(id);
-      toast.success(t("pharmacy.done"));
-      reload();
-    } catch (err) {
-      toast.error(errorText(err, t));
-    }
+  // After dispensing, both lists change: the prescription moves, and the stock goes down.
+  function afterDispense() {
+    refresh();
+    stock.refresh();
   }
 
   const waiting = state.status === "success" ? state.data.filter((p) => !p.dispensed) : [];
@@ -54,6 +156,7 @@ export default function PharmacyPage() {
   return (
     <>
       <PageHeader title={t("pharmacy.title")} description={t("pharmacy.subtitle")} />
+      <StockAlerts items={stockItems} linkToStock />
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
       {state.status === "success" && (
@@ -62,14 +165,14 @@ export default function PharmacyPage() {
             <h2 className="font-semibold">{t("pharmacy.waiting")}</h2>
             {waiting.length === 0 && <EmptyState title={t("pharmacy.noWaiting")} />}
             {waiting.map((p) => (
-              <PrescriptionCard key={p.id} prescription={p} onDispense={dispense} />
+              <PrescriptionCard key={p.id} prescription={p} stock={stockItems} onDispensed={afterDispense} />
             ))}
           </section>
           <section className="space-y-3">
             <h2 className="font-semibold">{t("pharmacy.dispensed")}</h2>
             {dispensed.length === 0 && <EmptyState title={t("pharmacy.noDispensed")} />}
             {dispensed.map((p) => (
-              <PrescriptionCard key={p.id} prescription={p} onDispense={dispense} />
+              <PrescriptionCard key={p.id} prescription={p} stock={stockItems} onDispensed={afterDispense} />
             ))}
           </section>
         </div>

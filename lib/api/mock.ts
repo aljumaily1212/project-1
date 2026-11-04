@@ -32,6 +32,9 @@ import type {
   Shift,
   StaffAppointment,
   StaffUser,
+  StockExpiry,
+  StockItem,
+  StockLevel,
   User,
   VisitKind,
   WorkDay,
@@ -50,7 +53,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v11";
+const STORAGE_KEY = "alrahma.mock.v12";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -166,7 +169,14 @@ type Db = {
   labOrders: MockLabOrder[];
   items: MockItem[];
   payments: MockPayment[];
+  stock: MockStock[];
 };
+
+// The stored item. Level and expiry warnings are worked out when it is sent.
+type MockStock = Omit<StockItem, "level" | "expiry">;
+
+// An item expiring within this many days shows a warning.
+const EXPIRY_WARNING_DAYS = 30;
 
 const work = (branch: BranchId, shift: Shift): WorkDay => ({ branch, shift });
 
@@ -261,6 +271,17 @@ function seed(): Db {
       { id: 51, appointment_id: 2, label: "Visit fee", label_ar: "رسوم الكشف", kind: "visit", price: 25000, currency: "IQD" },
     ],
     payments: [],
+    // Fake stock, set up so the demo shows every kind of warning.
+    stock: [
+      { id: 60, name: "Paracetamol 500mg", unit: "tablet", quantity: 240, low_level: 50, expires_on: addDays(day, 200) },
+      { id: 61, name: "Amoxicillin 500mg", unit: "capsule", quantity: 30, low_level: 40, expires_on: addDays(day, 120) },
+      { id: 62, name: "Vitamin D3 5000 IU", unit: "capsule", quantity: 0, low_level: 20, expires_on: addDays(day, 300) },
+      { id: 63, name: "Omeprazole 20mg", unit: "capsule", quantity: 120, low_level: 30, expires_on: addDays(day, 18) },
+      { id: 64, name: "Amlodipine 5mg", unit: "tablet", quantity: 90, low_level: 30, expires_on: addDays(day, 400) },
+      { id: 65, name: "Cetirizine 10mg", unit: "tablet", quantity: 60, low_level: 20, expires_on: addDays(day, 150) },
+      { id: 66, name: "Ibuprofen 400mg", unit: "tablet", quantity: 45, low_level: 20, expires_on: addDays(day, -3) },
+      { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null },
+    ],
   };
   addPastMonth(db);
   return db;
@@ -746,6 +767,25 @@ function patientSummary(db: Db, p: MockPatient): PatientSummary {
   };
 }
 
+function stockLevel(item: MockStock): StockLevel {
+  if (item.quantity <= 0) return "out";
+  return item.quantity <= item.low_level ? "low" : "ok";
+}
+
+function stockExpiry(item: MockStock): StockExpiry {
+  if (!item.expires_on) return "none";
+  if (item.expires_on < today()) return "expired";
+  return item.expires_on <= addDays(today(), EXPIRY_WARNING_DAYS) ? "soon" : "ok";
+}
+
+const stockView = (item: MockStock): StockItem => ({ ...item, level: stockLevel(item), expiry: stockExpiry(item) });
+
+function findStock(db: Db, id: number) {
+  const item = db.stock.find((s) => s.id === id);
+  if (!item) fail(404);
+  return item;
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -1078,15 +1118,72 @@ export const mockApi: Api = {
     );
   },
 
-  dispense: async (id) => {
+  dispense: async (id, { lines }) => {
     const db = read();
     const user = requireUser(db, "pharmacy");
     const visit = db.visits.find((v) => v.id === id);
     if (!visit) fail(404);
     if (visit.dispensed) fail(409, "already_dispensed");
     if (now() > expiresAt(db, visit)) fail(409, "expired");
+    if (lines.length !== visit.medicines.length) fail(422);
+    // Check every line first, so a problem with one medicine takes nothing from the shelves.
+    const needed = new Map<number, number>();
+    for (const line of lines) {
+      if (line.stock_id === null) continue;
+      if (!(line.quantity > 0)) fail(422, "bad_amount");
+      needed.set(line.stock_id, (needed.get(line.stock_id) ?? 0) + line.quantity);
+    }
+    for (const [stockId, quantity] of needed) {
+      const item = findStock(db, stockId);
+      if (stockExpiry(item) === "expired") fail(409, "stock_expired");
+      if (item.quantity < quantity) fail(409, "out_of_stock");
+    }
+    for (const [stockId, quantity] of needed) findStock(db, stockId).quantity -= quantity;
     visit.dispensed = true;
     log(db, user, "prescription.dispense", patientName(db, visit.patient_id));
+    write(db);
+    return delay(undefined);
+  },
+
+  // Problems first: out of stock or expired, then low or expiring soon, then the rest by name.
+  listStock: async () => {
+    const db = read();
+    requireUser(db, "pharmacy", "manager");
+    const rank = (item: StockItem) => (item.level === "out" || item.expiry === "expired" ? 0 : item.level === "low" || item.expiry === "soon" ? 1 : 2);
+    return delay(
+      db.stock
+        .map(stockView)
+        .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name)),
+    );
+  },
+
+  createStock: async (input) => {
+    const db = read();
+    const user = requireUser(db, "pharmacy");
+    if (db.stock.some((s) => s.name.toLowerCase() === input.name.trim().toLowerCase())) fail(409, "stock_exists");
+    db.stock.push({ id: db.nextId++, ...input, name: input.name.trim() });
+    log(db, user, "stock.create", input.name);
+    write(db);
+    return delay(undefined);
+  },
+
+  updateStock: async (id, input) => {
+    const db = read();
+    const user = requireUser(db, "pharmacy");
+    Object.assign(findStock(db, id), input);
+    log(db, user, "stock.update", input.name);
+    write(db);
+    return delay(undefined);
+  },
+
+  receiveStock: async (id, { quantity, expires_on }) => {
+    const db = read();
+    const user = requireUser(db, "pharmacy");
+    if (!(quantity > 0)) fail(422, "bad_amount");
+    const item = findStock(db, id);
+    item.quantity += quantity;
+    if (expires_on) item.expires_on = expires_on;
+    log(db, user, "stock.receive", `${item.name} · ${quantity}`);
     write(db);
     return delay(undefined);
   },

@@ -23,6 +23,9 @@ export const shortDate = (date: string) => {
   return `${d.getDate()}/${d.getMonth() + 1}`;
 };
 
+// "31/8/2027": with the year, for dates that can be far away, like an expiry date.
+export const fullDate = (date: string) => `${shortDate(date)}/${asDate(date).getFullYear()}`;
+
 export const longDate = (date: string, locale: Locale) =>
   new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long" }).format(asDate(date));
 

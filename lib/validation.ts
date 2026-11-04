@@ -127,3 +127,36 @@ export const deleteAccountSchema = z.object({
   confirm: z.boolean().refine((ticked) => ticked, "validation.confirmDelete"),
 });
 export type DeleteAccountForm = z.infer<typeof deleteAccountSchema>;
+
+// ---------- pharmacy stock ----------
+
+// Units the pharmacy counts in. The screen shows them translated.
+export const STOCK_UNITS = ["tablet", "capsule", "bottle", "tube", "injection", "sachet"] as const;
+
+const count = z.number("validation.number").int("validation.number").min(0, "validation.number");
+
+// An empty date box gives "", which means "no expiry date".
+export const stockSchema = z.object({
+  name: z.string().trim().min(2, "validation.required"),
+  unit: z.enum(STOCK_UNITS),
+  quantity: count,
+  low_level: count,
+  expires_on: z.string(),
+});
+export type StockForm = z.infer<typeof stockSchema>;
+
+export const receiveSchema = z.object({
+  quantity: count.positive("validation.number"),
+  expires_on: z.string(),
+});
+export type ReceiveForm = z.infer<typeof receiveSchema>;
+
+// One line per medicine. An empty stock_id means it is not given from our shelves.
+export const dispenseSchema = z.object({
+  lines: z.array(
+    z
+      .object({ stock_id: z.string(), quantity: count })
+      .refine((line) => line.stock_id === "" || line.quantity > 0, { path: ["quantity"], message: "validation.number" }),
+  ),
+});
+export type DispenseForm = z.infer<typeof dispenseSchema>;

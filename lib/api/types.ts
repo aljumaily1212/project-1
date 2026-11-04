@@ -312,6 +312,49 @@ export interface ScreenDoctor {
   waiting: number;
 }
 
+// ---------- pharmacy stock ----------
+
+export type StockLevel = "ok" | "low" | "out";
+export type StockExpiry = "ok" | "soon" | "expired" | "none";
+
+// One medicine on the pharmacy's shelves. Quantities are in its unit, for example tablets.
+export interface StockItem {
+  id: number;
+  name: string;
+  unit: string;
+  quantity: number;
+  // At or below this number the item counts as running low.
+  low_level: number;
+  expires_on: string | null;
+  // Worked out by the server, so every screen agrees on what "low" and "expiring" mean.
+  level: StockLevel;
+  expiry: StockExpiry;
+}
+
+export interface StockInput {
+  name: string;
+  unit: string;
+  quantity: number;
+  low_level: number;
+  expires_on: string | null;
+}
+
+// A new delivery: adds to the quantity. A new expiry date replaces the old one.
+export interface ReceiveStockRequest {
+  quantity: number;
+  expires_on: string | null;
+}
+
+// One line per medicine on the prescription, in the same order. stock_id null means it came from outside the pharmacy.
+export interface DispenseLine {
+  stock_id: number | null;
+  quantity: number;
+}
+
+export interface DispenseRequest {
+  lines: DispenseLine[];
+}
+
 export interface FinishVisitResult {
   next_ticket: string | null;
 }
@@ -370,7 +413,10 @@ export type AuditAction =
   | "service.update"
   | "service.create"
   | "payment.reverse"
-  | "account.delete";
+  | "account.delete"
+  | "stock.create"
+  | "stock.update"
+  | "stock.receive";
 
 // One line in the accountant's book. Nothing here can be deleted.
 export interface LedgerEntry extends Payment {

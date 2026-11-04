@@ -12,6 +12,7 @@ import type {
   DoctorDay,
   DoctorDues,
   DoctorSchedule,
+  DispenseRequest,
   DoctorVisit,
   FamilyMember,
   FinishVisitRequest,
@@ -31,6 +32,7 @@ import type {
   RegisterRequest,
   Report,
   RescheduleRequest,
+  ReceiveStockRequest,
   ResultInput,
   ScreenDoctor,
   Service,
@@ -38,6 +40,8 @@ import type {
   Slot,
   StaffAppointment,
   StaffUser,
+  StockInput,
+  StockItem,
   TestResult,
   UpdateScheduleRequest,
   VisitKind,
@@ -103,7 +107,16 @@ export const httpApi = {
 
   listPrescriptions: () => http.get<Prescription[]>("/prescriptions").then((r) => r.data),
 
-  dispense: (id: number) => http.post<null>(`/prescriptions/${id}/dispense`, {}).then(() => undefined),
+  // Takes the dispensed amounts out of the pharmacy's stock.
+  dispense: (id: number, body: DispenseRequest) => http.post<null>(`/prescriptions/${id}/dispense`, body).then(() => undefined),
+
+  listStock: () => http.get<StockItem[]>("/pharmacy/stock").then((r) => r.data),
+
+  createStock: (body: StockInput) => http.post<null>("/pharmacy/stock", body).then(() => undefined),
+
+  updateStock: (id: number, body: StockInput) => http.put<null>(`/pharmacy/stock/${id}`, body).then(() => undefined),
+
+  receiveStock: (id: number, body: ReceiveStockRequest) => http.post<null>(`/pharmacy/stock/${id}/receive`, body).then(() => undefined),
 
   listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
 
