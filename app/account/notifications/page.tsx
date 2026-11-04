@@ -23,6 +23,13 @@ function messageText(n: AppNotification, t: TFunction, locale: Locale) {
       return t("notifications.reminder", { doctor: p.doctor, date, time: p.time });
     case "turn_near":
       return Number(p.n) === 0 ? t("notifications.turn_now", { doctor: p.doctor }) : t("notifications.turn_near", { doctor: p.doctor, n: p.n });
+    case "booked":
+      return t("notifications.booked", { doctor: p.doctor, date, time: p.time });
+    default: {
+      // A new message type without a sentence here fails the type check, instead of showing an empty message.
+      const missing: never = n.type;
+      return String(missing);
+    }
   }
 }
 

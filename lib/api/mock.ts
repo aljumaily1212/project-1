@@ -1025,6 +1025,49 @@ export const mockApi: Api = {
     return delay(undefined);
   },
 
+  staffBook: async ({ patient_id, new_patient, doctor_id, date, time, kind, idempotency_key }) => {
+    const db = read();
+    const user = requireUser(db, "reception");
+    // Pressed twice, or sent again after the connection dropped: the booking already exists.
+    const repeated = db.appointments.find((a) => a.idempotency_key === idempotency_key);
+    if (repeated) return delay({ patient_id: repeated.patient_id });
+    let patient = patient_id === null ? undefined : db.patients.find((p) => p.id === patient_id);
+    if (patient_id !== null && !patient) fail(404);
+    if (!patient) {
+      if (!new_patient) fail(422);
+      // Someone who came before with this phone already has a file, so it is used instead of making a second one.
+      patient = db.patients.find((p) => p.phone === new_patient.phone);
+      if (!patient) {
+        patient = { id: db.nextId++, name: new_patient.name.trim(), phone: new_patient.phone, account_id: null };
+        db.patients.push(patient);
+      }
+    }
+    const doctor = findDoctor(db, doctor_id);
+    requireFreeSlot(db, doctor, date, time, kind);
+    const id = db.nextId++;
+    db.appointments.push({
+      id,
+      patient_id: patient.id,
+      doctor_id,
+      date,
+      time,
+      kind,
+      branch: workDayOf(doctor, date)!.branch,
+      status: "booked",
+      emergency: false,
+      arrival_order: 0,
+      cancel_reason: null,
+      idempotency_key,
+    });
+    // Booked by phone, so the visit is paid at the clinic.
+    addItem(db, id, visitFee(doctor));
+    // Patients with the app see the booking there too.
+    notify(db, patient.id, `booked:${id}`, "booked", { doctor: doctor.name_ar, date, time });
+    log(db, user, "appointment.book", patient.name);
+    write(db);
+    return delay({ patient_id: patient.id });
+  },
+
   bookedToday: async () => {
     const db = read();
     requireUser(db, "reception");

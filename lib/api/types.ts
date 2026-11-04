@@ -103,6 +103,21 @@ export interface BookRequest {
   idempotency_key: string;
 }
 
+// Reception books for someone who phoned: an existing patient, or a new one by name and phone.
+export interface StaffBookRequest {
+  patient_id: number | null;
+  new_patient: { name: string; phone: string } | null;
+  doctor_id: number;
+  date: string;
+  time: string;
+  kind: VisitKind;
+  idempotency_key: string;
+}
+
+export interface StaffBookResult {
+  patient_id: number;
+}
+
 export interface BookingRules {
   no_shows: number;
   deposit_required: boolean;
@@ -606,7 +621,7 @@ export interface Analytics {
   top_diagnoses: CountRow[];
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked";
 
 export interface AppNotification {
   id: number;

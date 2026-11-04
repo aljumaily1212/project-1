@@ -18,6 +18,7 @@ import { ROLE_LABEL } from "@/components/staff-users";
 const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
   reception: [
     { href: "/reception", label: "nav.reception" },
+    { href: "/reception/book", label: "nav.phoneBooking" },
     { href: "/reception/payments", label: "nav.payments" },
     { href: "/reception/patients", label: "nav.patients" },
     { href: "/reception/users", label: "nav.users" },

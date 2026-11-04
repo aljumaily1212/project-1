@@ -648,6 +648,23 @@ export const en = {
   "print.pharmacistSign": "Pharmacist's signature:",
   "print.labSign": "Lab's signature:",
   "print.footer": "Printed from the Al-Rahma Medical Complex platform on {date}. Confidential medical information.",
+
+  "nav.phoneBooking": "Book for a caller",
+  "staffBook.title": "Book an appointment",
+  "staffBook.subtitle": "For patients who call the clinic or ask at the desk",
+  "staffBook.step1": "1. Who is it for?",
+  "staffBook.step2": "2. Doctor, day and time",
+  "staffBook.newPatient": "New patient",
+  "staffBook.continue": "Continue",
+  "staffBook.newBadge": "New file",
+  "staffBook.changePatient": "Change",
+  "staffBook.noShows": "Didn't come {n} times",
+  "staffBook.depositAdvice": "This patient didn't come {n} times. Consider taking a deposit of {amount} IQD when they arrive or from the payments page.",
+  "staffBook.pickTime": "Choose a day and a time",
+  "staffBook.confirm": "Book for {date} at {time}",
+  "staffBook.payAtClinic": "Paid at the clinic on the day of the visit",
+  "staffBook.done": "Booked: {name} with {doctor}, {date} at {time}.",
+  "notifications.booked": "The clinic booked you with {doctor} on {date} at {time}.",
 };
 
 export type MessageKey = keyof typeof en;

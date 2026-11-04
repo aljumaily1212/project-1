@@ -19,6 +19,13 @@ export const walkInSchema = z.object({
 });
 export type WalkInForm = z.infer<typeof walkInSchema>;
 
+// A caller who has never been to the clinic: just a name and a phone, like a walk-in.
+export const newPatientSchema = z.object({
+  name: z.string().trim().min(2, "validation.name"),
+  phone,
+});
+export type NewPatientForm = z.infer<typeof newPatientSchema>;
+
 // Staff accounts are made by reception. Doctors also need their profile.
 export const staffSchema = z
   .object({

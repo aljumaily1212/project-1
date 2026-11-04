@@ -39,6 +39,8 @@ import type {
   ServiceInput,
   Slot,
   StaffAppointment,
+  StaffBookRequest,
+  StaffBookResult,
   StaffUser,
   StockInput,
   StockMove,
@@ -86,6 +88,9 @@ export const httpApi = {
 
   rescheduleAppointment: (id: number, body: RescheduleRequest) =>
     http.post<null>(`/appointments/${id}/reschedule`, body).then(() => undefined),
+
+  // Reception books on behalf of a caller. The answer says which patient file it was booked on.
+  staffBook: (body: StaffBookRequest) => http.post<StaffBookResult>("/appointments/by-staff", body).then((r) => r.data),
 
   bookedToday: () => http.get<StaffAppointment[]>("/appointments/booked-today").then((r) => r.data),
 
