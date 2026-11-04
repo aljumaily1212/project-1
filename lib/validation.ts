@@ -142,6 +142,8 @@ export const stockSchema = z.object({
   quantity: count,
   low_level: count,
   expires_on: z.string(),
+  // An empty box means "no barcode yet".
+  barcode: z.string().trim(),
 });
 export type StockForm = z.infer<typeof stockSchema>;
 

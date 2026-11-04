@@ -53,7 +53,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v12";
+const STORAGE_KEY = "alrahma.mock.v13";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -273,14 +273,14 @@ function seed(): Db {
     payments: [],
     // Fake stock, set up so the demo shows every kind of warning.
     stock: [
-      { id: 60, name: "Paracetamol 500mg", unit: "tablet", quantity: 240, low_level: 50, expires_on: addDays(day, 200) },
-      { id: 61, name: "Amoxicillin 500mg", unit: "capsule", quantity: 30, low_level: 40, expires_on: addDays(day, 120) },
-      { id: 62, name: "Vitamin D3 5000 IU", unit: "capsule", quantity: 0, low_level: 20, expires_on: addDays(day, 300) },
-      { id: 63, name: "Omeprazole 20mg", unit: "capsule", quantity: 120, low_level: 30, expires_on: addDays(day, 18) },
-      { id: 64, name: "Amlodipine 5mg", unit: "tablet", quantity: 90, low_level: 30, expires_on: addDays(day, 400) },
-      { id: 65, name: "Cetirizine 10mg", unit: "tablet", quantity: 60, low_level: 20, expires_on: addDays(day, 150) },
-      { id: 66, name: "Ibuprofen 400mg", unit: "tablet", quantity: 45, low_level: 20, expires_on: addDays(day, -3) },
-      { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null },
+      { id: 60, name: "Paracetamol 500mg", unit: "tablet", quantity: 240, low_level: 50, expires_on: addDays(day, 200), barcode: "06290000000011" },
+      { id: 61, name: "Amoxicillin 500mg", unit: "capsule", quantity: 30, low_level: 40, expires_on: addDays(day, 120), barcode: "06290000000028" },
+      { id: 62, name: "Vitamin D3 5000 IU", unit: "capsule", quantity: 0, low_level: 20, expires_on: addDays(day, 300), barcode: null },
+      { id: 63, name: "Omeprazole 20mg", unit: "capsule", quantity: 120, low_level: 30, expires_on: addDays(day, 18), barcode: "06290000000035" },
+      { id: 64, name: "Amlodipine 5mg", unit: "tablet", quantity: 90, low_level: 30, expires_on: addDays(day, 400), barcode: null },
+      { id: 65, name: "Cetirizine 10mg", unit: "tablet", quantity: 60, low_level: 20, expires_on: addDays(day, 150), barcode: null },
+      { id: 66, name: "Ibuprofen 400mg", unit: "tablet", quantity: 45, low_level: 20, expires_on: addDays(day, -3), barcode: null },
+      { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null, barcode: null },
     ],
   };
   addPastMonth(db);
@@ -786,6 +786,11 @@ function findStock(db: Db, id: number) {
   return item;
 }
 
+// One barcode belongs to one item, or a scan wouldn't know which item it means.
+function requireFreeBarcode(db: Db, barcode: string | null, ignoreId?: number) {
+  if (barcode && db.stock.some((s) => s.barcode === barcode && s.id !== ignoreId)) fail(409, "barcode_taken");
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -1163,6 +1168,7 @@ export const mockApi: Api = {
     const db = read();
     const user = requireUser(db, "pharmacy");
     if (db.stock.some((s) => s.name.toLowerCase() === input.name.trim().toLowerCase())) fail(409, "stock_exists");
+    requireFreeBarcode(db, input.barcode);
     db.stock.push({ id: db.nextId++, ...input, name: input.name.trim() });
     log(db, user, "stock.create", input.name);
     write(db);
@@ -1172,6 +1178,7 @@ export const mockApi: Api = {
   updateStock: async (id, input) => {
     const db = read();
     const user = requireUser(db, "pharmacy");
+    requireFreeBarcode(db, input.barcode, id);
     Object.assign(findStock(db, id), input);
     log(db, user, "stock.update", input.name);
     write(db);
