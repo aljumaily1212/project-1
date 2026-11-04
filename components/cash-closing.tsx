@@ -9,6 +9,8 @@ import { useLoad } from "@/lib/useLoad";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Textarea } from "@/components/common";
 import { AmountsText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
+import { ExportButton } from "@/components/export-button";
+import { sheet } from "@/lib/excel";
 
 // Green when the drawer matches, red when money is missing, amber when there's extra.
 function DifferenceBadge({ difference }: { difference: Amounts }) {
@@ -57,11 +59,34 @@ export function ClosingsList({ closings }: { closings: CashClosing[] }) {
 
 // For the accountant and the manager: everyone's closings, newest first.
 export function ClosingsPage() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { state, reload } = useLoad(api.listClosings);
   return (
     <>
-      <PageHeader title={t("closing.allTitle")} description={t("closing.allSubtitle")} />
+      <PageHeader
+        title={t("closing.allTitle")}
+        description={t("closing.allSubtitle")}
+        action={
+          state.status === "success" && (
+            <ExportButton
+              fileName={`drawer-closings-${new Date().toISOString().slice(0, 10)}`}
+              disabled={state.data.length === 0}
+              sheets={() => [
+                sheet(t("closing.allTitle"), [
+                  { header: t("export.date"), value: (c: CashClosing) => dateTime(c.closed_at, locale), width: 22 },
+                  { header: t("export.by"), value: (c: CashClosing) => c.by, width: 16 },
+                  { header: t("closing.paymentsCount", { n: "" }).trim(), value: (c: CashClosing) => c.payments, width: 12 },
+                  { header: `${t("closing.expected")} (IQD)`, value: (c: CashClosing) => c.expected.IQD, width: 14 },
+                  { header: `${t("closing.counted")} (IQD)`, value: (c: CashClosing) => c.counted.IQD, width: 14 },
+                  { header: `${t("export.difference")} (IQD)`, value: (c: CashClosing) => c.difference.IQD, width: 14 },
+                  { header: `${t("export.difference")} (USD)`, value: (c: CashClosing) => c.difference.USD, width: 14 },
+                  { header: t("closing.note"), value: (c: CashClosing) => c.note || null, width: 30 },
+                ], state.data),
+              ]}
+            />
+          )
+        }
+      />
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
       {state.status === "success" && <ClosingsList closings={state.data} />}

@@ -850,6 +850,27 @@ export const en = {
   "reports.pharmacy": "Pharmacy sales",
   "apiError.empty_sale": "Add at least one item",
   "audit.pharmacy.sale": "Pharmacy sale:",
+
+  "export.button": "Export to Excel",
+  "export.failed": "The file could not be made. Try again.",
+  "export.date": "Date",
+  "export.patient": "Patient",
+  "export.doctor": "Doctor",
+  "export.kind": "Type",
+  "export.method": "Method",
+  "export.amount": "Amount",
+  "export.currency": "Currency",
+  "export.by": "By",
+  "export.reason": "Reason",
+  "export.summary": "Summary",
+  "export.item": "Item",
+  "export.count": "Count",
+  "export.difference": "Difference",
+  "export.customer": "Customer",
+  "export.unitPrice": "Unit price",
+  "export.role": "Role",
+  "export.action": "Action",
+  "export.target": "On",
 };
 
 export type MessageKey = keyof typeof en;

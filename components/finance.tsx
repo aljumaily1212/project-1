@@ -12,6 +12,8 @@ import { reverseSchema, type ReverseForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
+import { ExportButton } from "@/components/export-button";
+import { sheet } from "@/lib/excel";
 
 // "YYYY-MM" for the current month, the format the month picker uses.
 export const thisMonth = () => new Date().toISOString().slice(0, 7);
@@ -105,10 +107,31 @@ function LedgerRow({ entry, canReverse, onChanged }: { entry: LedgerEntry; canRe
 }
 
 export function LedgerView({ canReverse }: { canReverse: boolean }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { state, reload } = useLoad(api.listLedger, "", { every: 10000 });
+  const entries = state.status === "success" ? state.data : [];
   return (
-    <Card>
+    <Card className="space-y-3">
+      <div className="flex justify-end">
+        <ExportButton
+          fileName={`ledger-${new Date().toISOString().slice(0, 10)}`}
+          disabled={entries.length === 0}
+          sheets={() => [
+            sheet(t("ledger.title"), [
+              { header: t("export.date"), value: (e) => dateTime(e.at, locale), width: 22 },
+              { header: t("export.patient"), value: (e) => e.patient_name, width: 22 },
+              { header: t("export.doctor"), value: (e) => e.doctor_name, width: 18 },
+              { header: t("export.kind"), value: (e) => t(`payments.kind.${e.kind}`), width: 12 },
+              { header: t("export.method"), value: (e) => t(`payments.method.${e.method}`), width: 12 },
+              // Refunds and reversals are negative, so a SUM in Excel gives the real total.
+              { header: t("export.amount"), value: (e) => (e.kind === "payment" ? e.amount : -e.amount), width: 14 },
+              { header: t("export.currency"), value: (e) => e.currency, width: 10 },
+              { header: t("export.by"), value: (e) => e.by, width: 16 },
+              { header: t("export.reason"), value: (e) => e.reason || null, width: 24 },
+            ], entries),
+          ]}
+        />
+      </div>
       {state.status === "loading" && <CardsSkeleton count={2} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
       {state.status === "success" && state.data.length === 0 && <EmptyState title={t("ledger.empty")} />}
@@ -132,32 +155,51 @@ export function DuesView({ month }: { month: string }) {
 
   if (state.status === "loading") return <CardsSkeleton count={2} />;
   if (state.status === "error") return <ErrorState message={errorText(state.error, t)} onRetry={reload} />;
+  const dues = state.data;
   return (
-    <Card className="overflow-x-auto scrollbar-thin p-0">
-      <table className="w-full min-w-[640px] text-sm">
-        <thead className="bg-slate-50 text-start text-slate-600">
-          <tr>
-            {(["dues.doctor", "dues.visits", "dues.visitIncome", "dues.procedureIncome", "dues.doctorShare", "dues.clinicShare"] as MessageKey[]).map((key) => (
-              <th key={key} className="px-4 py-3 text-start font-medium">
-                {t(key)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-200">
-          {state.data.map((row) => (
-            <tr key={row.doctor_id} data-doctor={row.doctor_id}>
-              <td className="px-4 py-3 font-medium">{row.doctor_name}</td>
-              <td className="px-4 py-3">{row.visits}</td>
-              <td className="px-4 py-3">{iqd(row.visit_income)}</td>
-              <td className="px-4 py-3">{iqd(row.procedure_income)}</td>
-              <td className="px-4 py-3 font-semibold text-brand-700">{iqd(row.doctor_share)}</td>
-              <td className="px-4 py-3">{iqd(row.clinic_share)}</td>
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <ExportButton
+          fileName={`doctor-dues-${month}`}
+          disabled={dues.length === 0}
+          sheets={() => [
+            sheet(t("nav.dues"), [
+              { header: t("dues.doctor"), value: (d) => d.doctor_name, width: 20 },
+              { header: t("dues.visits"), value: (d) => d.visits, width: 10 },
+              { header: t("dues.visitIncome"), value: (d) => d.visit_income, width: 16 },
+              { header: t("dues.procedureIncome"), value: (d) => d.procedure_income, width: 16 },
+              { header: t("dues.doctorShare"), value: (d) => d.doctor_share, width: 16 },
+              { header: t("dues.clinicShare"), value: (d) => d.clinic_share, width: 16 },
+            ], dues),
+          ]}
+        />
+      </div>
+      <Card className="overflow-x-auto scrollbar-thin p-0">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead className="bg-slate-50 text-start text-slate-600">
+            <tr>
+              {(["dues.doctor", "dues.visits", "dues.visitIncome", "dues.procedureIncome", "dues.doctorShare", "dues.clinicShare"] as MessageKey[]).map((key) => (
+                <th key={key} className="px-4 py-3 text-start font-medium">
+                  {t(key)}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {state.data.map((row) => (
+              <tr key={row.doctor_id} data-doctor={row.doctor_id}>
+                <td className="px-4 py-3 font-medium">{row.doctor_name}</td>
+                <td className="px-4 py-3">{row.visits}</td>
+                <td className="px-4 py-3">{iqd(row.visit_income)}</td>
+                <td className="px-4 py-3">{iqd(row.procedure_income)}</td>
+                <td className="px-4 py-3 font-semibold text-brand-700">{iqd(row.doctor_share)}</td>
+                <td className="px-4 py-3">{iqd(row.clinic_share)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
+    </div>
   );
 }
 
@@ -195,8 +237,39 @@ export function ReportView({ month }: { month: string }) {
   if (state.status === "loading") return <CardsSkeleton count={4} />;
   if (state.status === "error") return <ErrorState message={errorText(state.error, t)} onRetry={reload} />;
   const r = state.data;
+  // The summary as label/value pairs, then one sheet for each breakdown.
+  const summary: [string, number][] = [
+    [`${t("reports.today")} · ${t("reports.billed")} (IQD)`, r.today_billed.IQD],
+    [`${t("reports.today")} · ${t("reports.collected")} (IQD)`, r.today_collected.IQD],
+    [`${t("reports.today")} · ${t("reports.pharmacy")}`, r.pharmacy_today],
+    [`${t("reports.thisMonth")} · ${t("reports.billed")} (IQD)`, r.billed.IQD],
+    [`${t("reports.thisMonth")} · ${t("reports.billed")} (USD)`, r.billed.USD],
+    [`${t("reports.thisMonth")} · ${t("reports.collected")} (IQD)`, r.collected.IQD],
+    [`${t("reports.thisMonth")} · ${t("reports.collected")} (USD)`, r.collected.USD],
+    [`${t("reports.thisMonth")} · ${t("reports.pharmacy")}`, r.pharmacy_month],
+  ];
+  const countSheet = (title: string, rows: CountRow[], label: (raw: string) => string = (raw) => raw) =>
+    sheet(title, [
+      { header: t("export.item"), value: (row: CountRow) => label(row.label), width: 24 },
+      { header: t("export.count"), value: (row: CountRow) => row.count, width: 10 },
+    ], rows);
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <ExportButton
+          fileName={`report-${month}`}
+          sheets={() => [
+            sheet(t("export.summary"), [
+              { header: t("export.item"), value: (row: [string, number]) => row[0], width: 40 },
+              { header: t("export.amount"), value: (row: [string, number]) => row[1], width: 16 },
+            ], summary),
+            countSheet(t("reports.byDay"), r.by_day),
+            countSheet(t("reports.byDoctor"), r.by_doctor),
+            countSheet(t("reports.byBranch"), r.by_branch, (raw) => t(`branch.${raw}` as MessageKey)),
+            countSheet(t("reports.topNoShows"), r.top_no_shows),
+          ]}
+        />
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <Card className="space-y-1">
           <p className="text-sm text-slate-500">{t("reports.today")}</p>

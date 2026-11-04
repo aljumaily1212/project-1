@@ -3,13 +3,15 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { api, type PharmacySale, type StockItem } from "@/lib/api";
+import { api, type PharmacySale, type SaleLine, type StockItem } from "@/lib/api";
+import { sheet } from "@/lib/excel";
 import { dateTime, money } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 import { unitText } from "@/components/stock";
+import { ExportButton } from "@/components/export-button";
 
 type Row = { stockId: string; quantity: string };
 
@@ -136,7 +138,7 @@ function SaleRow({ sale }: { sale: PharmacySale }) {
 }
 
 export default function SalesPage() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const stock = useLoad(api.listStock);
   const sales = useLoad(() => api.listSales(todayText()), "", { every: 10000 });
   const dayTotal = sales.state.status === "success" ? sales.state.data.reduce((sum, s) => sum + s.total, 0) : 0;
@@ -159,8 +161,33 @@ export default function SalesPage() {
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold">{t("sales.today")}</h2>
-            <span className="font-bold" data-day-total>
-              {money(dayTotal)} {t("common.currency")}
+            <span className="flex items-center gap-3">
+              <span className="font-bold" data-day-total>
+                {money(dayTotal)} {t("common.currency")}
+              </span>
+              {sales.state.status === "success" && (
+                <ExportButton
+                  fileName={`pharmacy-sales-${todayText()}`}
+                  disabled={sales.state.data.length === 0}
+                  // One row per sold item, so Excel can add up quantities and money per medicine.
+                  sheets={() => [
+                    sheet(
+                      t("sales.today"),
+                      [
+                        { header: t("export.date"), value: (r: { sale: PharmacySale; line: SaleLine }) => dateTime(r.sale.at, locale), width: 22 },
+                        { header: t("export.kind"), value: (r) => t(`sales.kind.${r.sale.kind}`), width: 14 },
+                        { header: t("export.customer"), value: (r) => r.sale.customer || t("sales.walkInCustomer"), width: 20 },
+                        { header: t("sales.item"), value: (r) => r.line.name, width: 24 },
+                        { header: t("sales.quantity"), value: (r) => r.line.quantity, width: 10 },
+                        { header: t("export.unitPrice"), value: (r) => r.line.unit_price, width: 12 },
+                        { header: t("export.amount"), value: (r) => r.line.total, width: 12 },
+                        { header: t("export.by"), value: (r) => r.sale.by, width: 16 },
+                      ],
+                      sales.state.status === "success" ? sales.state.data.flatMap((sale) => sale.lines.map((line) => ({ sale, line }))) : [],
+                    ),
+                  ]}
+                />
+              )}
             </span>
           </div>
           {sales.state.status === "loading" && <CardsSkeleton count={1} />}
