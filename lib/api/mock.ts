@@ -773,6 +773,33 @@ export const mockApi: Api = {
 
   listDoctors: async () => delay(read().doctors.map(publicDoctor)),
 
+  queueScreen: async () => {
+    const db = read();
+    return delay(
+      db.doctors
+        // Only doctors who work today. An absent doctor still shows, so patients aren't left waiting.
+        .filter((d) => d.days[weekday(today())])
+        .map((d) => {
+          const queue = queueOf(db, d.id);
+          const inRoom = queue.find((a) => a.status === "in_progress");
+          const waiting = queue.filter((a) => a.status === "arrived");
+          return {
+            doctor: publicDoctor(d),
+            branch: d.days[weekday(today())]!.branch,
+            absent: d.absences.includes(today()),
+            late_minutes: d.late?.date === today() ? d.late.minutes : 0,
+            now: inRoom ? ticketLabel(db, inRoom) : null,
+            called_at: inRoom?.called_at ?? null,
+            next: waiting
+              .slice(0, 4)
+              .map((a) => ticketLabel(db, a))
+              .filter((ticket): ticket is string => ticket !== null),
+            waiting: waiting.length,
+          };
+        }),
+    );
+  },
+
   doctorDays: async (doctorId) => {
     const db = read();
     requireUser(db);
