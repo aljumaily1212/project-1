@@ -12,10 +12,14 @@ import { useLoad } from "@/lib/useLoad";
 import { walkInSchema, type WalkInForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge, TicketBadge } from "@/components/common";
 import { CardsSkeleton, FormSkeleton } from "@/components/skeleton";
+import { VitalsEntry } from "@/components/vitals";
+import { HeartPulse } from "lucide-react";
 
 function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
   const { t, locale } = useT();
   const { state, reload, refresh } = useLoad(() => api.doctorQueue(doctor.id), String(doctor.id), { every: 4000 });
+  // The patient whose measurements are being typed in, if any.
+  const [measuring, setMeasuring] = useState<number | null>(null);
 
   // After a check-in or walk-in, update the queue right away, without the skeleton.
   useEffect(() => {
@@ -33,15 +37,39 @@ function QueueCard({ doctor, version }: { doctor: Doctor; version: number }) {
       {state.status === "success" && (
         <ol className="space-y-2">
           {state.data.map((a) => (
-            <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-              <span className="flex items-center gap-2">
-                <TicketBadge ticket={a.ticket} />
-                {a.patient_name}
-              </span>
-              {a.emergency ? (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
-              ) : (
-                <StatusBadge status={a.status} />
+            <li key={a.id} className="space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <TicketBadge ticket={a.ticket} />
+                  {a.patient_name}
+                </span>
+                <span className="flex items-center gap-2">
+                  {/* A tick once measured; otherwise a button to measure. */}
+                  <button
+                    type="button"
+                    onClick={() => setMeasuring(measuring === a.id ? null : a.id)}
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${a.has_vitals ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                    data-vitals-button={a.id}
+                  >
+                    <HeartPulse className="size-3.5" aria-hidden />
+                    {a.has_vitals ? `${t("vitals.short")} ✓` : t("vitals.short")}
+                  </button>
+                  {a.emergency ? (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
+                  ) : (
+                    <StatusBadge status={a.status} />
+                  )}
+                </span>
+              </div>
+              {measuring === a.id && (
+                <VitalsEntry
+                  appointmentId={a.id}
+                  onCancel={() => setMeasuring(null)}
+                  onSaved={() => {
+                    setMeasuring(null);
+                    refresh();
+                  }}
+                />
               )}
             </li>
           ))}

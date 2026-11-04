@@ -182,6 +182,30 @@ export interface StaffAppointment {
   status: AppointmentStatus;
   emergency: boolean;
   ticket: string | null;
+  // True once someone has measured blood pressure, temperature and so on for this visit.
+  has_vitals: boolean;
+}
+
+// Measurements taken before the doctor sees the patient. Any of them can be missing (null).
+export interface Vitals {
+  // Blood pressure, in mmHg: the top and bottom numbers of "120/80".
+  systolic: number | null;
+  diastolic: number | null;
+  // Degrees Celsius.
+  temperature: number | null;
+  // Heart beats per minute.
+  pulse: number | null;
+  // Oxygen in the blood, in percent.
+  spo2: number | null;
+  weight: number | null;
+  // Centimetres.
+  height: number | null;
+}
+
+export interface VitalsRecord extends Vitals {
+  appointment_id: number;
+  at: string;
+  by: string;
 }
 
 export interface WalkInRequest {
@@ -532,6 +556,7 @@ export type AuditAction =
   | "payment.reverse"
   | "account.delete"
   | "alerts.update"
+  | "vitals.save"
   | "family.add"
   | "family.remove"
   | "stock.create"

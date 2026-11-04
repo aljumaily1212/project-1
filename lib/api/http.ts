@@ -52,6 +52,8 @@ import type {
   TestResult,
   UpdateScheduleRequest,
   VisitRating,
+  Vitals,
+  VitalsRecord,
   VisitKind,
   WalkInRequest,
   WalkInResult,
@@ -125,6 +127,13 @@ export const httpApi = {
   // Only the doctor writes them.
   updatePatientAlerts: (patientId: number, body: MedicalAlerts) =>
     http.put<MedicalAlerts>(`/patients/${patientId}/alerts`, body).then((r) => r.data),
+
+  // Saves this visit's measurements. Saving again replaces them (a corrected reading).
+  saveVitals: (appointmentId: number, body: Vitals) =>
+    http.put<VitalsRecord>(`/appointments/${appointmentId}/vitals`, body).then((r) => r.data),
+
+  // Every measurement of this patient, newest first.
+  patientVitals: (patientId: number) => http.get<VitalsRecord[]>(`/patients/${patientId}/vitals`).then((r) => r.data),
 
   patientHistory: (patientId: number) =>
     http.get<DoctorVisit[]>(`/patients/${patientId}/visits`).then((r) => r.data),

@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+// For number boxes that may stay empty: an empty box becomes null.
+// React Hook Form also runs this on the starting value, which is null itself, so null must stay null:
+// Number(null) is 0, and a silent 0 would count as a real reading.
+export const numberOrNull = (value: unknown) => (value === "" || value === null || value === undefined ? null : Number(value));
+
 const phone = z.string().regex(/^07\d{9}$/, "validation.phone");
 const password = z.string().min(6, "validation.password");
 
@@ -173,6 +178,27 @@ export const deleteAccountSchema = z.object({
   confirm: z.boolean().refine((ticked) => ticked, "validation.confirmDelete"),
 });
 export type DeleteAccountForm = z.infer<typeof deleteAccountSchema>;
+
+// ---------- vital signs ----------
+
+// An empty box is null. A filled one must be in a range a person can have, to catch typing mistakes like 1200.
+const reading = (min: number, max: number) => z.number("validation.number").min(min, "validation.vitalRange").max(max, "validation.vitalRange").nullable();
+
+export const vitalsSchema = z
+  .object({
+    systolic: reading(50, 260),
+    diastolic: reading(30, 160),
+    temperature: reading(33, 43),
+    pulse: reading(30, 220),
+    spo2: reading(50, 100),
+    weight: reading(0.5, 300),
+    height: reading(30, 230),
+  })
+  .refine((v) => Object.values(v).some((x) => x !== null), { path: ["systolic"], message: "validation.oneVital" })
+  // Blood pressure is a pair: both numbers or neither, and the top one higher.
+  .refine((v) => (v.systolic === null) === (v.diastolic === null), { path: ["diastolic"], message: "validation.bpPair" })
+  .refine((v) => v.systolic === null || v.diastolic === null || v.systolic > v.diastolic, { path: ["diastolic"], message: "validation.bpOrder" });
+export type VitalsForm = z.infer<typeof vitalsSchema>;
 
 // ---------- pharmacy stock ----------
 

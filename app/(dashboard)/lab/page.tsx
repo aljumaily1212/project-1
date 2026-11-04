@@ -8,7 +8,7 @@ import { api, type LabOrder, type LabStatus, type ResultInput, type SampleType }
 import { dateTime } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { resultSchema, type ResultForm } from "@/lib/validation";
+import { numberOrNull, resultSchema, type ResultForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, FieldError, Input, PageHeader, Select, Textarea } from "@/components/common";
 import { FlagBadge, ResultView, rowFlag, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
@@ -17,8 +17,6 @@ import { CardsSkeleton } from "@/components/skeleton";
 const TABS: LabStatus[] = ["requested", "entered", "confirmed"];
 const SAMPLES: SampleType[] = ["blood", "urine", "stool", "swab", "other"];
 
-// An empty number box means "no range".
-const numberOrNull = (value: string) => (value === "" ? null : Number(value));
 
 // The form starts from what is already saved when correcting a result, otherwise from the test's usual readings.
 function startValues(order: LabOrder): ResultForm {

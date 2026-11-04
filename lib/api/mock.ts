@@ -40,6 +40,7 @@ import type {
   StockMove,
   StockMoveKind,
   User,
+  VitalsRecord,
   VisitKind,
   VisitRating,
   WorkDay,
@@ -58,7 +59,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v15";
+const STORAGE_KEY = "alrahma.mock.v16";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -125,7 +126,7 @@ type MockPatient = {
   birth_date?: string | null;
   alerts?: MedicalAlerts;
 };
-type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket"> & {
+type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket" | "has_vitals"> & {
   arrival_order: number;
   // The queue number for the day, counted per doctor. Given when the patient arrives.
   ticket?: number;
@@ -133,6 +134,7 @@ type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket"> & {
   called_at?: string;
   cancel_reason: CancelReason | null;
   idempotency_key?: string;
+  vitals?: Omit<VitalsRecord, "appointment_id">;
 };
 type MockItem = InvoiceItem & { appointment_id: number };
 // ref_id links a refund or reversal to the payment it undoes. key stops the same payment twice.
@@ -356,6 +358,23 @@ const DIAGNOSES: { diagnosis: string; medicines: Medicine[] }[] = [
   { diagnosis: "فحص دوري، لا توجد مشكلة", medicines: [] },
 ];
 
+// Normal-looking measurements, with now and then a high blood pressure or a fever.
+function fakeVitals(random: () => number, at: Date): Omit<VitalsRecord, "appointment_id"> {
+  const between = (low: number, high: number, step = 1) => Math.round((low + random() * (high - low)) / step) * step;
+  const pressureHigh = random() < 0.2;
+  return {
+    systolic: pressureHigh ? between(140, 165) : between(105, 130),
+    diastolic: pressureHigh ? between(90, 100) : between(65, 85),
+    temperature: random() < 0.15 ? between(37.6, 38.8, 0.1) : between(36.4, 37.2, 0.1),
+    pulse: between(62, 98),
+    spo2: between(95, 99),
+    weight: between(55, 95),
+    height: between(155, 185),
+    at: new Date(at.getTime() - 900_000).toISOString(),
+    by: "سارة موظفة",
+  };
+}
+
 // Fake comments for the fake ratings.
 const GOOD_COMMENTS = ["الطبيب متعاون جداً وشرح الحالة بوضوح", "خدمة ممتازة والانتظار قصير", "شكراً لكم، تعامل راقٍ", "المكان نظيف والموظفون لطفاء"];
 const BAD_COMMENTS = ["الانتظار كان طويلاً", "لم يُشرح لي الدواء بشكل كافٍ"];
@@ -422,6 +441,7 @@ function addPastMonth(db: Db) {
         if (status !== "done") continue;
 
         const at = new Date(`${date}T${time || SHIFTS[day.shift].start}:00`);
+        if (random() < 0.7) db.appointments[db.appointments.length - 1].vitals = fakeVitals(random, at);
         const visitId = id++;
         const { diagnosis, medicines } = pick(DIAGNOSES);
         // About half the patients rated their visit, mostly well, a few not.
@@ -621,6 +641,7 @@ function staffView(db: Db, a: MockAppointment): StaffAppointment {
     status: a.status,
     emergency: a.emergency,
     ticket: ticketLabel(db, a),
+    has_vitals: Boolean(a.vitals),
   };
 }
 
@@ -1278,6 +1299,32 @@ export const mockApi: Api = {
     changeAppointment(db, id, { status: "in_progress", called_at: now().toISOString() });
     write(db);
     return delay(undefined);
+  },
+
+  saveVitals: async (appointmentId, vitals) => {
+    const db = read();
+    const user = requireUser(db, "reception", "doctor");
+    const appointment = findAppointment(db, appointmentId);
+    // Only for someone at the clinic today: in the queue, or with the doctor.
+    if (appointment.date !== today() || !["arrived", "in_progress"].includes(appointment.status)) fail(409, "not_here");
+    if (user.role === "doctor" && appointment.doctor_id !== user.doctor_id) fail(403);
+    if (Object.values(vitals).every((v) => v === null)) fail(422, "no_vitals");
+    appointment.vitals = { ...vitals, at: now().toISOString(), by: user.name };
+    log(db, user, "vitals.save", patientName(db, appointment.patient_id));
+    write(db);
+    return delay({ appointment_id: appointmentId, ...appointment.vitals });
+  },
+
+  patientVitals: async (patientId) => {
+    const db = read();
+    const user = requireUser(db, "doctor", "reception", "manager");
+    if (user.role === "doctor") requireDoctorSeesPatient(db, user, patientId);
+    return delay(
+      db.appointments
+        .filter((a) => a.patient_id === patientId && a.vitals)
+        .map((a): VitalsRecord => ({ appointment_id: a.id, ...a.vitals! }))
+        .sort((a, b) => b.at.localeCompare(a.at)),
+    );
   },
 
   patientHistory: async (patientId) => {

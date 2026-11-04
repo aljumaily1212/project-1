@@ -17,6 +17,7 @@ import { PrintButton, PrintSection } from "@/components/print";
 import { AlertsBanner, AlertsEditor } from "@/components/medical-alerts";
 import { MedicineInput } from "@/components/medicine-input";
 import { CardsSkeleton } from "@/components/skeleton";
+import { VitalsEntry, VitalsHistory, VitalsSummary } from "@/components/vitals";
 
 function History({ patientId, patientName, alerts }: { patientId: number; patientName: string; alerts: MedicalAlerts | null }) {
   const { t, locale } = useT();
@@ -89,6 +90,12 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
   const alerts = useLoad(() => api.patientAlerts(appointment.patient_id), String(appointment.patient_id));
+  // This visit's measurements (if taken) and the earlier ones, for comparing.
+  const vitals = useLoad(() => api.patientVitals(appointment.patient_id), String(appointment.patient_id));
+  const [editingVitals, setEditingVitals] = useState(false);
+  const vitalRecords = vitals.state.status === "success" ? vitals.state.data : [];
+  const current = vitalRecords.find((r) => r.appointment_id === appointment.id) ?? null;
+  const earlier = vitalRecords.filter((r) => r.appointment_id !== appointment.id);
   // The pharmacy's medicines for the name search. If it fails to load, names are simply typed by hand.
   const catalogLoad = useLoad(api.medicineCatalog);
   const catalog = catalogLoad.state.status === "success" ? catalogLoad.state.data : [];
@@ -155,6 +162,40 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
             ) : (
               <AlertsBanner alerts={alerts.state.data} />
             ))}
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">{t("vitals.title")}</h3>
+            {vitals.state.status === "success" && !editingVitals && (
+              <Button type="button" variant="ghost" onClick={() => setEditingVitals(true)}>
+                {current ? t("vitals.edit") : t("vitals.enter")}
+              </Button>
+            )}
+          </div>
+          {vitals.state.status === "loading" && <CardsSkeleton count={1} />}
+          {vitals.state.status === "error" && <ErrorState message={errorText(vitals.state.error, t)} onRetry={vitals.reload} />}
+          {editingVitals ? (
+            <VitalsEntry
+              appointmentId={appointment.id}
+              current={current}
+              onCancel={() => setEditingVitals(false)}
+              onSaved={(saved) => {
+                vitals.setData((list) => [saved, ...list.filter((r) => r.appointment_id !== saved.appointment_id)]);
+                setEditingVitals(false);
+              }}
+            />
+          ) : (
+            vitals.state.status === "success" && (current ? <VitalsSummary vitals={current} /> : <p className="text-sm text-slate-500">{t("vitals.notYet")}</p>)
+          )}
+          {earlier.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-slate-500">{t("vitals.earlier", { n: earlier.length })}</summary>
+              <div className="mt-2">
+                <VitalsHistory records={earlier} />
+              </div>
+            </details>
+          )}
         </div>
 
         <div className="space-y-2">
