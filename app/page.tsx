@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarCheck, Eye, EyeOff, ListOrdered, Monitor, Pill, ShieldCheck } from "lucide-react";
+import { CalendarCheck, CircleCheck, Eye, EyeOff, FileHeart, ListOrdered, Monitor, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
@@ -21,8 +21,11 @@ import { Separator } from "@/components/ui/separator";
 const FEATURES = [
   { icon: CalendarCheck, title: "login.feature.booking", hint: "login.feature.bookingHint" },
   { icon: ListOrdered, title: "login.feature.queue", hint: "login.feature.queueHint" },
-  { icon: Pill, title: "login.feature.pharmacy", hint: "login.feature.pharmacyHint" },
+  { icon: FileHeart, title: "login.feature.record", hint: "login.feature.recordHint" },
 ] as const;
+
+// How a visit works, in three simple steps.
+const STEPS = ["login.panel.step1", "login.panel.step2", "login.panel.step3"] as const;
 
 const DEMO_ACCOUNTS = [
   { label: "nav.patient", phone: MOCK_LOGINS.patient },
@@ -48,6 +51,14 @@ function BrandPanel() {
       <div className="relative max-w-lg space-y-6">
         <h1 className="text-4xl font-bold leading-tight">{t("login.panel.title")}</h1>
         <p className="opacity-75">{t("login.panel.subtitle")}</p>
+        <ul className="space-y-3">
+          {STEPS.map((step) => (
+            <li key={step} className="flex items-start gap-3">
+              <CircleCheck className="mt-0.5 size-5 shrink-0 text-[#5eead4]" aria-hidden />
+              <span className="opacity-90">{t(step)}</span>
+            </li>
+          ))}
+        </ul>
         <div className="grid grid-cols-3 gap-3">
           {FEATURES.map(({ icon: Icon, title, hint }) => (
             <div key={title} className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">

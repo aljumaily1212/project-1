@@ -82,12 +82,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="border-b border-slate-200 bg-white md:sticky md:top-0 md:flex md:h-screen md:w-60 md:shrink-0 md:flex-col md:border-b-0 md:border-e">
-        <div className="flex items-center justify-between gap-2 px-4 py-4 md:px-5">
-          <Link href="/" className="text-lg">
+        {/* The full name stays on one line. The demo tag drops below it when the sidebar is too narrow. */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 md:px-5">
+          <Link href="/" className="whitespace-nowrap text-base">
             <Logo size={32} />
           </Link>
           {USE_MOCK && (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+            <span className="whitespace-nowrap rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
               {t("app.mockBadge")}
             </span>
           )}
