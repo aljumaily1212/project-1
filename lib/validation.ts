@@ -23,6 +23,25 @@ export const registerSchema = loginSchema.extend({
 });
 export type RegisterForm = z.infer<typeof registerSchema>;
 
+// ---------- passwords ----------
+
+export const forgotSchema = z.object({ phone });
+export type ForgotForm = z.infer<typeof forgotSchema>;
+
+// The new password is typed twice, so a typo doesn't lock the person out.
+const newPasswordPair = { new_password: password, confirm: z.string() };
+const sameTwice = (v: { new_password: string; confirm: string }) => v.new_password === v.confirm;
+
+export const resetSchema = z
+  .object({ code: z.string().regex(/^\d{6}$/, "validation.code"), ...newPasswordPair })
+  .refine(sameTwice, { message: "validation.passwordMatch", path: ["confirm"] });
+export type ResetForm = z.infer<typeof resetSchema>;
+
+export const changePasswordSchema = z
+  .object({ current_password: z.string().min(1, "validation.required"), ...newPasswordPair })
+  .refine(sameTwice, { message: "validation.passwordMatch", path: ["confirm"] });
+export type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
+
 export const walkInSchema = z.object({
   name: z.string().trim().min(2, "validation.name"),
   phone,

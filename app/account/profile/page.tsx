@@ -7,6 +7,7 @@ import { clearSession, useSession } from "@/lib/auth";
 import { errorText, useT } from "@/lib/i18n";
 import { deleteAccountSchema, type DeleteAccountForm } from "@/lib/validation";
 import { Button, Card, Field, Input, PageHeader } from "@/components/common";
+import { ChangePasswordCard } from "@/components/change-password";
 import { toast } from "sonner";
 
 export default function ProfilePage() {
@@ -39,6 +40,8 @@ export default function ProfilePage() {
             {session?.user.phone}
           </p>
         </Card>
+
+        <ChangePasswordCard />
 
         <Card className="space-y-4 border-red-200">
           <div className="space-y-1">

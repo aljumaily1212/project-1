@@ -208,6 +208,27 @@ export interface VitalsRecord extends Vitals {
   by: string;
 }
 
+// ---------- passwords ----------
+
+// Step 1 of "forgot password": the server sends a 6-digit code by SMS to the phone.
+// It answers the same way whether or not the phone has an account, so nobody can use it to check who is registered.
+export interface ForgotPasswordResult {
+  expires_in_minutes: number;
+  // Only the fake API fills this in, because it can't send an SMS. The real server must never return it.
+  dev_code?: string;
+}
+
+export interface ResetPasswordRequest {
+  phone: string;
+  code: string;
+  new_password: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
 export interface WalkInRequest {
   name: string;
   phone: string;
@@ -608,6 +629,8 @@ export type AuditAction =
   | "pharmacy.sale"
   | "expense.add"
   | "expense.void"
+  | "password.reset"
+  | "password.change"
   | "family.add"
   | "family.remove"
   | "stock.create"

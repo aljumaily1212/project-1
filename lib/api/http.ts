@@ -17,8 +17,10 @@ import type {
   DoctorDues,
   DoctorSchedule,
   DispenseRequest,
+  ChangePasswordRequest,
   DoctorVisit,
   Expense,
+  ForgotPasswordResult,
   ExpenseInput,
   FamilyInput,
   FamilyMember,
@@ -63,6 +65,7 @@ import type {
   Vitals,
   VitalsRecord,
   VisitKind,
+  ResetPasswordRequest,
   WalkInRequest,
   WalkInResult,
 } from "./types";
@@ -71,6 +74,14 @@ export const httpApi = {
   login: (body: LoginRequest) => http.post<LoginResponse>("/auth/login", body).then((r) => r.data),
 
   register: (body: RegisterRequest) => http.post<LoginResponse>("/auth/register", body).then((r) => r.data),
+
+  // Forgot password: send a code to the phone, then set a new password with that code. No sign-in needed.
+  forgotPassword: (phone: string) => http.post<ForgotPasswordResult>("/auth/password/forgot", { phone }).then((r) => r.data),
+
+  resetPassword: (body: ResetPasswordRequest) => http.post<null>("/auth/password/reset", body).then(() => undefined),
+
+  // Signed in: change the password. A wrong current password answers 422 (not 401), so it doesn't sign the person out.
+  changePassword: (body: ChangePasswordRequest) => http.post<null>("/auth/password/change", body).then(() => undefined),
 
   logout: () => {
     const refresh_token = getRefreshToken();

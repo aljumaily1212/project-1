@@ -24,7 +24,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof CalendarPlus }[] = [
   { href: "/account/profile", label: "account.nav.profile", icon: UserRound },
 ];
 
-const PUBLIC = ["/account/register"];
+const PUBLIC = ["/account/register", "/account/forgot-password"];
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();

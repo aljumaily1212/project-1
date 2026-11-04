@@ -64,7 +64,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v18";
+const STORAGE_KEY = "alrahma.mock.v19";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -201,7 +201,13 @@ type Db = {
   closings: CashClosing[];
   sales: PharmacySale[];
   expenses: Expense[];
+  resetCodes: ResetCode[];
 };
+
+// A "forgot password" code waiting to be used. Wrong tries are counted, so nobody can guess all 1,000,000 codes.
+type ResetCode = { phone: string; code: string; expires: number; tries: number };
+const RESET_MINUTES = 10;
+const RESET_TRIES = 5;
 
 // The stored item. Level and expiry warnings are worked out when it is sent.
 type MockStock = Omit<StockItem, "level" | "expiry" | "price"> & { price?: number };
@@ -352,6 +358,7 @@ function seed(): Db {
     closings: [],
     sales: [],
     expenses: fakeExpenses(day),
+    resetCodes: [],
   };
   addPastMonth(db);
   return db;
@@ -552,6 +559,7 @@ function read(): Db {
     db.closings ??= [];
     db.sales ??= [];
     db.expenses ??= [];
+    db.resetCodes ??= [];
     return db;
   }
   // Save the starting data once, so every tab works on the same copy from the start.
@@ -1038,6 +1046,50 @@ export const mockApi: Api = {
   },
 
   logout: () => delay(undefined),
+
+  forgotPassword: async (phone) => {
+    const db = read();
+    const user = db.users.find((u) => u.phone === phone);
+    const result = { expires_in_minutes: RESET_MINUTES };
+    // Same answer when there is no account, so this can't be used to find out who is registered.
+    if (!user) return delay(result);
+    const code = String(Math.floor(Math.random() * 1_000_000)).padStart(6, "0");
+    db.resetCodes = db.resetCodes.filter((c) => c.phone !== phone);
+    db.resetCodes.push({ phone, code, expires: Date.now() + RESET_MINUTES * 60_000, tries: 0 });
+    write(db);
+    return delay({ ...result, dev_code: code });
+  },
+
+  resetPassword: async ({ phone, code, new_password }) => {
+    const db = read();
+    const waiting = db.resetCodes.find((c) => c.phone === phone);
+    if (!waiting || waiting.expires < Date.now()) fail(422, "code_expired");
+    if (waiting.code !== code) {
+      waiting.tries++;
+      // Too many wrong tries: the code is thrown away, and a new one must be asked for.
+      if (waiting.tries >= RESET_TRIES) db.resetCodes = db.resetCodes.filter((c) => c !== waiting);
+      write(db);
+      fail(422, waiting.tries >= RESET_TRIES ? "too_many_tries" : "code_wrong");
+    }
+    const user = db.users.find((u) => u.phone === phone);
+    if (!user) fail(422, "code_expired");
+    user.password = new_password;
+    db.resetCodes = db.resetCodes.filter((c) => c.phone !== phone);
+    log(db, user, "password.reset", user.name);
+    write(db);
+    return delay(undefined);
+  },
+
+  changePassword: async ({ current_password, new_password }) => {
+    const db = read();
+    const user = requireUser(db);
+    if (user.password !== current_password) fail(422, "wrong_password");
+    if (current_password === new_password) fail(422, "same_password");
+    user.password = new_password;
+    log(db, user, "password.change", user.name);
+    write(db);
+    return delay(undefined);
+  },
 
   listDoctors: async () => delay(read().doctors.map(publicDoctor)),
 

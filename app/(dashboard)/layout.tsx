@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { KeyRound } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { api, type StaffRole } from "@/lib/api";
 import { canUseDashboard, clearSession, homeFor, useSession } from "@/lib/auth";
@@ -136,6 +137,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="mt-auto hidden border-t border-slate-200 px-5 py-4 md:block">
           <p className="truncate text-sm font-medium">{session.user.name}</p>
           <p className="text-xs text-slate-500">{t(label)}</p>
+          <Link href={`${home}/password`} className="mt-1 inline-block text-xs text-brand-600 hover:underline">
+            {t("password.change")}
+          </Link>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <button onClick={logout} className={buttonClass("danger")}>
               {t("nav.logout")}
@@ -152,6 +156,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 text-sm md:hidden">
           <span className="min-w-0 truncate text-slate-600">{session.user.name}</span>
+          <Link
+            href={`${home}/password`}
+            aria-label={t("password.change")}
+            title={t("password.change")}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          >
+            <KeyRound className="size-4" aria-hidden />
+          </Link>
           <TextSizeToggle />
           <ThemeToggle />
           <LanguageSwitch />

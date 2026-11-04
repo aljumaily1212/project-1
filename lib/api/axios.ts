@@ -5,7 +5,7 @@ import { DEFAULT_LOCALE, LOCALE_KEY } from "../boot";
 import { ApiError, NETWORK_ERROR } from "./errors";
 import type { ApiEnvelope, LoginResponse } from "./types";
 
-const PUBLIC_PATHS = ["/auth/login", "/auth/register", "/auth/refresh", "/public/"];
+const PUBLIC_PATHS = ["/auth/login", "/auth/register", "/auth/refresh", "/auth/password/forgot", "/auth/password/reset", "/public/"];
 
 export const http = axios.create({
   baseURL: API_URL,

@@ -196,6 +196,11 @@ export default function LoginPage() {
                 </button>
               </div>
             </Field>
+            <div className="-mt-2 text-end">
+              <Link href="/account/forgot-password" className="text-sm font-medium text-brand-600 hover:underline">
+                {t("password.forgotLink")}
+              </Link>
+            </div>
 
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
