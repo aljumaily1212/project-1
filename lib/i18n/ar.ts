@@ -811,4 +811,10 @@ export const ar: Record<MessageKey, string> = {
   "closing.allTitle": "إغلاقات الصندوق",
   "closing.allSubtitle": "كل إغلاقات المناوبات من الاستقبال، مع أي فرق",
   "audit.cash.close": "أغلق الصندوق، الفرق:",
+
+  "quickSearch.open": "بحث سريع",
+  "quickSearch.shortcut": "بحث سريع (Ctrl+K)",
+  "quickSearch.placeholder": "انتقل إلى صفحة…",
+  "quickSearch.placeholderPatients": "صفحة، أو اسم مريض أو رقم هاتفه…",
+  "quickSearch.nothing": "لا توجد نتائج",
 };

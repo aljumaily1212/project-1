@@ -809,6 +809,12 @@ export const en = {
   "closing.allTitle": "Drawer closings",
   "closing.allSubtitle": "Every end-of-shift count by reception, with any difference",
   "audit.cash.close": "Closed the cash drawer, difference:",
+
+  "quickSearch.open": "Quick search",
+  "quickSearch.shortcut": "Quick search (Ctrl+K)",
+  "quickSearch.placeholder": "Go to a page…",
+  "quickSearch.placeholderPatients": "A page, or a patient's name or phone…",
+  "quickSearch.nothing": "Nothing found",
 };
 
 export type MessageKey = keyof typeof en;

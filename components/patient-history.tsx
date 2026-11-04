@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { api, type PatientFile, type PatientSummary } from "@/lib/api";
 import { dateTime, shortDate } from "@/lib/display";
@@ -353,15 +354,31 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
   );
 }
 
-// Used by both reception and the manager: search, then open everything about one patient.
-export function PatientHistoryPage() {
+function PatientHistory({ startId }: { startId: number | null }) {
   const { t } = useT();
-  const [openId, setOpenId] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<number | null>(startId);
 
   return (
     <>
       <PageHeader title={t("patients.title")} description={t("patients.subtitle")} />
       {openId === null ? <PatientSearch onOpen={setOpenId} /> : <PatientFileView patientId={openId} onBack={() => setOpenId(null)} />}
     </>
+  );
+}
+
+// Reads ?patient=ID. The key makes a new search result start fresh even when this page is already open.
+function FromAddress() {
+  const params = useSearchParams();
+  const id = Number(params.get("patient")) || null;
+  return <PatientHistory key={id ?? "list"} startId={id} />;
+}
+
+// Used by both reception and the manager: search, then open everything about one patient.
+// useSearchParams needs a Suspense boundary in a static export.
+export function PatientHistoryPage() {
+  return (
+    <Suspense fallback={<CardsSkeleton count={2} />}>
+      <FromAddress />
+    </Suspense>
   );
 }

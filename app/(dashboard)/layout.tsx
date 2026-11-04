@@ -9,6 +9,7 @@ import { USE_MOCK } from "@/lib/config";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Logo } from "@/components/logo";
+import { QuickSearch } from "@/components/quick-search";
 import { StaffBell } from "@/components/staff-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Skeleton } from "@/components/skeleton";
@@ -48,6 +49,12 @@ const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
     { href: "/manager/users", label: "nav.users" },
     { href: "/manager/audit", label: "nav.audit" },
   ],
+};
+
+// Roles that can open patient files, and where those files open. Others search pages only.
+const PATIENT_PAGES: Partial<Record<StaffRole, string>> = {
+  reception: "/reception/patients",
+  manager: "/manager/patients",
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -102,6 +109,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </span>
             )}
             {/* Messages for staff, like a lab result ready for the doctor. */}
+            <QuickSearch nav={nav} patientsHref={PATIENT_PAGES[session.user.role] ?? null} />
             <StaffBell />
           </div>
         </div>
