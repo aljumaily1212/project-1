@@ -2,13 +2,15 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Maximize, Volume2, VolumeX } from "lucide-react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { ArrowLeft, ArrowRight, GalleryHorizontal, Maximize, Volume2, VolumeX } from "lucide-react";
 import { api, type BranchId, type ScreenDoctor } from "@/lib/api";
 import { doctorName, doctorSpecialty } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { LanguageSwitch } from "@/components/language-switch";
 import { LogoMark } from "@/components/logo";
+import { AboutSlide, Clock, DOCTOR_PAGE_MS, DOCTORS_PER_PAGE, DoctorsSlide, QueueStrip, SlideProgress, slideMotion } from "@/components/screen-slides";
 
 type BranchFilter = "all" | BranchId;
 const BRANCHES: BranchFilter[] = ["all", "main", "second"];
@@ -16,6 +18,13 @@ const BRANCH_KEY = "alrahma.screen.branch";
 const BRANCH_EVENT = "alrahma-screen-branch";
 // A ticket called in the last 20 seconds glows, so people notice it changed.
 const FRESH_MS = 20_000;
+const SLIDES_KEY = "alrahma.screen.slides";
+
+// The order of slides: the queue comes back after every info slide, so it is never away for long.
+type Slide = "queue" | "about" | "doctors";
+const SEQUENCE: Slide[] = ["queue", "about", "queue", "doctors"];
+const QUEUE_MS = 25_000;
+const ABOUT_MS = 15_000;
 
 // A short two-note chime made by the browser itself, so there is no sound file to load.
 function chime() {
@@ -52,34 +61,27 @@ function readBranch(): BranchFilter {
   }
 }
 
+// Whether this TV shows the info slides between the queue. On unless someone turns it off.
+function readSlides(): boolean {
+  try {
+    return localStorage.getItem(SLIDES_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function saveSlides(on: boolean) {
+  try {
+    localStorage.setItem(SLIDES_KEY, on ? "on" : "off");
+  } catch {}
+  window.dispatchEvent(new Event(BRANCH_EVENT));
+}
+
 function saveBranch(branch: BranchFilter) {
   try {
     localStorage.setItem(BRANCH_KEY, branch);
   } catch {}
   window.dispatchEvent(new Event(BRANCH_EVENT));
-}
-
-// The time, ticking every second, in the screen's language.
-function Clock() {
-  const { locale } = useT();
-  const [time, setTime] = useState<Date | null>(null);
-  useEffect(() => {
-    const tick = () => setTime(new Date());
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, []);
-  if (!time) return null;
-  const format = (options: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat(locale === "ar" ? "ar-IQ-u-nu-latn" : "en-GB", options).format(time);
-  return (
-    <div className="text-end">
-      <p className="text-4xl font-bold tabular-nums" dir="ltr">
-        {format({ hour: "2-digit", minute: "2-digit", hour12: false })}
-      </p>
-      <p className="text-sm opacity-70">{format({ weekday: "long", day: "numeric", month: "long" })}</p>
-    </div>
-  );
 }
 
 function DoctorPanel({ item, fresh }: { item: ScreenDoctor; fresh: boolean }) {
@@ -137,20 +139,50 @@ function DoctorPanel({ item, fresh }: { item: ScreenDoctor; fresh: boolean }) {
 export default function QueueScreenPage() {
   const { t, locale } = useT();
   const { state, reload } = useLoad(api.queueScreen, "", { every: 3000 });
+  const doctorList = useLoad(api.listDoctors, "", { every: 60_000 });
   const branch = useSyncExternalStore(subscribeBranch, readBranch, () => "all" as const);
+  const slidesOn = useSyncExternalStore(subscribeBranch, readSlides, () => true);
+  // Which slide is showing, and since when.
+  const [at, setAt] = useState({ step: 0, since: 0 });
   const [sound, setSound] = useState(false);
   // The current time, updated every second, so a new ticket's glow goes away by itself.
   const [nowMs, setNowMs] = useState(0);
   const lastCalls = useRef<Map<number, string | null> | null>(null);
   const Back = locale === "ar" ? ArrowRight : ArrowLeft;
 
+  const data = state.status === "success" ? state.data : null;
+  const allDoctors = doctorList.state.status === "success" ? doctorList.state.data : [];
+  const doctorPages = Math.max(1, Math.ceil(allDoctors.length / DOCTORS_PER_PAGE));
+  const durationOf = (slide: Slide) => (slide === "queue" ? QUEUE_MS : slide === "about" ? ABOUT_MS : Math.max(ABOUT_MS, doctorPages * DOCTOR_PAGE_MS));
+  // The latest call by any doctor. Kept in a ref so the once-a-second timer always sees the newest value.
+  const latestCall = useRef(0);
+  const live = useRef({ slidesOn, durationOf });
   useEffect(() => {
-    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    latestCall.current = Math.max(0, ...(data ?? []).map((d) => (d.called_at ? Date.parse(d.called_at) : 0)));
+    live.current = { slidesOn, durationOf };
+  });
+
+  // Every second: move to the next slide when its time is up. When a doctor calls a new number while an
+  // info slide is showing, go straight back to the queue so nobody misses their number.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      setNowMs(now);
+      setAt((cur) => {
+        const { slidesOn: on, durationOf: duration } = live.current;
+        if (!on) return cur.step === 0 ? cur : { step: 0, since: now };
+        if (cur.since === 0) return { step: 0, since: now };
+        const slide = SEQUENCE[cur.step];
+        const newCall = latestCall.current > cur.since && now - latestCall.current < FRESH_MS;
+        if (newCall) return slide === "queue" ? { step: cur.step, since: now } : { step: (cur.step + 1) % SEQUENCE.length, since: now };
+        if (now - cur.since >= duration(slide)) return { step: (cur.step + 1) % SEQUENCE.length, since: now };
+        return cur;
+      });
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   // Chime when any doctor calls a new ticket. Not on the first load, only on changes.
-  const data = state.status === "success" ? state.data : null;
   useEffect(() => {
     if (!data) return;
     const calls = new Map(data.map((d) => [d.doctor.id, d.called_at]));
@@ -162,67 +194,98 @@ export default function QueueScreenPage() {
 
   const doctors = data?.filter((d) => branch === "all" || d.branch === branch) ?? [];
   const freshOf = (d: ScreenDoctor) => !!d.called_at && nowMs - Date.parse(d.called_at) < FRESH_MS;
+  const slide: Slide = slidesOn ? SEQUENCE[at.step] : "queue";
+  const motionProps = slideMotion(locale === "ar");
 
   return (
-    <div className="login-panel min-h-screen p-6 text-[#f8fafc] lg:p-10">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <LogoMark size={56} />
-          <div>
-            <h1 className="text-3xl font-bold">{t("login.panel.tagline")}</h1>
-            <p className="opacity-75">{t("screen.title")}</p>
+    <MotionConfig reducedMotion="user">
+      <div className={`login-panel min-h-screen overflow-x-hidden p-6 text-[#f8fafc] lg:p-10 ${slide !== "queue" ? "pb-32 lg:pb-32" : ""}`}>
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <LogoMark size={56} />
+            <div>
+              <h1 className="text-3xl font-bold">{t("login.panel.tagline")}</h1>
+              <p className="opacity-75">{t("screen.title")}</p>
+            </div>
           </div>
-        </div>
-        <Clock />
-      </header>
+          <Clock />
+        </header>
+        {slidesOn && at.since > 0 && (
+          <div className="mb-6">
+            <SlideProgress startedAt={at.since} ms={durationOf(slide)} />
+          </div>
+        )}
 
-      {state.status === "loading" && <p className="py-20 text-center text-xl opacity-70">{t("screen.loading")}</p>}
-      {state.status === "error" && (
-        <button type="button" onClick={reload} className="mx-auto block py-20 text-xl underline">
-          {errorText(state.error, t)}
-        </button>
-      )}
-      {state.status === "success" && doctors.length === 0 && <p className="py-20 text-center text-2xl opacity-80">{t("screen.noDoctors")}</p>}
-      {doctors.length > 0 && (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {doctors.map((d) => (
-            <DoctorPanel key={d.doctor.id} item={d} fresh={freshOf(d)} />
-          ))}
-        </div>
-      )}
+        <AnimatePresence mode="wait">
+          <motion.div key={`${at.step}-${slide}`} {...motionProps} data-slide={slide} className={slide === "queue" ? "" : "lg:flex lg:min-h-[calc(100vh-17rem)] lg:flex-col lg:justify-center"}>
+            {slide === "queue" && (
+              <>
+                {state.status === "loading" && <p className="py-20 text-center text-xl opacity-70">{t("screen.loading")}</p>}
+                {state.status === "error" && (
+                  <button type="button" onClick={reload} className="mx-auto block py-20 text-xl underline">
+                    {errorText(state.error, t)}
+                  </button>
+                )}
+                {state.status === "success" && doctors.length === 0 && <p className="py-20 text-center text-2xl opacity-80">{t("screen.noDoctors")}</p>}
+                {doctors.length > 0 && (
+                  <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                    {doctors.map((d) => (
+                      <DoctorPanel key={d.doctor.id} item={d} fresh={freshOf(d)} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {slide === "about" && <AboutSlide doctors={allDoctors} today={data ?? []} />}
+            {slide === "doctors" && <DoctorsSlide doctors={allDoctors} today={data ?? []} branchFirst={branch} />}
+          </motion.div>
+        </AnimatePresence>
 
-      {/* Small controls for whoever sets the TV up. They fade until pointed at. */}
-      <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 text-sm opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
-        <Link href="/" className="inline-flex items-center gap-1.5 underline">
-          <Back className="size-4" aria-hidden />
-          {t("screen.back")}
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          {BRANCHES.map((b) => (
+        {/* On info slides the queue never disappears: it moves to a strip at the bottom. */}
+        <AnimatePresence>{slide !== "queue" && doctors.length > 0 && <QueueStrip doctors={doctors} freshOf={freshOf} />}</AnimatePresence>
+
+        {/* Small controls for whoever sets the TV up. They fade until pointed at. */}
+        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 text-sm opacity-40 transition-opacity hover:opacity-100 focus-within:opacity-100">
+          <Link href="/" className="inline-flex items-center gap-1.5 underline">
+            <Back className="size-4" aria-hidden />
+            {t("screen.back")}
+          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {BRANCHES.map((b) => (
+              <button
+                key={b}
+                type="button"
+                onClick={() => saveBranch(b)}
+                className={`rounded-lg px-3 py-1.5 ${b === branch ? "bg-white/20 font-semibold" : "hover:bg-white/10"}`}
+              >
+                {b === "all" ? t("screen.allBranches") : t(`branch.${b}`)}
+              </button>
+            ))}
             <button
-              key={b}
               type="button"
-              onClick={() => saveBranch(b)}
-              className={`rounded-lg px-3 py-1.5 ${b === branch ? "bg-white/20 font-semibold" : "hover:bg-white/10"}`}
+              onClick={() => saveSlides(!slidesOn)}
+              aria-pressed={slidesOn}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 hover:bg-white/10"
             >
-              {b === "all" ? t("screen.allBranches") : t(`branch.${b}`)}
+              <GalleryHorizontal className="size-4" aria-hidden />
+              {slidesOn ? t("slides.on") : t("slides.off")}
             </button>
-          ))}
-          <button type="button" onClick={() => setSound(!sound)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 hover:bg-white/10">
-            {sound ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
-            {sound ? t("screen.soundOn") : t("screen.soundOff")}
-          </button>
-          <button
-            type="button"
-            onClick={() => void document.documentElement.requestFullscreen?.()}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 hover:bg-white/10"
-          >
-            <Maximize className="size-4" aria-hidden />
-            {t("screen.fullscreen")}
-          </button>
-          <LanguageSwitch />
-        </div>
-      </footer>
-    </div>
+            <button type="button" onClick={() => setSound(!sound)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 hover:bg-white/10">
+              {sound ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
+              {sound ? t("screen.soundOn") : t("screen.soundOff")}
+            </button>
+            <button
+              type="button"
+              onClick={() => void document.documentElement.requestFullscreen?.()}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 hover:bg-white/10"
+            >
+              <Maximize className="size-4" aria-hidden />
+              {t("screen.fullscreen")}
+            </button>
+            <LanguageSwitch />
+          </div>
+        </footer>
+      </div>
+    </MotionConfig>
   );
 }

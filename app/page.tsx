@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarCheck, CircleCheck, Eye, EyeOff, FileHeart, ListOrdered, Monitor, ShieldCheck } from "lucide-react";
+import { CalendarCheck, CircleCheck, Eye, EyeOff, FileHeart, ListOrdered, Monitor, Presentation, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
@@ -224,6 +224,18 @@ export default function LoginPage() {
             <span>
               <span className="block font-semibold">{t("screen.open")}</span>
               <span className="block text-slate-500">{t("screen.openHint")}</span>
+            </span>
+          </Link>
+
+          {/* The same TV slides about the complex and its doctors, on their own, without the queue. */}
+          <Link
+            href="/screen/info"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm hover:border-brand-300 hover:bg-brand-50"
+          >
+            <Presentation className="size-5 shrink-0 text-brand-600" aria-hidden />
+            <span>
+              <span className="block font-semibold">{t("slides.open")}</span>
+              <span className="block text-slate-500">{t("slides.openHint")}</span>
             </span>
           </Link>
 
