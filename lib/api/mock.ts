@@ -118,7 +118,7 @@ type MockDoctor = Doctor & {
   absences: string[];
   late: { date: string; minutes: number } | null;
 };
-type MockUser = User & { password: string };
+type MockUser = User & { password: string; disabled?: boolean };
 // relation says who this person is to the account owner. Walk-ins have no account.
 // A family member added by a patient may have no phone of their own (""), and no known birth date.
 // alerts is missing on files saved before allergies existed; alertsOf() treats that as "nothing recorded".
@@ -590,7 +590,8 @@ function fail(status: number, code?: string): never {
 function requireUser(db: Db, ...roles: Role[]) {
   const token = getToken();
   const user = db.users.find((u) => token === `mock-token-${u.id}`);
-  if (!user) fail(401);
+  // A stopped account is signed out on its next request.
+  if (!user || user.disabled) fail(401);
   if (roles.length > 0 && !roles.includes(user.role)) fail(403);
   return user;
 }
@@ -1032,6 +1033,7 @@ export const mockApi: Api = {
   login: async ({ phone, password }) => {
     const user = read().users.find((u) => u.phone === phone && u.password === password);
     if (!user) fail(401, "invalid_credentials");
+    if (user.disabled) fail(403, "account_disabled");
     return delay(session(user));
   },
 
@@ -1742,7 +1744,7 @@ export const mockApi: Api = {
     return delay(
       db.users
         .filter((u) => viewer.role === "manager" || u.role !== "patient")
-        .map(({ id, name, phone, role }): StaffUser => ({ id, name, phone, role })),
+        .map(({ id, name, phone, role, disabled }): StaffUser => ({ id, name, phone, role, active: !disabled })),
     );
   },
 
@@ -1784,6 +1786,44 @@ export const mockApi: Api = {
     }
     db.users.push(user);
     log(db, creator, "staff.create", name);
+    write(db);
+    return delay(undefined);
+  },
+
+  updateStaff: async (id, { name, phone, new_password }) => {
+    const db = read();
+    const manager = requireUser(db, "manager");
+    const user = db.users.find((u) => u.id === id);
+    if (!user) fail(404);
+    if (db.users.some((u) => u.phone === phone && u.id !== id)) fail(409, "phone_taken");
+    // The same name and phone show in the medical file and on the doctor's card, so they change there too.
+    if (user.role === "patient") {
+      const file = db.patients.find((p) => p.account_id === user.id && p.relation === "self");
+      if (file) Object.assign(file, { name, phone });
+    }
+    if (user.doctor_id) {
+      const doctor = db.doctors.find((d) => d.id === user.doctor_id);
+      if (doctor) doctor.name_ar = name;
+    }
+    Object.assign(user, { name, phone });
+    if (new_password) user.password = new_password;
+    log(db, manager, "staff.update", name);
+    write(db);
+    return delay(undefined);
+  },
+
+  setStaffActive: async (id, active) => {
+    const db = read();
+    const manager = requireUser(db, "manager");
+    const user = db.users.find((u) => u.id === id);
+    if (!user) fail(404);
+    if (!active) {
+      // The manager can't lock themselves out, and the complex must always keep one working manager.
+      if (user.id === manager.id) fail(422, "cannot_disable_self");
+      if (user.role === "manager" && db.users.filter((u) => u.role === "manager" && !u.disabled).length <= 1) fail(422, "last_manager");
+    }
+    user.disabled = !active;
+    log(db, manager, active ? "staff.enable" : "staff.disable", user.name);
     write(db);
     return delay(undefined);
   },

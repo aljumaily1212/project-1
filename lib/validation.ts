@@ -87,6 +87,14 @@ export const staffSchema = z
   });
 export type StaffForm = z.infer<typeof staffSchema>;
 
+// Editing an account: the new password is optional, empty means "keep the old one".
+export const editStaffSchema = z.object({
+  name: z.string().trim().min(2, "validation.name"),
+  phone,
+  new_password: z.union([z.literal(""), password]),
+});
+export type EditStaffForm = z.infer<typeof editStaffSchema>;
+
 const wholeNumber = (min: number, max: number) =>
   z.number("validation.number").int("validation.number").min(min, "validation.number").max(max, "validation.number");
 

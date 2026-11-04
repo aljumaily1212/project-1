@@ -1,13 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type Role } from "@/lib/api";
+import { api, type Role, type StaffUser } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { staffSchema, type StaffForm } from "@/lib/validation";
+import { editStaffSchema, staffSchema, type EditStaffForm, type StaffForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
@@ -125,18 +126,140 @@ function CreateStaffCard({ onCreated }: { onCreated: () => void }) {
   );
 }
 
+// The manager's edit form, opened under the account's row.
+function EditStaff({ user, onDone }: { user: StaffUser; onDone: (saved: boolean) => void }) {
+  const { t } = useT();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<EditStaffForm>({ resolver: zodResolver(editStaffSchema), defaultValues: { name: user.name, phone: user.phone, new_password: "" } });
+
+  async function onSubmit({ name, phone, new_password }: EditStaffForm) {
+    try {
+      await api.updateStaff(user.id, { name, phone, new_password: new_password || undefined });
+      toast.success(t("users.saved"));
+      onDone(true);
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3 rounded-lg bg-slate-50 p-3" data-edit-staff={user.id}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t("users.name")} error={errors.name?.message}>
+          <Input invalid={!!errors.name} {...register("name")} />
+        </Field>
+        <Field label={t("login.phone")} error={errors.phone?.message}>
+          <Input type="tel" inputMode="numeric" dir="ltr" invalid={!!errors.phone} {...register("phone")} />
+        </Field>
+      </div>
+      <Field label={t("users.newPassword")} error={errors.new_password?.message}>
+        <Input type="password" dir="ltr" autoComplete="new-password" placeholder={t("users.newPasswordHint")} invalid={!!errors.new_password} {...register("new_password")} />
+      </Field>
+      <div className="flex gap-2">
+        <Button type="submit" loading={isSubmitting}>
+          {t("users.save")}
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => onDone(false)}>
+          {t("common.cancel")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// One account in the list. The manager can edit it, and stop or restart it.
+function StaffRow({ user, canManage, isMe, onChanged }: { user: StaffUser; canManage: boolean; isMe: boolean; onChanged: () => void }) {
+  const { t } = useT();
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function toggle() {
+    setSaving(true);
+    try {
+      await api.setStaffActive(user.id, !user.active);
+      toast.success(user.active ? t("users.disabled") : t("users.enabled"));
+      setConfirming(false);
+      onChanged();
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+    setSaving(false);
+  }
+
+  return (
+    <li className="space-y-3 py-3 text-sm" data-staff={user.id}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className={user.active ? "" : "opacity-60"}>
+          <p className="font-medium">
+            {user.name}
+            {isMe && <span className="text-slate-500"> ({t("users.me")})</span>}
+          </p>
+          <p className="text-slate-500" dir="ltr">
+            {user.phone}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!user.active && <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">{t("users.stopped")}</span>}
+          <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">{t(ROLE_LABEL[user.role])}</span>
+          {canManage && !editing && !confirming && (
+            <>
+              <Button variant="ghost" onClick={() => setEditing(true)}>
+                {t("users.edit")}
+              </Button>
+              {!isMe && (
+                <Button variant="ghost" onClick={() => (user.active ? setConfirming(true) : void toggle())} loading={saving && !user.active}>
+                  {user.active ? t("users.disable") : t("users.enable")}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      {editing && (
+        <EditStaff
+          user={user}
+          onDone={(saved) => {
+            setEditing(false);
+            if (saved) onChanged();
+          }}
+        />
+      )}
+      {confirming && (
+        // Stopping signs the person out, so it asks once more and says what happens.
+        <div className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3">
+          <p className="text-red-800">{t(user.role === "doctor" ? "users.disableDoctorHint" : "users.disableHint", { name: user.name })}</p>
+          <div className="flex gap-2">
+            <Button variant="danger" loading={saving} onClick={toggle}>
+              {t("users.confirmDisable")}
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              {t("common.cancel")}
+            </Button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
 // Used by both /reception/users and /manager/users.
 export function StaffUsersPage() {
   const { t } = useT();
-  const { state, reload } = useLoad(api.listStaff);
+  const { state, reload, refresh } = useLoad(api.listStaff);
   const { session } = useSession();
   const isManager = session?.user.role === "manager";
+  // Stopped accounts go to the end of the list.
+  const users = state.status === "success" ? [...state.data].sort((a, b) => Number(b.active) - Number(a.active)) : [];
 
   return (
     <>
       <PageHeader title={t("users.title")} description={isManager ? t("users.subtitleManager") : t("users.subtitle")} />
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <CreateStaffCard onCreated={reload} />
+        <CreateStaffCard onCreated={refresh} />
         <Card className="space-y-3">
           <h2 className="font-semibold">{isManager ? t("users.listAll") : t("users.list")}</h2>
           {state.status === "loading" && <CardsSkeleton count={1} />}
@@ -144,18 +267,8 @@ export function StaffUsersPage() {
           {state.status === "success" && state.data.length === 0 && <EmptyState title={t("users.empty")} />}
           {state.status === "success" && (
             <ul className="divide-y divide-slate-200">
-              {state.data.map((user) => (
-                <li key={user.id} className="flex items-center justify-between gap-3 py-3 text-sm">
-                  <div>
-                    <p className="font-medium">{user.name}</p>
-                    <p className="text-slate-500" dir="ltr">
-                      {user.phone}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700">
-                    {t(ROLE_LABEL[user.role])}
-                  </span>
-                </li>
+              {users.map((user) => (
+                <StaffRow key={user.id} user={user} canManage={isManager} isMe={user.id === session?.user.id} onChanged={refresh} />
               ))}
             </ul>
           )}

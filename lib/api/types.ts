@@ -572,6 +572,16 @@ export interface StaffUser {
   name: string;
   phone: string;
   role: Role;
+  // A stopped account can't sign in. It isn't deleted, so its name stays in the records it made.
+  active: boolean;
+}
+
+// The manager fixes a name or phone, or sets a new password for someone who forgot theirs.
+// The role can't change: a different job gets a new account.
+export interface UpdateStaffRequest {
+  name: string;
+  phone: string;
+  new_password?: string;
 }
 
 export interface CreateStaffRequest {
@@ -631,6 +641,9 @@ export type AuditAction =
   | "expense.void"
   | "password.reset"
   | "password.change"
+  | "staff.update"
+  | "staff.disable"
+  | "staff.enable"
   | "family.add"
   | "family.remove"
   | "stock.create"

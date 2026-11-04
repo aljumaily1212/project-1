@@ -66,6 +66,7 @@ import type {
   VitalsRecord,
   VisitKind,
   ResetPasswordRequest,
+  UpdateStaffRequest,
   WalkInRequest,
   WalkInResult,
 } from "./types";
@@ -193,6 +194,12 @@ export const httpApi = {
   listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
 
   createStaff: (body: CreateStaffRequest) => http.post<null>("/users", body).then(() => undefined),
+
+  // Manager only.
+  updateStaff: (id: number, body: UpdateStaffRequest) => http.patch<null>(`/users/${id}`, body).then(() => undefined),
+
+  // Stop or restart an account (manager only). A stopped account is signed out and can't sign in again.
+  setStaffActive: (id: number, active: boolean) => http.post<null>(`/users/${id}/${active ? "enable" : "disable"}`).then(() => undefined),
 
   getSettings: () => http.get<ClinicSettings>("/settings").then((r) => r.data),
 
