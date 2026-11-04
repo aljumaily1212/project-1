@@ -25,7 +25,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       title={label}
       whileHover={{ scale: 1.08 }}
       whileTap={{ scale: 0.88 }}
-      className={`relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 ${className}`}
+      className={`relative inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 ${className}`}
     >
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span

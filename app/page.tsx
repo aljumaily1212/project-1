@@ -15,6 +15,7 @@ import { loginSchema, type LoginForm } from "@/lib/validation";
 import { LanguageSwitch } from "@/components/language-switch";
 import { LogoMark, Wordmark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TextSizeToggle } from "@/components/text-size-toggle";
 import { Button, Field, Input } from "@/components/common";
 import { Separator } from "@/components/ui/separator";
 
@@ -145,6 +146,7 @@ export default function LoginPage() {
 
       <main className="flex min-h-screen flex-col px-4 py-6 sm:px-8">
         <div className="flex justify-end gap-2">
+          <TextSizeToggle />
           <ThemeToggle />
           <LanguageSwitch />
         </div>

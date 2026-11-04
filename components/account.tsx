@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LanguageSwitch } from "@/components/language-switch";
 import { LogoMark, Wordmark } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TextSizeToggle } from "@/components/text-size-toggle";
 
 export function AuthShell({
   title,
@@ -19,6 +20,7 @@ export function AuthShell({
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="absolute top-4 end-4 flex gap-2">
+        <TextSizeToggle />
         <ThemeToggle />
         <LanguageSwitch />
       </div>

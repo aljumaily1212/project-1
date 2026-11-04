@@ -63,6 +63,15 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Larger text (chosen with the "Aa" button). Percent, not px, so the browser's own size setting still counts.
+   Tailwind sizes are in rem, so text, spacing and boxes all grow together. */
+html[data-text="large"] {
+  font-size: 112.5%;
+}
+html[data-text="larger"] {
+  font-size: 125%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -274,6 +283,11 @@ html[data-vt="fade"]::view-transition-new(root) {
   /* On paper, hide the whole app and show only the paper version. */
   body > *:not(.print-root) {
     display: none !important;
+  }
+
+  /* Paper always uses the normal size, whatever the screen uses. */
+  html[data-text] {
+    font-size: 100%;
   }
 
   .print-root {

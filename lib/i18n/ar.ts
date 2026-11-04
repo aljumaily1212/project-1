@@ -908,4 +908,8 @@ export const ar: Record<MessageKey, string> = {
   "apiError.reason_needed": "اكتب السبب (3 أحرف على الأقل)",
   "audit.expense.add": "سجّل مصروفاً:",
   "audit.expense.void": "ألغى مصروفاً:",
+  "textSize.label": "حجم الخط: {now}. اضغط للتحويل إلى {next}",
+  "textSize.normal": "عادي",
+  "textSize.large": "كبير",
+  "textSize.larger": "أكبر",
 };

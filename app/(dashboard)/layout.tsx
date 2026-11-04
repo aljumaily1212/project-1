@@ -12,6 +12,7 @@ import { Logo } from "@/components/logo";
 import { QuickSearch } from "@/components/quick-search";
 import { StaffBell } from "@/components/staff-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TextSizeToggle } from "@/components/text-size-toggle";
 import { Skeleton } from "@/components/skeleton";
 import { buttonClass } from "@/components/common";
 import { ROLE_LABEL } from "@/components/staff-users";
@@ -135,11 +136,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="mt-auto hidden border-t border-slate-200 px-5 py-4 md:block">
           <p className="truncate text-sm font-medium">{session.user.name}</p>
           <p className="text-xs text-slate-500">{t(label)}</p>
-          <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <button onClick={logout} className={buttonClass("danger")}>
               {t("nav.logout")}
             </button>
             <div className="flex gap-2">
+              <TextSizeToggle />
               <ThemeToggle />
               <LanguageSwitch />
             </div>
@@ -148,11 +150,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-4 py-2 text-sm md:hidden">
-          <span className="text-slate-600">{session.user.name}</span>
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-2 text-sm md:hidden">
+          <span className="min-w-0 truncate text-slate-600">{session.user.name}</span>
+          <TextSizeToggle />
           <ThemeToggle />
           <LanguageSwitch />
-          <button onClick={logout} className="text-red-600">
+          <button onClick={logout} className="whitespace-nowrap text-red-600">
             {t("nav.logout")}
           </button>
         </div>

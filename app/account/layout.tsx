@@ -12,6 +12,7 @@ import { useLoad } from "@/lib/useLoad";
 import { LanguageSwitch } from "@/components/language-switch";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { TextSizeToggle } from "@/components/text-size-toggle";
 import { Skeleton } from "@/components/skeleton";
 import { buttonClass } from "@/components/common";
 
@@ -67,8 +68,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-3 px-4">
+      <header className="z-30 border-b border-slate-200 bg-white/90 backdrop-blur-md md:sticky md:top-0">
+        <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2">
           <div className="flex items-center gap-2">
             <Link href="/" className="text-lg">
               <Logo size={32} />
@@ -77,12 +78,12 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
               <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">{t("app.mockBadge")}</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Link
               href="/account/notifications"
               replace
               aria-label={t("notifications.title")}
-              className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             >
               <Bell className="size-4" aria-hidden />
               {unread > 0 && (
@@ -91,6 +92,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
                 </span>
               )}
             </Link>
+            <TextSizeToggle />
             <ThemeToggle />
             <LanguageSwitch />
             <button onClick={logout} className={buttonClass("danger")}>

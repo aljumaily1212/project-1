@@ -906,6 +906,10 @@ export const en = {
   "apiError.reason_needed": "Write the reason (at least 3 letters)",
   "audit.expense.add": "Recorded an expense:",
   "audit.expense.void": "Voided an expense:",
+  "textSize.label": "Text size: {now}. Press for {next}",
+  "textSize.normal": "normal",
+  "textSize.large": "large",
+  "textSize.larger": "larger",
 };
 
 export type MessageKey = keyof typeof en;
