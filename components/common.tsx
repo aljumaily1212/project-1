@@ -2,7 +2,7 @@
 
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
-import type { AppointmentStatus, Medicine } from "@/lib/api/types";
+import type { AppointmentStatus, DoseInstructions, Medicine } from "@/lib/api/types";
 import { STATUS_COLOR } from "@/lib/display";
 import { useT, type MessageKey } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
@@ -130,12 +130,28 @@ export function TicketBadge({ ticket, className = "" }: { ticket: string | null;
   );
 }
 
+// "مرتين يومياً · بعد الأكل": how often, and when.
+export function doseText(instructions: DoseInstructions, t: (key: MessageKey) => string) {
+  const parts = [t(`dose.times.${instructions.times_per_day}` as MessageKey)];
+  if (instructions.timing !== "any") parts.push(t(`dose.timing.${instructions.timing}`));
+  return parts.join(" · ");
+}
+
+// Each medicine with the doctor's dose and days. After dispensing, the pharmacist's instructions show under it.
 export function MedicineList({ medicines }: { medicines: Medicine[] }) {
   const { t } = useT();
   return (
-    <ul className="space-y-1 text-sm">
+    <ul className="space-y-2 text-sm">
       {medicines.map((m, index) => (
-        <li key={index}>{t("visit.medicineLine", { name: m.name, dose: m.dose, days: m.days })}</li>
+        <li key={index} className="space-y-0.5">
+          <p>{t("visit.medicineLine", { name: m.name, dose: m.dose, days: m.days })}</p>
+          {m.instructions && (
+            <p data-dose className="font-semibold text-brand-700">
+              {doseText(m.instructions, t)}
+            </p>
+          )}
+          {m.instructions?.note && <p className="text-slate-600">{m.instructions.note}</p>}
+        </li>
       ))}
     </ul>
   );

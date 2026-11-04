@@ -155,7 +155,14 @@ export type ReceiveForm = z.infer<typeof receiveSchema>;
 export const dispenseSchema = z.object({
   lines: z.array(
     z
-      .object({ stock_id: z.string(), quantity: count })
+      .object({
+        stock_id: z.string(),
+        quantity: count,
+        // "0" means "only when needed".
+        times_per_day: z.enum(["1", "2", "3", "4", "0"]),
+        timing: z.enum(["before_food", "after_food", "any"]),
+        note: z.string().trim().max(120, "validation.tooLong"),
+      })
       .refine((line) => line.stock_id === "" || line.quantity > 0, { path: ["quantity"], message: "validation.number" }),
   ),
 });

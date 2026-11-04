@@ -157,10 +157,20 @@ export interface WalkInResult {
   duplicate: boolean;
 }
 
+export type DoseTiming = "before_food" | "after_food" | "any";
+
+// How the patient takes a medicine, set by the pharmacist when dispensing. times_per_day 0 means "only when needed".
+export interface DoseInstructions {
+  times_per_day: number;
+  timing: DoseTiming;
+  note: string;
+}
+
 export interface Medicine {
   name: string;
   dose: string;
   days: number;
+  instructions?: DoseInstructions;
 }
 
 export interface PatientVisit {
@@ -349,6 +359,7 @@ export interface ReceiveStockRequest {
 export interface DispenseLine {
   stock_id: number | null;
   quantity: number;
+  instructions: DoseInstructions;
 }
 
 export interface DispenseRequest {
