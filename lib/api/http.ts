@@ -153,9 +153,10 @@ export const httpApi = {
 
   // Numbers go as JSON. Files go as multipart form data, which is how browsers upload files.
   saveResult: (orderId: number, input: ResultInput) => {
-    if (input.type === "number") return http.put<null>(`/lab/orders/${orderId}/result`, input).then(() => undefined);
+    if (input.type === "values") return http.put<null>(`/lab/orders/${orderId}/result`, input).then(() => undefined);
     const form = new FormData();
     form.set("file", input.file);
+    form.set("note", input.note);
     return http.put<null>(`/lab/orders/${orderId}/result`, form).then(() => undefined);
   },
 

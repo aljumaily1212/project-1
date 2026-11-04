@@ -27,6 +27,7 @@ import type {
   PaymentMethod,
   Relation,
   ResultEdit,
+  ResultTemplateRow,
   Role,
   Service,
   Shift,
@@ -55,7 +56,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v13";
+const STORAGE_KEY = "alrahma.mock.v14";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -263,9 +264,38 @@ function seed(): Db {
     audit: [],
     notifications: [],
     services: [
-      { id: 1, name: "Blood sugar", name_ar: "سكر الدم", kind: "test", price: 5000, currency: "IQD" },
-      { id: 2, name: "Complete blood count", name_ar: "تحليل دم شامل", kind: "test", price: 15000, currency: "IQD" },
-      { id: 3, name: "Vitamin D", name_ar: "فيتامين د", kind: "test", price: 25000, currency: "IQD" },
+      {
+        id: 1,
+        name: "Blood sugar",
+        name_ar: "سكر الدم",
+        kind: "test",
+        price: 5000,
+        currency: "IQD",
+        template: [{ name: "Fasting glucose", unit: "mg/dL", ref_low: 70, ref_high: 110 }],
+      },
+      {
+        id: 2,
+        name: "Complete blood count",
+        name_ar: "تحليل دم شامل",
+        kind: "test",
+        price: 15000,
+        currency: "IQD",
+        template: [
+          { name: "Hemoglobin (Hb)", unit: "g/dL", ref_low: 12, ref_high: 17 },
+          { name: "White cells (WBC)", unit: "10³/µL", ref_low: 4, ref_high: 11 },
+          { name: "Red cells (RBC)", unit: "10⁶/µL", ref_low: 4.2, ref_high: 5.9 },
+          { name: "Platelets (PLT)", unit: "10³/µL", ref_low: 150, ref_high: 450 },
+        ],
+      },
+      {
+        id: 3,
+        name: "Vitamin D",
+        name_ar: "فيتامين د",
+        kind: "test",
+        price: 25000,
+        currency: "IQD",
+        template: [{ name: "25-OH Vitamin D", unit: "ng/mL", ref_low: 30, ref_high: 100 }],
+      },
       { id: 4, name: "Chest X-ray", name_ar: "أشعة صدر", kind: "xray", price: 20, currency: "USD" },
       { id: 5, name: "Wound dressing", name_ar: "تضميد جرح", kind: "procedure", price: 10000, currency: "IQD" },
     ],
@@ -307,12 +337,13 @@ const DIAGNOSES: { diagnosis: string; medicines: Medicine[] }[] = [
   { diagnosis: "فحص دوري، لا توجد مشكلة", medicines: [] },
 ];
 
-// The test's unit and a normal-looking range for a fake number result.
-const TEST_VALUES: Record<number, { unit: string; min: number; max: number }> = {
-  1: { unit: "mg/dL", min: 80, max: 190 },
-  2: { unit: "g/dL", min: 10, max: 16 },
-  3: { unit: "ng/mL", min: 8, max: 60 },
-};
+// A fake value near the normal range: usually inside it, sometimes a little above or below.
+function fakeValue(row: ResultTemplateRow, random: () => number) {
+  const low = row.ref_low ?? 0;
+  const high = row.ref_high ?? low * 2 + 10;
+  const value = low * 0.8 + random() * (high * 1.2 - low * 0.8);
+  return Math.round(value * 10) / 10;
+}
 
 // The same "random" numbers every time, so everyone gets the same demo data.
 function randomFrom(seedNumber: number) {
@@ -378,8 +409,7 @@ function addPastMonth(db: Db) {
         if (random() < 0.05) extras.push(findService(db, 4));
         for (const service of extras) {
           db.items.push({ id: id++, appointment_id: appointmentId, label: service.name, label_ar: service.name_ar, kind: service.kind, price: service.price, currency: service.currency });
-          const range = TEST_VALUES[service.id];
-          if (!range) continue;
+          if (!service.template) continue;
           db.labOrders.push({
             id: id++,
             visit_id: visitId,
@@ -387,7 +417,7 @@ function addPastMonth(db: Db) {
             doctor_id: doctor.id,
             service_id: service.id,
             status: "confirmed",
-            result: { type: "number", value: Math.round(range.min + random() * (range.max - range.min)), unit: range.unit },
+            result: { type: "values", rows: service.template.map((row) => ({ ...row, value: fakeValue(row, random) })), sample: "blood", note: "" },
             history: [],
             requested_at: at.toISOString(),
             confirmed_at: new Date(at.getTime() + 3_600_000).toISOString(),
@@ -1409,9 +1439,9 @@ export const mockApi: Api = {
     const user = requireUser(db, "lab");
     const order = findLabOrder(db, orderId);
     const result: LabResult =
-      input.type === "number"
-        ? input
-        : { type: "file", file_name: input.file.name, file_type: input.file.type, data_url: await fileToDataUrl(input.file) };
+      input.type === "values"
+        ? { ...input, note: input.note.trim() }
+        : { type: "file", file_name: input.file.name, file_type: input.file.type, data_url: await fileToDataUrl(input.file), note: input.note.trim() };
     // A confirmed result can still be corrected, but the old value and who changed it are kept.
     if (order.status === "confirmed" && order.result) {
       order.history.unshift({ at: now().toISOString(), by: user.name, before: order.result });

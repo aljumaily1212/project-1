@@ -249,15 +249,35 @@ export interface Service {
   kind: ServiceKind;
   price: number;
   currency: Currency;
+  // The readings this test usually has, so the lab form starts filled in. Missing for X-rays and procedures.
+  template?: ResultTemplateRow[];
 }
 
-// A result is either a number (like blood sugar) or a file (a PDF or an X-ray image).
+export type SampleType = "blood" | "urine" | "stool" | "swab" | "other";
+
+// One reading inside a test, like "Hb" in a blood count. The normal range is empty when the lab gives none.
+export interface ResultRow {
+  name: string;
+  value: number;
+  unit: string;
+  ref_low: number | null;
+  ref_high: number | null;
+}
+
+// A reading the test usually has, before the lab fills in the value.
+export type ResultTemplateRow = Omit<ResultRow, "value">;
+
+// A result is a list of readings, or a file (a PDF or an X-ray image).
+// "number" is the older one-number form, still shown for results saved before readings existed.
 export type LabResult =
-  | { type: "number"; value: number; unit: string }
-  | { type: "file"; file_name: string; file_type: string; data_url: string };
+  | { type: "values"; rows: ResultRow[]; sample: SampleType; note: string }
+  | { type: "file"; file_name: string; file_type: string; data_url: string; note?: string }
+  | { type: "number"; value: number; unit: string };
 
 // What the lab sends to save a result. A file goes as the real file, not a data URL.
-export type ResultInput = { type: "number"; value: number; unit: string } | { type: "file"; file: File };
+export type ResultInput =
+  | { type: "values"; rows: ResultRow[]; sample: SampleType; note: string }
+  | { type: "file"; file: File; note: string };
 
 export type LabStatus = "requested" | "entered" | "confirmed";
 
