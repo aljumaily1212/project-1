@@ -603,6 +603,8 @@ export type AuditAction =
   | "vitals.save"
   | "cash.close"
   | "pharmacy.sale"
+  | "expense.add"
+  | "expense.void"
   | "family.add"
   | "family.remove"
   | "stock.create"
@@ -642,6 +644,29 @@ export interface CloseShiftRequest {
   note: string;
 }
 
+export type ExpenseCategory = "rent" | "salaries" | "power" | "supplies" | "medicines" | "maintenance" | "other";
+
+// Money the clinic paid out. A mistake is never deleted: it is voided, with who, when and why.
+export interface Expense {
+  id: number;
+  date: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: Currency;
+  note: string;
+  by: string;
+  at: string;
+  voided: { by: string; at: string; reason: string } | null;
+}
+
+export interface ExpenseInput {
+  date: string;
+  category: ExpenseCategory;
+  amount: number;
+  currency: Currency;
+  note: string;
+}
+
 export interface DoctorDues {
   doctor_id: number;
   doctor_name: string;
@@ -670,6 +695,9 @@ export interface Report {
   // Pharmacy sales in dinars, kept apart from visit money.
   pharmacy_month: number;
   pharmacy_today: number;
+  // The month's expenses (voided ones left out), and what's left: collected + pharmacy − expenses.
+  expenses: Amounts;
+  profit: Amounts;
 }
 
 export interface AuditEntry {

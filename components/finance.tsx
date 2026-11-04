@@ -8,7 +8,7 @@ import { api, type CountRow, type LedgerEntry } from "@/lib/api";
 import { dateTime, money } from "@/lib/display";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { reverseSchema, type ReverseForm } from "@/lib/validation";
+import { localToday, type ReverseForm, reverseSchema } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
@@ -16,7 +16,7 @@ import { ExportButton } from "@/components/export-button";
 import { sheet } from "@/lib/excel";
 
 // "YYYY-MM" for the current month, the format the month picker uses.
-export const thisMonth = () => new Date().toISOString().slice(0, 7);
+export const thisMonth = () => localToday().slice(0, 7);
 
 export function MonthPicker({ value, onChange }: { value: string; onChange: (month: string) => void }) {
   const { t } = useT();
@@ -114,7 +114,7 @@ export function LedgerView({ canReverse }: { canReverse: boolean }) {
     <Card className="space-y-3">
       <div className="flex justify-end">
         <ExportButton
-          fileName={`ledger-${new Date().toISOString().slice(0, 10)}`}
+          fileName={`ledger-${localToday()}`}
           disabled={entries.length === 0}
           sheets={() => [
             sheet(t("ledger.title"), [
@@ -247,6 +247,10 @@ export function ReportView({ month }: { month: string }) {
     [`${t("reports.thisMonth")} · ${t("reports.collected")} (IQD)`, r.collected.IQD],
     [`${t("reports.thisMonth")} · ${t("reports.collected")} (USD)`, r.collected.USD],
     [`${t("reports.thisMonth")} · ${t("reports.pharmacy")}`, r.pharmacy_month],
+    [`${t("reports.thisMonth")} · ${t("reports.expenses")} (IQD)`, r.expenses.IQD],
+    [`${t("reports.thisMonth")} · ${t("reports.expenses")} (USD)`, r.expenses.USD],
+    [`${t("reports.thisMonth")} · ${t("reports.profit")} (IQD)`, r.profit.IQD],
+    [`${t("reports.thisMonth")} · ${t("reports.profit")} (USD)`, r.profit.USD],
   ];
   const countSheet = (title: string, rows: CountRow[], label: (raw: string) => string = (raw) => raw) =>
     sheet(title, [
@@ -293,6 +297,12 @@ export function ReportView({ month }: { month: string }) {
           </p>
           <p>
             {t("reports.pharmacy")}: {amountText(r.pharmacy_month, "IQD", t)}
+          </p>
+          <p>
+            {t("reports.expenses")}: <AmountsText amounts={r.expenses} />
+          </p>
+          <p className={`text-base font-bold ${r.profit.IQD < 0 ? "text-red-700" : "text-emerald-700"}`} data-report="profit">
+            {t("reports.profit")}: <AmountsText amounts={r.profit} />
           </p>
         </Card>
       </div>

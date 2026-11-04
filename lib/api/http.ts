@@ -18,6 +18,8 @@ import type {
   DoctorSchedule,
   DispenseRequest,
   DoctorVisit,
+  Expense,
+  ExpenseInput,
   FamilyInput,
   FamilyMember,
   FinishVisitRequest,
@@ -242,6 +244,13 @@ export const httpApi = {
 
   // Reception sees its own closings; the accountant and the manager see everyone's.
   listClosings: () => http.get<CashClosing[]>("/cash/closings").then((r) => r.data),
+
+  // A month's expenses ("YYYY-MM"), newest first, voided ones included so the history is complete.
+  listExpenses: (month: string) => http.get<Expense[]>("/expenses", { params: { month } }).then((r) => r.data),
+
+  addExpense: (body: ExpenseInput) => http.post<Expense>("/expenses", body).then((r) => r.data),
+
+  voidExpense: (id: number, reason: string) => http.post<Expense>(`/expenses/${id}/void`, { reason }).then((r) => r.data),
 
   listLedger: () => http.get<LedgerEntry[]>("/ledger").then((r) => r.data),
 

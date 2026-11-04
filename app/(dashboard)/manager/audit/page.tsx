@@ -6,6 +6,7 @@ import { dateTime } from "@/lib/display";
 import { sheet } from "@/lib/excel";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { localToday } from "@/lib/validation";
 import { AuditList } from "@/components/audit-list";
 import { Card, EmptyState, ErrorState, Field, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
@@ -53,7 +54,7 @@ export default function AuditPage() {
         description={t("audit.subtitle")}
         action={
           <ExportButton
-            fileName={`audit-${new Date().toISOString().slice(0, 10)}`}
+            fileName={`audit-${localToday()}`}
             disabled={entries.length === 0}
             // Exports what the filter shows.
             sheets={() => [

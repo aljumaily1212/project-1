@@ -7,6 +7,7 @@ import { api, type MyAppointment } from "@/lib/api";
 import { doctorName, longDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { localToday } from "@/lib/validation";
 import { DayPicker, SlotPicker } from "@/components/booking";
 import { AmountsText, amountText } from "@/components/money";
 import { Button, Card, EmptyState, ErrorState, PageHeader, StatusBadge, TicketBadge, buttonClass } from "@/components/common";
@@ -180,7 +181,7 @@ function FollowUps() {
   return (
     <div className="mb-4 space-y-2">
       {state.data.map((f) => {
-        const late = f.due < new Date().toISOString().slice(0, 10);
+        const late = f.due < localToday();
         return (
           <Card key={f.visit_id} className="flex flex-wrap items-center justify-between gap-3 border-brand-200 bg-brand-50">
             <p className="text-sm">

@@ -11,6 +11,7 @@ import { AmountsText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
 import { ExportButton } from "@/components/export-button";
 import { sheet } from "@/lib/excel";
+import { localToday } from "@/lib/validation";
 
 // Green when the drawer matches, red when money is missing, amber when there's extra.
 function DifferenceBadge({ difference }: { difference: Amounts }) {
@@ -69,7 +70,7 @@ export function ClosingsPage() {
         action={
           state.status === "success" && (
             <ExportButton
-              fileName={`drawer-closings-${new Date().toISOString().slice(0, 10)}`}
+              fileName={`drawer-closings-${localToday()}`}
               disabled={state.data.length === 0}
               sheets={() => [
                 sheet(t("closing.allTitle"), [

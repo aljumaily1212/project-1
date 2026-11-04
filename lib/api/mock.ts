@@ -15,6 +15,8 @@ import type {
   CreateStaffRequest,
   Doctor,
   DoctorVisit,
+  Expense,
+  ExpenseCategory,
   InvoiceItem,
   LabResult,
   LabStatus,
@@ -62,7 +64,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v17";
+const STORAGE_KEY = "alrahma.mock.v18";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -197,6 +199,7 @@ type Db = {
   // Newest first.
   closings: CashClosing[];
   sales: PharmacySale[];
+  expenses: Expense[];
 };
 
 // The stored item. Level and expiry warnings are worked out when it is sent.
@@ -347,6 +350,7 @@ function seed(): Db {
     stockLog: [],
     closings: [],
     sales: [],
+    expenses: fakeExpenses(day),
   };
   addPastMonth(db);
   return db;
@@ -382,6 +386,33 @@ function fakeVitals(random: () => number, at: Date): Omit<VitalsRecord, "appoint
     at: new Date(at.getTime() - 900_000).toISOString(),
     by: "سارة موظفة",
   };
+}
+
+// A believable month of running costs, this month and last, so the profit report has something to show.
+function fakeExpenses(day: string): Expense[] {
+  const list: [number, ExpenseCategory, number, string][] = [
+    [-34, "rent", 2_000_000, "إيجار البناية"],
+    [-33, "salaries", 6_500_000, "رواتب الموظفين"],
+    [-25, "power", 450_000, "اشتراك المولدة"],
+    [-18, "supplies", 380_000, "قفازات وكمامات وشاش"],
+    [-4, "rent", 2_000_000, "إيجار البناية"],
+    [-3, "salaries", 6_500_000, "رواتب الموظفين"],
+    [-2, "power", 480_000, "اشتراك المولدة"],
+    [-1, "medicines", 1_250_000, "شراء أدوية من المذخر"],
+  ];
+  return list
+    .map(([back, category, amount, note], i) => ({
+      id: 900 + i,
+      date: addDays(day, back),
+      category,
+      amount,
+      currency: "IQD" as const,
+      note,
+      by: "رنا المحاسبة",
+      at: `${addDays(day, back)}T10:00:00`,
+      voided: null,
+    }))
+    .reverse();
 }
 
 // Fake comments for the fake ratings.
@@ -519,6 +550,7 @@ function read(): Db {
     db.stockLog ??= [];
     db.closings ??= [];
     db.sales ??= [];
+    db.expenses ??= [];
     return db;
   }
   // Save the starting data once, so every tab works on the same copy from the start.
@@ -1980,6 +2012,37 @@ export const mockApi: Api = {
     return delay(user.role === "reception" ? db.closings.filter((c) => c.by === user.name) : db.closings);
   },
 
+  listExpenses: async (month) => {
+    const db = read();
+    requireUser(db, "accountant", "manager");
+    return delay(db.expenses.filter((e) => inMonth(e.date, month)).sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id));
+  },
+
+  addExpense: async ({ date, category, amount, currency, note }) => {
+    const db = read();
+    const user = requireUser(db, "accountant");
+    if (!(amount > 0)) fail(422, "bad_amount");
+    if (date > today()) fail(422, "future_date");
+    const expense: Expense = { id: db.nextId++, date, category, amount, currency, note: note.trim(), by: user.name, at: now().toISOString(), voided: null };
+    db.expenses.unshift(expense);
+    log(db, user, "expense.add", `${note.trim() || category} · ${amount.toLocaleString("en-US")} ${currency}`);
+    write(db);
+    return delay(expense);
+  },
+
+  voidExpense: async (id, reason) => {
+    const db = read();
+    const user = requireUser(db, "accountant");
+    const expense = db.expenses.find((e) => e.id === id);
+    if (!expense) fail(404);
+    if (expense.voided) fail(409, "already_voided");
+    if (reason.trim().length < 3) fail(422, "reason_needed");
+    expense.voided = { by: user.name, at: now().toISOString(), reason: reason.trim() };
+    log(db, user, "expense.void", `${expense.note || expense.category} · ${reason.trim()}`);
+    write(db);
+    return delay(expense);
+  },
+
   listLedger: async () => {
     const db = read();
     requireUser(db, "accountant", "manager");
@@ -2056,6 +2119,10 @@ export const mockApi: Api = {
     const monthPayments = db.payments.filter((p) => p.at.slice(0, 7) === month);
     const todayPayments = db.payments.filter((p) => dateOf(new Date(p.at)) === today());
     const noShows = db.appointments.filter((a) => inMonth(a.date, month) && a.status === "no_show");
+    const collected = collectedOf(db, monthPayments);
+    const pharmacyMonth = db.sales.filter((s) => s.at.slice(0, 7) === month).reduce((sum, s) => sum + s.total, 0);
+    // Voided expenses were mistakes, so they don't count.
+    const expenses = sumAmounts(db.expenses.filter((e) => !e.voided && inMonth(e.date, month)));
     return delay({
       month,
       by_day: countBy(visited.map((a) => a.date)).sort((a, b) => a.label.localeCompare(b.label)),
@@ -2063,11 +2130,13 @@ export const mockApi: Api = {
       by_branch: countBy(visited.map((a) => a.branch)),
       top_no_shows: countBy(noShows.map((a) => patientName(db, a.patient_id))).slice(0, 5),
       billed: billedOf(db, new Set(visited.map((a) => a.id))),
-      collected: collectedOf(db, monthPayments),
+      collected,
       today_billed: billedOf(db, new Set(todays.map((a) => a.id))),
       today_collected: collectedOf(db, todayPayments),
-      pharmacy_month: db.sales.filter((s) => s.at.slice(0, 7) === month).reduce((sum, s) => sum + s.total, 0),
+      pharmacy_month: pharmacyMonth,
       pharmacy_today: db.sales.filter((s) => dateOf(new Date(s.at)) === today()).reduce((sum, s) => sum + s.total, 0),
+      expenses,
+      profit: { IQD: collected.IQD + pharmacyMonth - expenses.IQD, USD: collected.USD - expenses.USD },
     });
   },
 

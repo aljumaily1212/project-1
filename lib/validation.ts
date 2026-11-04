@@ -3,6 +3,13 @@ import { z } from "zod";
 // For number boxes that may stay empty: an empty box becomes null.
 // React Hook Form also runs this on the starting value, which is null itself, so null must stay null:
 // Number(null) is 0, and a silent 0 would count as a real reading.
+// Today's date on this computer, as "YYYY-MM-DD". toISOString() would give the date in UTC,
+// which in Iraq (UTC+3) is still yesterday between midnight and 3 AM.
+export function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export const numberOrNull = (value: unknown) => (value === "" || value === null || value === undefined ? null : Number(value));
 
 const phone = z.string().regex(/^07\d{9}$/, "validation.phone");
@@ -35,7 +42,7 @@ export type NewPatientForm = z.infer<typeof newPatientSchema>;
 export const familySchema = z.object({
   name: z.string().trim().min(2, "validation.name"),
   relation: z.enum(["child", "parent", "spouse", "sibling", "other"]),
-  birth_date: z.string().refine((d) => d === "" || d <= new Date().toISOString().slice(0, 10), "validation.futureDate"),
+  birth_date: z.string().refine((d) => d === "" || d <= localToday(), "validation.futureDate"),
   phone: z.string().trim().refine((p) => p === "" || /^07\d{9}$/.test(p), "validation.phone"),
 });
 export type FamilyForm = z.infer<typeof familySchema>;
@@ -201,6 +208,17 @@ export const vitalsSchema = z
   .refine((v) => (v.systolic === null) === (v.diastolic === null), { path: ["diastolic"], message: "validation.bpPair" })
   .refine((v) => v.systolic === null || v.diastolic === null || v.systolic > v.diastolic, { path: ["diastolic"], message: "validation.bpOrder" });
 export type VitalsForm = z.infer<typeof vitalsSchema>;
+
+// ---------- expenses ----------
+
+export const expenseSchema = z.object({
+  date: z.string().min(10, "validation.required").refine((d) => d <= localToday(), "validation.futureDate"),
+  category: z.enum(["rent", "salaries", "power", "supplies", "medicines", "maintenance", "other"]),
+  amount: z.number("validation.number").positive("validation.number"),
+  currency: z.enum(["IQD", "USD"]),
+  note: z.string().trim().max(200, "validation.tooLong"),
+});
+export type ExpenseForm = z.infer<typeof expenseSchema>;
 
 // ---------- pharmacy stock ----------
 
