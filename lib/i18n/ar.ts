@@ -633,4 +633,8 @@ export const ar: Record<MessageKey, string> = {
   "lab.flag.low": "منخفض",
   "validation.range": "يجب ألا يكون بداية المعدل أكبر من نهايته",
   "validation.oneReading": "أضف قراءة واحدة على الأقل",
+  "users.subtitleManager": "أنشئ حسابات للموظفين والمديرين والمرضى.",
+  "users.listAll": "جميع الحسابات",
+  "users.patientHint": "إذا كان للمريض ملف سابق من مراجعة بدون موعد بنفس رقم الهاتف، يُربط الحساب بملفه فتظهر زياراته السابقة.",
+  "users.createAny": "حساب جديد",
 };

@@ -3,14 +3,16 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type StaffRole } from "@/lib/api";
+import { api, type Role } from "@/lib/api";
+import { useSession } from "@/lib/auth";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { staffSchema, type StaffForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
-export const ROLE_LABEL: Record<StaffRole, MessageKey> = {
+export const ROLE_LABEL: Record<Role, MessageKey> = {
+  patient: "nav.patient",
   reception: "nav.reception",
   doctor: "nav.doctor",
   pharmacy: "nav.pharmacy",
@@ -19,8 +21,9 @@ export const ROLE_LABEL: Record<StaffRole, MessageKey> = {
   accountant: "nav.accountant",
 };
 
-// Roles that can be created from this page. Manager accounts are made by the company.
-const CREATABLE: StaffForm["role"][] = ["reception", "doctor", "pharmacy", "lab", "accountant"];
+// Reception creates staff. The manager can create every kind of account, managers and patients included.
+const STAFF_ROLES: StaffForm["role"][] = ["reception", "doctor", "pharmacy", "lab", "accountant"];
+const MANAGER_ROLES: StaffForm["role"][] = [...STAFF_ROLES, "manager", "patient"];
 
 const EMPTY: StaffForm = {
   name: "",
@@ -43,7 +46,10 @@ function CreateStaffCard({ onCreated }: { onCreated: () => void }) {
     control,
     formState: { errors, isSubmitting },
   } = useForm<StaffForm>({ resolver: zodResolver(staffSchema), defaultValues: EMPTY });
-  const isDoctor = useWatch({ control, name: "role" }) === "doctor";
+  const role = useWatch({ control, name: "role" });
+  const isDoctor = role === "doctor";
+  const { session } = useSession();
+  const creatable = session?.user.role === "manager" ? MANAGER_ROLES : STAFF_ROLES;
 
   async function onSubmit({ name_en, specialty_ar, specialty_en, branch, fee, ...account }: StaffForm) {
     try {
@@ -62,16 +68,17 @@ function CreateStaffCard({ onCreated }: { onCreated: () => void }) {
   return (
     <Card>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-        <h2 className="font-semibold">{t("users.create")}</h2>
+        <h2 className="font-semibold">{session?.user.role === "manager" ? t("users.createAny") : t("users.create")}</h2>
         <Field label={t("users.role")}>
           <Select {...register("role")}>
-            {CREATABLE.map((role) => (
-              <option key={role} value={role}>
-                {t(ROLE_LABEL[role])}
+            {creatable.map((option) => (
+              <option key={option} value={option}>
+                {t(ROLE_LABEL[option])}
               </option>
             ))}
           </Select>
         </Field>
+        {role === "patient" && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{t("users.patientHint")}</p>}
         <Field label={t("users.name")} error={errors.name?.message}>
           <Input invalid={!!errors.name} {...register("name")} />
         </Field>
@@ -122,14 +129,16 @@ function CreateStaffCard({ onCreated }: { onCreated: () => void }) {
 export function StaffUsersPage() {
   const { t } = useT();
   const { state, reload } = useLoad(api.listStaff);
+  const { session } = useSession();
+  const isManager = session?.user.role === "manager";
 
   return (
     <>
-      <PageHeader title={t("users.title")} description={t("users.subtitle")} />
+      <PageHeader title={t("users.title")} description={isManager ? t("users.subtitleManager") : t("users.subtitle")} />
       <div className="grid items-start gap-4 lg:grid-cols-2">
         <CreateStaffCard onCreated={reload} />
         <Card className="space-y-3">
-          <h2 className="font-semibold">{t("users.list")}</h2>
+          <h2 className="font-semibold">{isManager ? t("users.listAll") : t("users.list")}</h2>
           {state.status === "loading" && <CardsSkeleton count={1} />}
           {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
           {state.status === "success" && state.data.length === 0 && <EmptyState title={t("users.empty")} />}

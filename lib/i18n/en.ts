@@ -631,6 +631,10 @@ export const en = {
   "lab.flag.low": "Low",
   "validation.range": "The start of the range must not be above the end",
   "validation.oneReading": "Add at least one reading",
+  "users.subtitleManager": "Create accounts for staff, managers and patients.",
+  "users.listAll": "All accounts",
+  "users.patientHint": "If this patient already has a file from a walk-in visit with the same phone number, the account is linked to it, so their earlier visits show up.",
+  "users.createAny": "New account",
 };
 
 export type MessageKey = keyof typeof en;

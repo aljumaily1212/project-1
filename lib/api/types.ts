@@ -411,18 +411,20 @@ export interface FinishVisitResult {
   next_ticket: string | null;
 }
 
+// An account in the users list. Reception sees staff only; the manager also sees patient accounts.
 export interface StaffUser {
   id: number;
   name: string;
   phone: string;
-  role: StaffRole;
+  role: Role;
 }
 
 export interface CreateStaffRequest {
   name: string;
   phone: string;
   password: string;
-  role: StaffRole;
+  // Reception can make staff accounts. Only the manager can make manager and patient accounts.
+  role: Role;
   doctor?: {
     name_en: string;
     specialty_ar: string;
