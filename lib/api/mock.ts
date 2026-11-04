@@ -18,6 +18,7 @@ import type {
   LabResult,
   LabStatus,
   LoginResponse,
+  MedicalAlerts,
   Medicine,
   MyAppointment,
   NotificationType,
@@ -113,7 +114,16 @@ type MockDoctor = Doctor & {
 type MockUser = User & { password: string };
 // relation says who this person is to the account owner. Walk-ins have no account.
 // A family member added by a patient may have no phone of their own (""), and no known birth date.
-type MockPatient = { id: number; name: string; phone: string; account_id: number | null; relation?: Relation; birth_date?: string | null };
+// alerts is missing on files saved before allergies existed; alertsOf() treats that as "nothing recorded".
+type MockPatient = {
+  id: number;
+  name: string;
+  phone: string;
+  account_id: number | null;
+  relation?: Relation;
+  birth_date?: string | null;
+  alerts?: MedicalAlerts;
+};
 type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket"> & {
   arrival_order: number;
   // The queue number for the day, counted per doctor. Given when the patient arrives.
@@ -243,7 +253,13 @@ function seed(): Db {
       { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
       { id: 2, name: "مصطفى كريم", phone: "07700000002", account_id: 5, relation: "child" },
       { id: 3, name: "حسن عباس", phone: "07700000003", account_id: null },
-      { id: 4, name: "مريم ناصر", phone: "07700000004", account_id: null },
+      {
+        id: 4,
+        name: "مريم ناصر",
+        phone: "07700000004",
+        account_id: null,
+        alerts: { allergies: ["Aspirin", "Ibuprofen"], conditions: ["ارتفاع ضغط الدم"], blood_type: "O+" },
+      },
     ],
     appointments: [
       { id: 1, patient_id: 4, doctor_id: 1, date: day, time: "09:00", kind: "new", branch: "main", status: "arrived", emergency: false, arrival_order: 1, cancel_reason: null, ticket: 1 },
@@ -546,6 +562,20 @@ function fileToDataUrl(file: File) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+// A doctor may only open the file of a patient who has an appointment or a visit with them.
+function requireDoctorSeesPatient(db: Db, user: MockUser, patientId: number) {
+  const sees =
+    db.appointments.some((a) => a.patient_id === patientId && a.doctor_id === user.doctor_id) ||
+    db.visits.some((v) => v.patient_id === patientId && v.doctor_id === user.doctor_id);
+  if (!sees) fail(403);
+}
+
+const NO_ALERTS: MedicalAlerts = { allergies: [], conditions: [], blood_type: null };
+
+function alertsOf(db: Db, patientId: number): MedicalAlerts {
+  return db.patients.find((p) => p.id === patientId)?.alerts ?? NO_ALERTS;
 }
 
 function patientName(db: Db, id: number) {
@@ -926,8 +956,38 @@ export const mockApi: Api = {
         .filter((p) => p.account_id === user.id)
         // The account owner first, then the others in the order they were added.
         .sort((a, b) => Number(a.relation !== "self") - Number(b.relation !== "self") || a.id - b.id)
-        .map((p) => ({ id: p.id, name: p.name, relation: p.relation ?? "self", birth_date: p.birth_date ?? null, phone: p.phone || null })),
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          relation: p.relation ?? "self",
+          birth_date: p.birth_date ?? null,
+          phone: p.phone || null,
+          alerts: alertsOf(db, p.id),
+        })),
     );
+  },
+
+  patientAlerts: async (patientId) => {
+    const db = read();
+    const user = requireUser(db, "doctor", "reception", "manager");
+    if (user.role === "doctor") requireDoctorSeesPatient(db, user, patientId);
+    if (!db.patients.some((p) => p.id === patientId)) fail(404);
+    return delay(alertsOf(db, patientId));
+  },
+
+  updatePatientAlerts: async (patientId, { allergies, conditions, blood_type }) => {
+    const db = read();
+    const user = requireUser(db, "doctor");
+    requireDoctorSeesPatient(db, user, patientId);
+    const patient = db.patients.find((p) => p.id === patientId);
+    if (!patient) fail(404);
+    // Trimmed, empty ones dropped, and each name only once (ignoring capital letters).
+    const clean = (list: string[]) =>
+      list.map((x) => x.trim()).filter((x, i, all) => x && all.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+    patient.alerts = { allergies: clean(allergies), conditions: clean(conditions), blood_type };
+    log(db, user, "alerts.update", patient.name);
+    write(db);
+    return delay(patient.alerts);
   },
 
   addFamilyMember: async ({ name, relation, birth_date, phone }) => {
@@ -1179,10 +1239,7 @@ export const mockApi: Api = {
   patientHistory: async (patientId) => {
     const db = read();
     const user = requireUser(db, "doctor");
-    const seesPatient =
-      db.appointments.some((a) => a.patient_id === patientId && a.doctor_id === user.doctor_id) ||
-      db.visits.some((v) => v.patient_id === patientId && v.doctor_id === user.doctor_id);
-    if (!seesPatient) fail(403);
+    requireDoctorSeesPatient(db, user, patientId);
     log(db, user, "file.open", patientName(db, patientId));
     write(db);
     return delay(
@@ -1257,6 +1314,7 @@ export const mockApi: Api = {
           return {
             id: v.id,
             patient_name: patientName(db, v.patient_id),
+            allergies: alertsOf(db, v.patient_id).allergies,
             medicines: v.medicines,
             dispensed: v.dispensed,
             created_at: v.created_at,
@@ -1867,9 +1925,17 @@ export const mockApi: Api = {
     }
     const file: PatientFile = {
       patient: patientSummary(db, patient),
+      alerts: alertsOf(db, patient.id),
       family: db.patients
         .filter((p) => patient.account_id !== null && p.account_id === patient.account_id && p.id !== patient.id)
-        .map((p) => ({ id: p.id, name: p.name, relation: p.relation ?? "self", birth_date: p.birth_date ?? null, phone: p.phone || null })),
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          relation: p.relation ?? "self",
+          birth_date: p.birth_date ?? null,
+          phone: p.phone || null,
+          alerts: alertsOf(db, p.id),
+        })),
       appointments: appointments.map((a) => ({
         id: a.id,
         doctor_name: doctorNameOf(db, a.doctor_id),

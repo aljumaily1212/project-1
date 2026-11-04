@@ -83,6 +83,17 @@ export interface Slot {
 
 export type Relation = "self" | "child" | "parent" | "spouse" | "sibling" | "other";
 
+export type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-";
+
+// What everyone treating the patient must know first. Written by the doctor.
+export interface MedicalAlerts {
+  // Medicines or substances the patient reacts to, like "Penicillin" or "Aspirin".
+  allergies: string[];
+  // Long-term diseases, like diabetes or high blood pressure.
+  conditions: string[];
+  blood_type: BloodType | null;
+}
+
 export interface FamilyMember {
   id: number;
   name: string;
@@ -90,6 +101,7 @@ export interface FamilyMember {
   // Both optional: a small child has no phone, and some people don't know an exact birth date.
   birth_date: string | null;
   phone: string | null;
+  alerts: MedicalAlerts;
 }
 
 // What a patient sends to add or edit someone on their account. "self" is the account owner and can't be added.
@@ -495,6 +507,7 @@ export type AuditAction =
   | "service.create"
   | "payment.reverse"
   | "account.delete"
+  | "alerts.update"
   | "family.add"
   | "family.remove"
   | "stock.create"
@@ -593,6 +606,7 @@ export interface PatientFileVisit {
 // Everything about one patient, newest first. The doctor's private notes are not included.
 export interface PatientFile {
   patient: PatientSummary;
+  alerts: MedicalAlerts;
   family: FamilyMember[];
   appointments: PatientAppointment[];
   visits: PatientFileVisit[];
@@ -647,6 +661,8 @@ export interface AppNotification {
 export interface Prescription {
   id: number;
   patient_name: string;
+  // The pharmacy needs the allergies to check what it gives. It still sees nothing else from the file.
+  allergies: string[];
   medicines: Medicine[];
   dispensed: boolean;
   created_at: string;

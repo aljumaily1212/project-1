@@ -5,12 +5,14 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type Medicine, type Prescription, type StockItem } from "@/lib/api";
+import { allergyMatch } from "@/lib/allergies";
 import { dateTime } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { dispenseSchema, type DispenseForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, Select } from "@/components/common";
 import { PrintButton, PrintSection } from "@/components/print";
+import { AlertsBanner } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
 import { StockAlerts, unitText } from "@/components/stock";
 
@@ -153,7 +155,19 @@ function PrescriptionCard({ prescription, stock, onDispensed }: { prescription: 
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("pharmacy.expired")}</span>
         )}
       </div>
+      <AlertsBanner alerts={{ allergies: prescription.allergies, conditions: [], blood_type: null }} quiet />
       <MedicineList medicines={prescription.medicines} />
+      {/* A medicine that matches an allergy gets its own line, so the pharmacist checks with the doctor before giving it. */}
+      {prescription.medicines.map((m, index) => {
+        const allergy = allergyMatch(m.name, prescription.allergies);
+        return (
+          allergy && (
+            <p key={index} className="text-sm font-medium text-red-700" role="alert" data-allergy-conflict>
+              {t("alerts.pharmacyConflict", { medicine: m.name, allergy })}
+            </p>
+          )
+        );
+      })}
       {!prescription.dispensed && (
         <p className="text-xs text-slate-500">{t("pharmacy.validUntil", { date: dateTime(prescription.expires_at, locale) })}</p>
       )}

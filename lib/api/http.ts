@@ -24,6 +24,7 @@ import type {
   LedgerEntry,
   LoginResponse,
   ManagerOverview,
+  MedicalAlerts,
   MyAppointment,
   PatientFile,
   PatientSummary,
@@ -111,6 +112,13 @@ export const httpApi = {
   addWalkIn: (body: WalkInRequest) => http.post<WalkInResult>("/walk-ins", body).then((r) => r.data),
 
   startVisit: (id: number) => http.post<null>(`/appointments/${id}/start`, {}).then(() => undefined),
+
+  // Allergies, chronic diseases and blood type. The doctor, reception and the manager can read them.
+  patientAlerts: (patientId: number) => http.get<MedicalAlerts>(`/patients/${patientId}/alerts`).then((r) => r.data),
+
+  // Only the doctor writes them.
+  updatePatientAlerts: (patientId: number, body: MedicalAlerts) =>
+    http.put<MedicalAlerts>(`/patients/${patientId}/alerts`, body).then((r) => r.data),
 
   patientHistory: (patientId: number) =>
     http.get<DoctorVisit[]>(`/patients/${patientId}/visits`).then((r) => r.data),

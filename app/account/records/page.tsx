@@ -1,6 +1,6 @@
 "use client";
 
-import { api, type PatientVisit, type TestResult } from "@/lib/api";
+import { api, type FamilyMember, type PatientVisit, type TestResult } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { dateTime, doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
@@ -8,13 +8,34 @@ import { useLoad } from "@/lib/useLoad";
 import { Card, EmptyState, ErrorState, MedicineList, PageHeader } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
+import { AlertsBanner, hasAlerts } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
 
-// The whole file on paper: every visit with its prescription, then every confirmed test result.
-function PrintedFile({ visits, results }: { visits: PatientVisit[]; results: TestResult[] }) {
+// Allergies, diseases and blood type for each person on the account. Written by the doctor; read-only here.
+function FamilyAlerts({ family }: { family: FamilyMember[] }) {
+  const { t } = useT();
+  const withAlerts = family.filter((m) => hasAlerts(m.alerts));
+  if (withAlerts.length === 0) return <p className="text-sm text-slate-500">{t("alerts.none")}</p>;
+  return (
+    <div className="space-y-3">
+      {withAlerts.map((m) => (
+        <div key={m.id} className="space-y-1">
+          <p className="text-sm font-semibold">{m.name}</p>
+          <AlertsBanner alerts={m.alerts} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// The whole file on paper: alerts, every visit with its prescription, then every confirmed test result.
+function PrintedFile({ visits, results, family }: { visits: PatientVisit[]; results: TestResult[]; family: FamilyMember[] }) {
   const { t, locale } = useT();
   return (
     <>
+      <PrintSection title={t("alerts.title")}>
+        <FamilyAlerts family={family} />
+      </PrintSection>
       <PrintSection title={t("records.visits")}>
         {visits.length === 0 && <p>{t("records.empty")}</p>}
         {visits.map((v) => (
@@ -75,6 +96,7 @@ export default function RecordsPage() {
   const { state, reload } = useLoad(api.myVisits);
   // Loaded here too, so the printed file can include the results.
   const results = useLoad(api.myResults);
+  const family = useLoad(api.myFamily);
   const { session } = useSession();
   const ready = state.status === "success" && results.state.status === "success";
 
@@ -86,12 +108,28 @@ export default function RecordsPage() {
         action={
           ready && (
             <PrintButton title={t("print.medicalFile")} subject={session?.user.name ?? ""}>
-              {() => <PrintedFile visits={state.status === "success" ? state.data : []} results={results.state.status === "success" ? results.state.data : []} />}
+              {() => (
+                <PrintedFile
+                  visits={state.status === "success" ? state.data : []}
+                  results={results.state.status === "success" ? results.state.data : []}
+                  family={family.state.status === "success" ? family.state.data : []}
+                />
+              )}
             </PrintButton>
           )
         }
       />
       <div className="space-y-8">
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">{t("alerts.title")}</h2>
+          {family.state.status === "loading" && <CardsSkeleton count={1} />}
+          {family.state.status === "error" && <ErrorState message={errorText(family.state.error, t)} onRetry={family.reload} />}
+          {family.state.status === "success" && (
+            <Card>
+              <FamilyAlerts family={family.state.data} />
+            </Card>
+          )}
+        </section>
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">{t("records.visits")}</h2>
           {state.status === "loading" && <CardsSkeleton count={2} />}

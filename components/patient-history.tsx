@@ -10,6 +10,7 @@ import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, 
 import { AmountsText, amountText } from "@/components/money";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
+import { AlertsBanner } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
 
 const TABS = ["visits", "appointments", "tests", "payments"] as const;
@@ -206,6 +207,7 @@ function PrintedPatientFile({ file }: { file: PatientFile }) {
         <p>
           {p.name} · <span dir="ltr">{p.phone}</span>
         </p>
+        <AlertsBanner alerts={file.alerts} />
         <p>
           {t("patients.stat.appointments")}: {p.appointments} · {t("patients.stat.visits")}: {p.visits} · {t("patients.stat.noShows")}: {p.no_shows}
         </p>
@@ -323,6 +325,8 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
               <AmountsText amounts={state.data.money.balance} />
             </Stat>
           </div>
+
+          <AlertsBanner alerts={state.data.alerts} quiet />
 
           {state.data.family.length > 0 && (
             <p className="text-sm text-slate-600">

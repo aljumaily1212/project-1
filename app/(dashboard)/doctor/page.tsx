@@ -1,9 +1,11 @@
 "use client";
 
-import { useFieldArray, useForm } from "react-hook-form";
+import { useState } from "react";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { api, type Service, type StaffAppointment } from "@/lib/api";
+import { api, type MedicalAlerts, type Service, type StaffAppointment } from "@/lib/api";
+import { allergyMatch } from "@/lib/allergies";
 import { useSession } from "@/lib/auth";
 import { dateTime, doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
@@ -12,9 +14,10 @@ import { visitSchema, type VisitForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, StatusBadge, Textarea, TicketBadge } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
+import { AlertsBanner, AlertsEditor } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
 
-function History({ patientId, patientName }: { patientId: number; patientName: string }) {
+function History({ patientId, patientName, alerts }: { patientId: number; patientName: string; alerts: MedicalAlerts | null }) {
   const { t, locale } = useT();
   const { state, reload } = useLoad(() => api.patientHistory(patientId), String(patientId));
 
@@ -28,6 +31,7 @@ function History({ patientId, patientName }: { patientId: number; patientName: s
       <PrintButton title={t("print.medicalFile")} subject={patientName}>
         {() => (
           <PrintSection title={t("doctor.history")}>
+            {alerts && <AlertsBanner alerts={alerts} quiet />}
             {visits.map((v) => (
               <div key={v.id} className="print-keep space-y-1 border-b border-[#e2e8f0] pb-2">
                 <p className="font-semibold">
@@ -83,8 +87,20 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
     defaultValues: { diagnosis: "", internal_note: "", medicines: [], test_ids: [], procedure_ids: [] },
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
+  const alerts = useLoad(() => api.patientAlerts(appointment.patient_id), String(appointment.patient_id));
+  const [editingAlerts, setEditingAlerts] = useState(false);
+  // The doctor ticks this to prescribe something the patient is allergic to, on purpose.
+  const [allergyOk, setAllergyOk] = useState(false);
+  const medicines = useWatch({ control, name: "medicines" });
+  const allergies = alerts.state.status === "success" ? alerts.state.data.allergies : [];
+  const conflicts = (medicines ?? []).map((m) => (m?.name ? allergyMatch(m.name, allergies) : null));
+  const anyConflict = conflicts.some(Boolean);
 
   async function onSubmit(values: VisitForm) {
+    if (anyConflict && !allergyOk) {
+      toast.error(t("alerts.mustConfirm"));
+      return;
+    }
     try {
       const { next_ticket } = await api.finishVisit(appointment.id, {
         ...values,
@@ -110,9 +126,40 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
           <StatusBadge status={appointment.status} />
         </div>
 
+        <div className="space-y-2" data-alerts-section>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">{t("alerts.title")}</h3>
+            {alerts.state.status === "success" && !editingAlerts && (
+              <Button type="button" variant="ghost" onClick={() => setEditingAlerts(true)}>
+                {t("alerts.edit")}
+              </Button>
+            )}
+          </div>
+          {alerts.state.status === "loading" && <CardsSkeleton count={1} />}
+          {alerts.state.status === "error" && <ErrorState message={errorText(alerts.state.error, t)} onRetry={alerts.reload} />}
+          {alerts.state.status === "success" &&
+            (editingAlerts ? (
+              <AlertsEditor
+                patientId={appointment.patient_id}
+                alerts={alerts.state.data}
+                onCancel={() => setEditingAlerts(false)}
+                onSaved={(saved) => {
+                  alerts.setData(() => saved);
+                  setEditingAlerts(false);
+                }}
+              />
+            ) : (
+              <AlertsBanner alerts={alerts.state.data} />
+            ))}
+        </div>
+
         <div className="space-y-2">
           <h3 className="text-sm font-medium">{t("doctor.history")}</h3>
-          <History patientId={appointment.patient_id} patientName={appointment.patient_name} />
+          <History
+            patientId={appointment.patient_id}
+            patientName={appointment.patient_name}
+            alerts={alerts.state.status === "success" ? alerts.state.data : null}
+          />
         </div>
 
         <Field label={t("visit.diagnosis")} error={errors.diagnosis?.message}>
@@ -137,6 +184,11 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
                 <Field label={t("doctor.days")} error={rowErrors?.days?.message}>
                   <Input type="number" min={1} invalid={!!rowErrors?.days} {...register(`medicines.${index}.days`, { valueAsNumber: true })} />
                 </Field>
+                {conflicts[index] && (
+                  <p className="text-sm font-medium text-red-700 sm:col-span-4" role="alert" data-allergy-conflict>
+                    {t("alerts.conflict", { allergy: conflicts[index]! })}
+                  </p>
+                )}
                 <Button type="button" variant="danger" className="sm:mt-7" onClick={() => remove(index)}>
                   {t("doctor.removeMedicine")}
                 </Button>
@@ -146,6 +198,12 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
           <Button type="button" variant="secondary" onClick={() => append({ name: "", dose: "", days: 1 })}>
             {t("doctor.addMedicine")}
           </Button>
+          {anyConflict && (
+            <label className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              <input type="checkbox" className="mt-0.5 size-4 accent-red-600" checked={allergyOk} onChange={(e) => setAllergyOk(e.target.checked)} />
+              {t("alerts.confirmConflict")}
+            </label>
+          )}
         </div>
 
         <fieldset className="space-y-2">
