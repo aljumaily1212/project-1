@@ -570,6 +570,7 @@ export type AuditAction =
   | "account.delete"
   | "alerts.update"
   | "vitals.save"
+  | "cash.close"
   | "family.add"
   | "family.remove"
   | "stock.create"
@@ -582,6 +583,31 @@ export interface LedgerEntry extends Payment {
   patient_name: string;
   doctor_name: string;
   reversible: boolean;
+}
+
+// The cash a receptionist took since their last closing (or since the start of the day).
+export interface ShiftSummary {
+  opened_at: string;
+  payments: number;
+  expected: Amounts;
+}
+
+// One end-of-shift count: what the system expected, what was counted, and the difference (counted − expected).
+export interface CashClosing {
+  id: number;
+  by: string;
+  opened_at: string;
+  closed_at: string;
+  payments: number;
+  expected: Amounts;
+  counted: Amounts;
+  difference: Amounts;
+  note: string;
+}
+
+export interface CloseShiftRequest {
+  counted: Amounts;
+  note: string;
 }
 
 export interface DoctorDues {

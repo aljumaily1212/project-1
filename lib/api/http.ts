@@ -7,7 +7,9 @@ import type {
   BookRequest,
   BookingRules,
   CatalogMedicine,
+  CashClosing,
   ClinicSettings,
+  CloseShiftRequest,
   CreateStaffRequest,
   Doctor,
   DoctorDay,
@@ -42,6 +44,7 @@ import type {
   ScreenDoctor,
   Service,
   ServiceInput,
+  ShiftSummary,
   Slot,
   StaffAppointment,
   StaffBookRequest,
@@ -223,6 +226,14 @@ export const httpApi = {
   createService: (body: ServiceInput) => http.post<null>("/services", body).then(() => undefined),
 
   updateService: (serviceId: number, body: ServiceInput) => http.put<null>(`/services/${serviceId}`, body).then(() => undefined),
+
+  // The receptionist's own open shift: cash taken since their last closing.
+  shiftSummary: () => http.get<ShiftSummary>("/cash/shift").then((r) => r.data),
+
+  closeShift: (body: CloseShiftRequest) => http.post<CashClosing>("/cash/closings", body).then((r) => r.data),
+
+  // Reception sees its own closings; the accountant and the manager see everyone's.
+  listClosings: () => http.get<CashClosing[]>("/cash/closings").then((r) => r.data),
 
   listLedger: () => http.get<LedgerEntry[]>("/ledger").then((r) => r.data),
 

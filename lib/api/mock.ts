@@ -9,6 +9,7 @@ import type {
   BranchId,
   Amounts,
   CancelReason,
+  CashClosing,
   ClinicSettings,
   Currency,
   CreateStaffRequest,
@@ -191,6 +192,8 @@ type Db = {
   stock: MockStock[];
   // Newest first.
   stockLog: StockMove[];
+  // Newest first.
+  closings: CashClosing[];
 };
 
 // The stored item. Level and expiry warnings are worked out when it is sent.
@@ -339,6 +342,7 @@ function seed(): Db {
       { id: 67, name: "Cough syrup 100ml", unit: "bottle", quantity: 12, low_level: 5, expires_on: null, barcode: null },
     ],
     stockLog: [],
+    closings: [],
   };
   addPastMonth(db);
   return db;
@@ -509,6 +513,7 @@ function read(): Db {
     const db = JSON.parse(saved) as Db;
     // Data saved before the stock log existed starts with an empty log, instead of losing everything.
     db.stockLog ??= [];
+    db.closings ??= [];
     return db;
   }
   // Save the starting data once, so every tab works on the same copy from the start.
@@ -938,6 +943,21 @@ function ratingsOf(db: Db, rated: MockVisit[]) {
     .slice(0, 5)
     .map((v) => ({ stars: v.rating!.stars, comment: v.rating!.comment, doctor: doctorNameOf(db, v.doctor_id), at: v.rating!.at }));
   return { by_doctor, recent };
+}
+
+// The receptionist's shift: from their last closing, or from the start of today if they haven't closed today.
+// Only cash payments they took themselves count; a payment reversed later by the accountant is taken out again.
+function shiftOf(db: Db, user: MockUser) {
+  const lastClose = db.closings.find((c) => c.by === user.name)?.closed_at;
+  const startOfDay = new Date(`${today()}T00:00:00`).toISOString();
+  const opened_at = lastClose && lastClose > startOfDay ? lastClose : startOfDay;
+  const mine = db.payments.filter((p) => p.method === "cash" && p.kind === "payment" && p.by === user.name && p.at > opened_at);
+  const expected = zero();
+  for (const p of mine) {
+    const reversed = db.payments.some((r) => r.ref_id === p.id && r.kind === "reversal");
+    if (!reversed) expected[p.currency] += p.amount;
+  }
+  return { opened_at, payments: mine.length, expected };
 }
 
 function session(user: MockUser): LoginResponse {
@@ -1863,6 +1883,40 @@ export const mockApi: Api = {
     log(db, user, "service.update", input.name_ar);
     write(db);
     return delay(undefined);
+  },
+
+  shiftSummary: async () => {
+    const db = read();
+    const user = requireUser(db, "reception");
+    return delay(shiftOf(db, user));
+  },
+
+  closeShift: async ({ counted, note }) => {
+    const db = read();
+    const user = requireUser(db, "reception");
+    if (!(counted.IQD >= 0) || !(counted.USD >= 0)) fail(422, "bad_amount");
+    const shift = shiftOf(db, user);
+    const closing: CashClosing = {
+      id: db.nextId++,
+      by: user.name,
+      opened_at: shift.opened_at,
+      closed_at: now().toISOString(),
+      payments: shift.payments,
+      expected: shift.expected,
+      counted,
+      difference: { IQD: counted.IQD - shift.expected.IQD, USD: counted.USD - shift.expected.USD },
+      note: note.trim(),
+    };
+    db.closings.unshift(closing);
+    log(db, user, "cash.close", `${closing.difference.IQD.toLocaleString("en-US")} IQD`);
+    write(db);
+    return delay(closing);
+  },
+
+  listClosings: async () => {
+    const db = read();
+    const user = requireUser(db, "reception", "accountant", "manager");
+    return delay(user.role === "reception" ? db.closings.filter((c) => c.by === user.name) : db.closings);
   },
 
   listLedger: async () => {

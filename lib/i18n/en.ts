@@ -783,6 +783,32 @@ export const en = {
 
   "notifications.result_for_doctor": "The {test} result for {patient} is ready.",
   "notifications.abnormal": "⚠ Some readings are out of range.",
+
+  "nav.closing": "Close the drawer",
+  "nav.closings": "Drawer closings",
+  "closing.title": "Close the cash drawer",
+  "closing.subtitle": "At the end of your shift, count the cash and compare it with what the system expects",
+  "closing.since": "Your shift since {date}",
+  "closing.paymentsCount": "{n} cash payments",
+  "closing.expected": "Expected",
+  "closing.counted": "Counted",
+  "closing.countIqd": "Dinars counted",
+  "closing.countUsd": "Dollars counted",
+  "closing.usdHint": "Leave empty if there are none",
+  "closing.match": "Matches",
+  "closing.short": "Missing",
+  "closing.over": "Extra",
+  "closing.note": "Note (optional)",
+  "closing.noteRequired": "Explain the difference (required)",
+  "closing.notePlaceholder": "For example: change given to a patient was wrong",
+  "closing.enterCount": "Enter the dinars you counted",
+  "closing.close": "Close the shift with {amount} IQD",
+  "closing.done": "The shift is closed. A new one has started.",
+  "closing.mine": "Your last closings",
+  "closing.none": "No closings yet",
+  "closing.allTitle": "Drawer closings",
+  "closing.allSubtitle": "Every end-of-shift count by reception, with any difference",
+  "audit.cash.close": "Closed the cash drawer, difference:",
 };
 
 export type MessageKey = keyof typeof en;
