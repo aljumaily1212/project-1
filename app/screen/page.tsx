@@ -99,7 +99,8 @@ function DoctorPanel({ item, fresh }: { item: ScreenDoctor; fresh: boolean }) {
       </div>
 
       {item.absent ? (
-        <p className="rounded-2xl bg-red-500/20 px-4 py-6 text-center text-2xl font-semibold text-red-100">{t("screen.absent")}</p>
+        // Fixed colors: the TV screen is always dark, so it must not follow the day/night theme.
+        <p className="rounded-2xl bg-[#ef4444]/20 px-4 py-6 text-center text-2xl font-semibold text-[#fecaca]">{t("screen.absent")}</p>
       ) : (
         <>
           <div className="rounded-2xl bg-black/20 px-4 py-5 text-center">
@@ -124,7 +125,7 @@ function DoctorPanel({ item, fresh }: { item: ScreenDoctor; fresh: boolean }) {
           </div>
           <div className="mt-auto flex flex-wrap justify-between gap-2 text-sm opacity-80">
             <span>{t("screen.waiting", { n: item.waiting })}</span>
-            {item.late_minutes > 0 && <span className="text-amber-200">{t("screen.late", { n: item.late_minutes })}</span>}
+            {item.late_minutes > 0 && <span className="text-[#fde68a]">{t("screen.late", { n: item.late_minutes })}</span>}
           </div>
         </>
       )}

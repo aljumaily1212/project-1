@@ -41,26 +41,30 @@ export function StockBadges({ item }: { item: StockItem }) {
 // Counts of everything that needs attention. Shows nothing when all is well.
 export function StockAlerts({ items, linkToStock }: { items: StockItem[]; linkToStock?: boolean }) {
   const { t } = useT();
+  // Red for what can't be given at all, amber for what needs attention soon. The same colors as the item labels.
   const counts = [
-    { key: "stock.alert.out", n: items.filter((i) => i.level === "out").length },
-    { key: "stock.alert.low", n: items.filter((i) => i.level === "low").length },
-    { key: "stock.alert.expired", n: items.filter((i) => i.expiry === "expired").length },
-    { key: "stock.alert.soon", n: items.filter((i) => i.expiry === "soon").length },
+    { key: "stock.alert.out", n: items.filter((i) => i.level === "out").length, style: LEVEL_STYLE.out },
+    { key: "stock.alert.expired", n: items.filter((i) => i.expiry === "expired").length, style: EXPIRY_STYLE.expired },
+    { key: "stock.alert.low", n: items.filter((i) => i.level === "low").length, style: LEVEL_STYLE.low },
+    { key: "stock.alert.soon", n: items.filter((i) => i.expiry === "soon").length, style: EXPIRY_STYLE.soon },
   ] as const;
   const shown = counts.filter((c) => c.n > 0);
   if (shown.length === 0) return null;
 
   return (
-    <div role="status" data-stock-alerts className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      <span className="flex items-center gap-2 font-semibold">
+    // Only colors that have a night-mode version in globals.css (amber-50/100/700/800), so it stays readable in both modes.
+    <div role="status" data-stock-alerts className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm">
+      <span className="me-1 flex items-center gap-2 font-semibold text-amber-800">
         <TriangleAlert className="size-4" aria-hidden />
         {t("stock.alert.title")}
       </span>
       {shown.map((c) => (
-        <span key={c.key}>{t(c.key, { n: c.n })}</span>
+        <span key={c.key} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${c.style}`}>
+          {t(c.key, { n: c.n })}
+        </span>
       ))}
       {linkToStock && (
-        <Link href="/pharmacy/stock" replace className="ms-auto font-medium underline">
+        <Link href="/pharmacy/stock" replace className="ms-auto font-medium text-amber-800 underline">
           {t("stock.alert.open")}
         </Link>
       )}
