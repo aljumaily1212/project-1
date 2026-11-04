@@ -637,4 +637,17 @@ export const ar: Record<MessageKey, string> = {
   "users.listAll": "جميع الحسابات",
   "users.patientHint": "إذا كان للمريض ملف سابق من مراجعة بدون موعد بنفس رقم الهاتف، يُربط الحساب بملفه فتظهر زياراته السابقة.",
   "users.createAny": "حساب جديد",
+
+  "print.button": "طباعة / حفظ PDF",
+  "print.prescriptionButton": "طباعة الوصفة",
+  "print.resultButton": "طباعة النتيجة",
+  "print.medicalFile": "الملف الطبي",
+  "print.prescription": "وصفة طبية",
+  "print.labReport": "نتيجة تحليل",
+  "print.patientInfo": "بيانات المريض",
+  "print.address": "كربلاء",
+  "print.issued": "كُتبت في {date}",
+  "print.pharmacistSign": "توقيع الصيدلي:",
+  "print.labSign": "توقيع المختبر:",
+  "print.footer": "طُبع من منصة مجمع الرحمة الطبي في {date}. معلومات طبية سرية.",
 };

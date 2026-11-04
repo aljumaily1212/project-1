@@ -968,6 +968,7 @@ export const mockApi: Api = {
         .filter((v) => ids.includes(v.patient_id))
         .map((v) => ({
           id: v.id,
+          created_at: v.created_at,
           patient_name: patientName(db, v.patient_id),
           doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,
@@ -1102,6 +1103,7 @@ export const mockApi: Api = {
         .filter((v) => v.patient_id === patientId)
         .map((v): DoctorVisit => ({
           id: v.id,
+          created_at: v.created_at,
           patient_name: patientName(db, v.patient_id),
           doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,

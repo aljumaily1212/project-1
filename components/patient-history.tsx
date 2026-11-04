@@ -9,6 +9,7 @@ import { useLoad } from "@/lib/useLoad";
 import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, StatusBadge } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { ResultView, serviceName } from "@/components/result-view";
+import { PrintButton, PrintSection } from "@/components/print";
 import { CardsSkeleton } from "@/components/skeleton";
 
 const TABS = ["visits", "appointments", "tests", "payments"] as const;
@@ -195,6 +196,83 @@ function PaymentsTab({ file }: { file: PatientFile }) {
   );
 }
 
+// The full file on paper: who the patient is, the totals, then every visit, appointment and payment.
+function PrintedPatientFile({ file }: { file: PatientFile }) {
+  const { t, locale } = useT();
+  const p = file.patient;
+  return (
+    <>
+      <PrintSection title={t("print.patientInfo")}>
+        <p>
+          {p.name} · <span dir="ltr">{p.phone}</span>
+        </p>
+        <p>
+          {t("patients.stat.appointments")}: {p.appointments} · {t("patients.stat.visits")}: {p.visits} · {t("patients.stat.noShows")}: {p.no_shows}
+        </p>
+        <p>
+          {t("patients.stat.paid")}: <AmountsText amounts={file.money.paid} /> · {t("patients.stat.balance")}: <AmountsText amounts={file.money.balance} />
+        </p>
+      </PrintSection>
+      <PrintSection title={t("patients.tab.visits")}>
+        {file.visits.length === 0 && <p>{t("patients.noVisits")}</p>}
+        {file.visits.map((v) => (
+          <div key={v.id} className="print-keep space-y-1 border-b border-[#e2e8f0] pb-2">
+            <p className="font-semibold">
+              {dateTime(v.created_at, locale)} · {v.doctor_name}
+            </p>
+            <p>
+              {t("visit.diagnosis")}: {v.diagnosis}
+            </p>
+            {v.medicines.length > 0 ? <MedicineList medicines={v.medicines} /> : <p>{t("visit.noMedicines")}</p>}
+            {v.tests.map((test) => (
+              <div key={test.id} className="space-y-1">
+                <p className="font-medium">{serviceName(test.test, locale)}</p>
+                {test.result ? <ResultView result={test.result} /> : <p>{t(`lab.status.${test.status}`)}</p>}
+              </div>
+            ))}
+          </div>
+        ))}
+      </PrintSection>
+      <PrintSection title={t("patients.tab.appointments")}>
+        <table className="w-full text-sm">
+          <tbody>
+            {file.appointments.map((a) => (
+              <tr key={a.id} className="border-b border-[#e2e8f0]">
+                <td className="py-1">
+                  {shortDate(a.date)} <span dir="ltr">{a.time || t("patients.walkIn")}</span>
+                </td>
+                <td className="py-1">{a.doctor_name}</td>
+                <td className="py-1">{t(`status.${a.status}`)}</td>
+                <td className="py-1 text-end">
+                  <AmountsText amounts={a.money.total} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </PrintSection>
+      <PrintSection title={t("patients.tab.payments")}>
+        <table className="w-full text-sm">
+          <tbody>
+            {file.payments.map((pay) => (
+              <tr key={pay.id} className="border-b border-[#e2e8f0]">
+                <td className="py-1">{dateTime(pay.at, locale)}</td>
+                <td className="py-1">
+                  {t(`payments.kind.${pay.kind}`)} · {t(`payments.method.${pay.method}`)}
+                </td>
+                <td className="py-1 text-end" dir="auto">
+                  {pay.kind === "payment" ? "" : "−"}
+                  {amountText(pay.amount, pay.currency, t)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </PrintSection>
+    </>
+  );
+}
+
 function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () => void }) {
   const { t, locale } = useT();
   const { state, reload } = useLoad(() => api.patientFile(patientId), String(patientId));
@@ -220,6 +298,10 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
                 {state.data.patient.phone}
               </p>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+            <PrintButton title={t("print.medicalFile")} subject={state.data.patient.name}>
+              {() => state.status === "success" && <PrintedPatientFile file={state.data} />}
+            </PrintButton>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
               {state.data.patient.has_account
                 ? t("patients.account")
@@ -227,6 +309,7 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
                   ? t("patients.onFamily", { r: t(`relation.${state.data.patient.relation}` as MessageKey) })
                   : t("patients.noAccount")}
             </span>
+            </div>
           </Card>
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
