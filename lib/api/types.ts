@@ -220,6 +220,23 @@ export interface PatientVisit {
   medicines: Medicine[];
 }
 
+// How the patient rated a finished visit: 1 to 5 stars and an optional comment.
+export interface VisitRating {
+  stars: number;
+  comment: string;
+  at: string;
+}
+
+// A visit as the patient sees it, with their rating once they've given one.
+export interface MyVisit extends PatientVisit {
+  rating: VisitRating | null;
+}
+
+export interface RateVisitRequest {
+  stars: number;
+  comment: string;
+}
+
 export type ServiceKind = "test" | "xray" | "procedure";
 export type Currency = "IQD" | "USD";
 export type Amounts = Record<Currency, number>;
@@ -646,9 +663,14 @@ export interface Analytics {
   by_hour: CountRow[];
   by_method: Record<PaymentMethod, number>;
   top_diagnoses: CountRow[];
+  // Patient ratings of visits in the range. The comments carry no patient name, so patients can be honest.
+  ratings: {
+    by_doctor: { label: string; average: number; count: number }[];
+    recent: { stars: number; comment: string; doctor: string; at: string }[];
+  };
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked";
+export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit";
 
 export interface AppNotification {
   id: number;

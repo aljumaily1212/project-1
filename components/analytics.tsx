@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { api, type Analytics, type AnalyticsDay } from "@/lib/api";
-import { money, shortDate } from "@/lib/display";
+import { dateTime, money, shortDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { Button, Card, ErrorState } from "@/components/common";
 import { AmountsText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
+import { Stars } from "@/components/stars";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
 // 7 days, or 4 whole weeks so every weekly group on the charts has 7 days.
@@ -174,6 +175,47 @@ function Tile({ label, children, hint, small }: { label: string; children: React
   );
 }
 
+// Patient ratings: the average per doctor, and the newest comments (without patient names).
+function RatingsCard({ ratings }: { ratings: Analytics["ratings"] }) {
+  const { t, locale } = useT();
+  return (
+    <Card className="space-y-4" data-ratings>
+      <h3 className="font-semibold">{t("rating.title")}</h3>
+      {ratings.by_doctor.length === 0 && <p className="text-sm text-slate-500">{t("analytics.noData")}</p>}
+      <ul className="space-y-2">
+        {ratings.by_doctor.map((d) => (
+          <li key={d.label} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>{d.label}</span>
+            <span className="flex items-center gap-2">
+              <Stars value={d.average} />
+              <span className="font-semibold" dir="ltr">
+                {d.average.toFixed(1)}
+              </span>
+              <span className="text-slate-500">{t("rating.count", { n: d.count })}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+      {ratings.recent.length > 0 && (
+        <div className="space-y-2 border-t border-slate-200 pt-3">
+          <p className="text-sm font-medium">{t("rating.recent")}</p>
+          {ratings.recent.map((r, index) => (
+            <div key={index} className="rounded-lg bg-slate-50 p-3 text-sm">
+              <p className="flex flex-wrap items-center justify-between gap-2 text-slate-500">
+                <span>
+                  {r.doctor} · {dateTime(r.at, locale)}
+                </span>
+                <Stars value={r.stars} size="size-3.5" />
+              </p>
+              <p className="mt-1">“{r.comment}”</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ---------- the analytics section ----------
 
 function Charts({ data }: { data: Analytics }) {
@@ -247,6 +289,8 @@ function Charts({ data }: { data: Analytics }) {
           ]}
         />
       </div>
+
+      <RatingsCard ratings={data.ratings} />
 
       <BarList title={t("analytics.busyHours")} rows={data.by_hour.map((h) => ({ label: `${h.label}:00`, value: h.count }))} />
     </div>

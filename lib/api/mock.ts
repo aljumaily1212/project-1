@@ -41,6 +41,7 @@ import type {
   StockMoveKind,
   User,
   VisitKind,
+  VisitRating,
   WorkDay,
 } from "./types";
 
@@ -57,7 +58,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v14";
+const STORAGE_KEY = "alrahma.mock.v15";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -145,6 +146,7 @@ type MockVisit = {
   internal_note: string;
   medicines: Medicine[];
   dispensed: boolean;
+  rating?: VisitRating;
 };
 type MockLabOrder = {
   id: number;
@@ -354,6 +356,10 @@ const DIAGNOSES: { diagnosis: string; medicines: Medicine[] }[] = [
   { diagnosis: "فحص دوري، لا توجد مشكلة", medicines: [] },
 ];
 
+// Fake comments for the fake ratings.
+const GOOD_COMMENTS = ["الطبيب متعاون جداً وشرح الحالة بوضوح", "خدمة ممتازة والانتظار قصير", "شكراً لكم، تعامل راقٍ", "المكان نظيف والموظفون لطفاء"];
+const BAD_COMMENTS = ["الانتظار كان طويلاً", "لم يُشرح لي الدواء بشكل كافٍ"];
+
 // A fake value near the normal range: usually inside it, sometimes a little above or below.
 function fakeValue(row: ResultTemplateRow, random: () => number) {
   const low = row.ref_low ?? 0;
@@ -418,7 +424,13 @@ function addPastMonth(db: Db) {
         const at = new Date(`${date}T${time || SHIFTS[day.shift].start}:00`);
         const visitId = id++;
         const { diagnosis, medicines } = pick(DIAGNOSES);
-        visits.push({ id: visitId, created_at: at.toISOString(), patient_id: patientId, doctor_id: doctor.id, diagnosis, internal_note: "", medicines, dispensed: true });
+        // About half the patients rated their visit, mostly well, a few not.
+        const rated = random() < 0.5;
+        const stars = rated ? pick([5, 5, 5, 4, 4, 4, 3, 2]) : 0;
+        const rating = rated
+          ? { stars, comment: random() < 0.4 ? pick(stars >= 4 ? GOOD_COMMENTS : BAD_COMMENTS) : "", at: new Date(at.getTime() + 7_200_000).toISOString() }
+          : undefined;
+        visits.push({ id: visitId, created_at: at.toISOString(), patient_id: patientId, doctor_id: doctor.id, diagnosis, internal_note: "", medicines, dispensed: true, rating });
 
         const extras: Service[] = [];
         if (random() < 0.25) extras.push(findService(db, 1 + Math.floor(random() * 3)));
@@ -877,6 +889,24 @@ function requireFreeBarcode(db: Db, barcode: string | null, ignoreId?: number) {
   if (barcode && db.stock.some((s) => s.barcode === barcode && s.id !== ignoreId)) fail(409, "barcode_taken");
 }
 
+// Average stars per doctor (best first), and the 5 newest comments.
+function ratingsOf(db: Db, rated: MockVisit[]) {
+  const by_doctor = db.doctors
+    .map((d) => {
+      const mine = rated.filter((v) => v.doctor_id === d.id);
+      const average = mine.length ? mine.reduce((sum, v) => sum + v.rating!.stars, 0) / mine.length : 0;
+      return { label: d.name_ar, average: Math.round(average * 10) / 10, count: mine.length };
+    })
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.average - a.average);
+  const recent = rated
+    .filter((v) => v.rating!.comment)
+    .sort((a, b) => b.rating!.at.localeCompare(a.rating!.at))
+    .slice(0, 5)
+    .map((v) => ({ stars: v.rating!.stars, comment: v.rating!.comment, doctor: doctorNameOf(db, v.doctor_id), at: v.rating!.at }));
+  return { by_doctor, recent };
+}
+
 function session(user: MockUser): LoginResponse {
   const { password: _password, ...publicUser } = user;
   void _password;
@@ -1077,8 +1107,22 @@ export const mockApi: Api = {
           doctor: doctorOf(db, v.doctor_id),
           diagnosis: v.diagnosis,
           medicines: v.medicines,
+          rating: v.rating ?? null,
         })),
     );
+  },
+
+  rateVisit: async (visitId, { stars, comment }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const visit = db.visits.find((v) => v.id === visitId);
+    // Only visits of people on your own account. Others look like they don't exist.
+    if (!visit || !ownedPatientIds(db, user).includes(visit.patient_id)) fail(404);
+    if (visit.rating) fail(409, "already_rated");
+    if (!Number.isInteger(stars) || stars < 1 || stars > 5) fail(422, "bad_rating");
+    visit.rating = { stars, comment: comment.trim().slice(0, 300), at: now().toISOString() };
+    write(db);
+    return delay(visit.rating);
   },
 
   book: async ({ patient_id, doctor_id, date, time, kind, pay, idempotency_key }) => {
@@ -1265,6 +1309,7 @@ export const mockApi: Api = {
     const user = requireUser(db, "doctor");
     const appointment = changeAppointment(db, id, { status: "done" });
     log(db, user, "visit.finish", patientName(db, appointment.patient_id));
+    notify(db, appointment.patient_id, `rate:${appointment.id}`, "rate_visit", { doctor: doctorNameOf(db, appointment.doctor_id) });
     const visitId = db.nextId++;
     db.visits.unshift({
       id: visitId,
@@ -1885,6 +1930,7 @@ export const mockApi: Api = {
       top_diagnoses: countBy(
         db.visits.filter((v) => inRange(dateOf(new Date(v.created_at)))).map((v) => v.diagnosis),
       ).slice(0, 5),
+      ratings: ratingsOf(db, db.visits.filter((v) => v.rating && inRange(dateOf(new Date(v.created_at))))),
     };
     return delay(result);
   },

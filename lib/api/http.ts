@@ -26,11 +26,12 @@ import type {
   ManagerOverview,
   MedicalAlerts,
   MyAppointment,
+  MyVisit,
   PatientFile,
   PatientSummary,
-  PatientVisit,
   PayRequest,
   Prescription,
+  RateVisitRequest,
   RegisterRequest,
   Report,
   RescheduleRequest,
@@ -49,6 +50,7 @@ import type {
   StockItem,
   TestResult,
   UpdateScheduleRequest,
+  VisitRating,
   VisitKind,
   WalkInRequest,
   WalkInResult,
@@ -89,7 +91,10 @@ export const httpApi = {
 
   myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => r.data),
 
-  myVisits: () => http.get<PatientVisit[]>("/me/visits").then((r) => r.data),
+  myVisits: () => http.get<MyVisit[]>("/me/visits").then((r) => r.data),
+
+  // Once per visit. The answer is the saved rating.
+  rateVisit: (visitId: number, body: RateVisitRequest) => http.post<VisitRating>(`/me/visits/${visitId}/rating`, body).then((r) => r.data),
 
   book: (body: BookRequest) => http.post<null>("/appointments", body).then(() => undefined),
 

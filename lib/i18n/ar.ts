@@ -720,4 +720,18 @@ export const ar: Record<MessageKey, string> = {
   "condition.thyroid": "الغدة الدرقية",
   "condition.kidney": "أمراض الكلى",
   "audit.alerts.update": "حدّث الحساسية والأمراض المزمنة لـ",
+
+  "rating.title": "تقييم المرضى",
+  "rating.ask": "كيف كانت هذه الزيارة؟",
+  "rating.pick": "قيّم من 1 إلى 5 نجوم",
+  "rating.outOf": "{n} من 5",
+  "rating.commentPlaceholder": "هل تريد إضافة شيء؟ (اختياري)",
+  "rating.send": "إرسال التقييم",
+  "rating.thanks": "شكراً لتقييمك",
+  "rating.yours": "تقييمك:",
+  "rating.count": "({n} تقييم)",
+  "rating.recent": "أحدث التعليقات",
+  "notifications.rate_visit": "كيف كانت زيارتك مع {doctor}؟ قيّمها من ملفك الطبي.",
+  "apiError.already_rated": "سبق أن قيّمت هذه الزيارة",
+  "apiError.bad_rating": "اختر من 1 إلى 5 نجوم",
 };

@@ -1,11 +1,14 @@
 "use client";
 
-import { api, type FamilyMember, type PatientVisit, type TestResult } from "@/lib/api";
+import { useState } from "react";
+import { toast } from "sonner";
+import { api, type FamilyMember, type MyVisit, type PatientVisit, type TestResult, type VisitRating } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { dateTime, doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
-import { Card, EmptyState, ErrorState, MedicineList, PageHeader } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, MedicineList, PageHeader, Textarea } from "@/components/common";
+import { StarPicker, Stars } from "@/components/stars";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
 import { AlertsBanner, hasAlerts } from "@/components/medical-alerts";
@@ -65,6 +68,52 @@ function PrintedFile({ visits, results, family }: { visits: PatientVisit[]; resu
   );
 }
 
+// Under each visit: the patient's rating once given, otherwise a small form to give one.
+function VisitRatingBox({ visit, onRated }: { visit: MyVisit; onRated: (rating: VisitRating) => void }) {
+  const { t } = useT();
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (visit.rating) {
+    return (
+      <div className="space-y-1 border-t border-slate-200 pt-2 text-sm" data-rated>
+        <p className="flex items-center gap-2 text-slate-600">
+          {t("rating.yours")} <Stars value={visit.rating.stars} />
+        </p>
+        {visit.rating.comment && <p className="text-slate-600">“{visit.rating.comment}”</p>}
+      </div>
+    );
+  }
+
+  async function send() {
+    setSaving(true);
+    try {
+      const saved = await api.rateVisit(visit.id, { stars, comment });
+      toast.success(t("rating.thanks"));
+      onRated(saved);
+    } catch (err) {
+      toast.error(errorText(err, t));
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 border-t border-slate-200 pt-3" data-rate-form>
+      <p className="text-sm font-medium">{t("rating.ask")}</p>
+      <StarPicker value={stars} onChange={setStars} />
+      {stars > 0 && (
+        <>
+          <Textarea value={comment} maxLength={300} placeholder={t("rating.commentPlaceholder")} onChange={(e) => setComment(e.target.value)} />
+          <Button loading={saving} onClick={send}>
+            {t("rating.send")}
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Results() {
   const { t, locale } = useT();
   const { state, reload } = useLoad(api.myResults);
@@ -93,7 +142,7 @@ function Results() {
 
 export default function RecordsPage() {
   const { t, locale } = useT();
-  const { state, reload } = useLoad(api.myVisits);
+  const { state, reload, setData } = useLoad(api.myVisits);
   // Loaded here too, so the printed file can include the results.
   const results = useLoad(api.myResults);
   const family = useLoad(api.myFamily);
@@ -153,6 +202,7 @@ export default function RecordsPage() {
                 ) : (
                   <MedicineList medicines={v.medicines} />
                 )}
+                <VisitRatingBox visit={v} onRated={(rating) => setData((list) => list.map((x) => (x.id === v.id ? { ...x, rating } : x)))} />
               </Card>
             ))}
         </section>

@@ -718,6 +718,20 @@ export const en = {
   "condition.thyroid": "Thyroid disease",
   "condition.kidney": "Kidney disease",
   "audit.alerts.update": "Updated allergies and diseases for",
+
+  "rating.title": "Patient ratings",
+  "rating.ask": "How was this visit?",
+  "rating.pick": "Rate from 1 to 5 stars",
+  "rating.outOf": "{n} out of 5",
+  "rating.commentPlaceholder": "Anything to add? (optional)",
+  "rating.send": "Send rating",
+  "rating.thanks": "Thank you for your rating",
+  "rating.yours": "Your rating:",
+  "rating.count": "({n} ratings)",
+  "rating.recent": "Latest comments",
+  "notifications.rate_visit": "How was your visit with {doctor}? Rate it from your medical file.",
+  "apiError.already_rated": "You already rated this visit",
+  "apiError.bad_rating": "Choose from 1 to 5 stars",
 };
 
 export type MessageKey = keyof typeof en;
