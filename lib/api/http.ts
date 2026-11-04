@@ -6,6 +6,7 @@ import type {
   AuditEntry,
   BookRequest,
   BookingRules,
+  CatalogMedicine,
   ClinicSettings,
   CreateStaffRequest,
   Doctor,
@@ -138,6 +139,9 @@ export const httpApi = {
   dispense: (id: number, body: DispenseRequest) => http.post<null>(`/prescriptions/${id}/dispense`, body).then(() => undefined),
 
   listStock: () => http.get<StockItem[]>("/pharmacy/stock").then((r) => r.data),
+
+  // The medicines on the pharmacy's shelves, for the doctor's medicine search.
+  medicineCatalog: () => http.get<CatalogMedicine[]>("/pharmacy/catalog").then((r) => r.data),
 
   createStock: (body: StockInput) => http.post<null>("/pharmacy/stock", body).then(() => undefined),
 

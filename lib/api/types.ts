@@ -452,6 +452,13 @@ export interface StockMove {
   note: string;
 }
 
+// What the doctor sees of the pharmacy's stock while prescribing: the name, and whether it can be given.
+// "expired" counts as not available. Quantities stay with the pharmacy.
+export interface CatalogMedicine {
+  name: string;
+  availability: "available" | "low" | "out" | "expired";
+}
+
 // One line per medicine on the prescription, in the same order. stock_id null means it came from outside the pharmacy.
 export interface DispenseLine {
   stock_id: number | null;

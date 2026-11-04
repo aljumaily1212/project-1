@@ -734,4 +734,11 @@ export const ar: Record<MessageKey, string> = {
   "notifications.rate_visit": "كيف كانت زيارتك مع {doctor}؟ قيّمها من ملفك الطبي.",
   "apiError.already_rated": "سبق أن قيّمت هذه الزيارة",
   "apiError.bad_rating": "اختر من 1 إلى 5 نجوم",
+
+  "catalog.available": "متوفر",
+  "catalog.low": "منخفض",
+  "catalog.out": "نفد",
+  "catalog.expired": "منتهي الصلاحية",
+  "catalog.inPharmacy": "صيدلية المجمع:",
+  "catalog.notInPharmacy": "غير موجود في صيدلية المجمع، يمكن للمريض شراؤه من خارجها.",
 };

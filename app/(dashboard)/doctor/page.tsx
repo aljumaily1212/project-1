@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type MedicalAlerts, type Service, type StaffAppointment } from "@/lib/api";
@@ -15,6 +15,7 @@ import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageH
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
 import { AlertsBanner, AlertsEditor } from "@/components/medical-alerts";
+import { MedicineInput } from "@/components/medicine-input";
 import { CardsSkeleton } from "@/components/skeleton";
 
 function History({ patientId, patientName, alerts }: { patientId: number; patientName: string; alerts: MedicalAlerts | null }) {
@@ -88,6 +89,9 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
   });
   const { fields, append, remove } = useFieldArray({ control, name: "medicines" });
   const alerts = useLoad(() => api.patientAlerts(appointment.patient_id), String(appointment.patient_id));
+  // The pharmacy's medicines for the name search. If it fails to load, names are simply typed by hand.
+  const catalogLoad = useLoad(api.medicineCatalog);
+  const catalog = catalogLoad.state.status === "success" ? catalogLoad.state.data : [];
   const [editingAlerts, setEditingAlerts] = useState(false);
   // The doctor ticks this to prescribe something the patient is allergic to, on purpose.
   const [allergyOk, setAllergyOk] = useState(false);
@@ -176,7 +180,21 @@ function VisitForm({ appointment, services, onDone }: { appointment: StaffAppoin
             return (
               <div key={field.id} className="grid items-start gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_6rem_auto]">
                 <Field label={t("doctor.medicine")} error={rowErrors?.name?.message}>
-                  <Input dir="ltr" invalid={!!rowErrors?.name} {...register(`medicines.${index}.name`)} />
+                  <Controller
+                    control={control}
+                    name={`medicines.${index}.name`}
+                    render={({ field }) => (
+                      <MedicineInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        onBlur={field.onBlur}
+                        name={field.name}
+                        inputRef={field.ref}
+                        catalog={catalog}
+                        invalid={!!rowErrors?.name}
+                      />
+                    )}
+                  />
                 </Field>
                 <Field label={t("doctor.dose")} error={rowErrors?.dose?.message}>
                   <Input dir="ltr" invalid={!!rowErrors?.dose} {...register(`medicines.${index}.dose`)} />

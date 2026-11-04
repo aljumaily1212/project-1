@@ -1415,6 +1415,20 @@ export const mockApi: Api = {
     );
   },
 
+  medicineCatalog: async () => {
+    const db = read();
+    requireUser(db, "doctor", "pharmacy");
+    return delay(
+      db.stock
+        .map((item) => {
+          const view = stockView(item);
+          const availability = view.expiry === "expired" ? "expired" : view.level === "out" ? "out" : view.level === "low" ? "low" : "available";
+          return { name: item.name, availability } as const;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    );
+  },
+
   createStock: async (input) => {
     const db = read();
     const user = requireUser(db, "pharmacy");

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode, TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 import type { AppointmentStatus, DoseInstructions, Medicine } from "@/lib/api/types";
 import { STATUS_COLOR } from "@/lib/display";
@@ -69,7 +69,8 @@ export function FieldError({ error, fallback }: { error?: string; fallback?: str
   return null;
 }
 
-export function Input({ invalid, className = "", ...props }: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
+// ComponentProps<"input"> includes `ref`: React 19 passes it like any other prop, so forms can focus the box.
+export function Input({ invalid, className = "", ...props }: ComponentProps<"input"> & { invalid?: boolean }) {
   return <UIInput {...props} aria-invalid={invalid || undefined} className={className} />;
 }
 

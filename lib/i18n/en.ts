@@ -732,6 +732,13 @@ export const en = {
   "notifications.rate_visit": "How was your visit with {doctor}? Rate it from your medical file.",
   "apiError.already_rated": "You already rated this visit",
   "apiError.bad_rating": "Choose from 1 to 5 stars",
+
+  "catalog.available": "In stock",
+  "catalog.low": "Running low",
+  "catalog.out": "Out of stock",
+  "catalog.expired": "Expired",
+  "catalog.inPharmacy": "Clinic pharmacy:",
+  "catalog.notInPharmacy": "Not in the clinic pharmacy. The patient can buy it elsewhere.",
 };
 
 export type MessageKey = keyof typeof en;
