@@ -39,7 +39,7 @@ function PatientPicker({ noShowLimit, onPick }: { noShowLimit: number; onPick: (
     return (
       <form onSubmit={handleSubmit((values) => onPick({ kind: "new", ...values }))} noValidate className="space-y-3">
         <Field label={t("users.name")} error={errors.name?.message}>
-          <Input invalid={!!errors.name} {...register("name")} />
+          <Input maxLength={60} placeholder={t("validation.nameExample")} invalid={!!errors.name} {...register("name")} />
         </Field>
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />

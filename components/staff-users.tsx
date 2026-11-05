@@ -81,7 +81,7 @@ function CreateStaffCard({ onCreated }: { onCreated: () => void }) {
         </Field>
         {role === "patient" && <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{t("users.patientHint")}</p>}
         <Field label={t("users.name")} error={errors.name?.message}>
-          <Input invalid={!!errors.name} {...register("name")} />
+          <Input maxLength={60} placeholder={t("validation.nameExample")} invalid={!!errors.name} {...register("name")} />
         </Field>
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />
@@ -149,7 +149,7 @@ function EditStaff({ user, onDone }: { user: StaffUser; onDone: (saved: boolean)
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3 rounded-lg bg-slate-50 p-3" data-edit-staff={user.id}>
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label={t("users.name")} error={errors.name?.message}>
-          <Input invalid={!!errors.name} {...register("name")} />
+          <Input maxLength={60} placeholder={t("validation.nameExample")} invalid={!!errors.name} {...register("name")} />
         </Field>
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" invalid={!!errors.phone} {...register("phone")} />

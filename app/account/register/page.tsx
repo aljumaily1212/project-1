@@ -54,7 +54,7 @@ export default function RegisterPage() {
       <Card>
         <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
           <Field label={t("account.register.name")} error={errors.name?.message}>
-            <Input autoComplete="name" invalid={!!errors.name} {...register("name")} />
+            <Input maxLength={60} placeholder={t("validation.nameExample")} autoComplete="name" invalid={!!errors.name} {...register("name")} />
           </Field>
           <Field label={t("login.phone")} error={errors.phone?.message}>
             <Input type="tel" inputMode="numeric" dir="ltr" autoComplete="username" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />

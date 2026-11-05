@@ -15,6 +15,7 @@ import { StaffBell } from "@/components/staff-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TextSizeToggle } from "@/components/text-size-toggle";
 import { Skeleton } from "@/components/skeleton";
+import { ErrorScreen } from "@/components/error-screen";
 import { buttonClass } from "@/components/common";
 import { ROLE_LABEL } from "@/components/staff-users";
 
@@ -73,9 +74,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const allowed = !!home && (pathname === home || pathname.startsWith(`${home}/`));
   const [leaving, setLeaving] = useState(false);
 
+  // Not signed in: go to the sign-in page. Signed in but this page is for another role: the 403 page below.
   useEffect(() => {
-    if (ready && !allowed) router.replace(home ?? "/");
-  }, [ready, allowed, home, router]);
+    if (ready && !session) router.replace("/");
+  }, [ready, session, router]);
+
+  if (ready && session && !allowed && !leaving) return <ErrorScreen code={403} />;
 
   if (!ready || leaving || !allowed || !session || session.user.role === "patient") {
     return (

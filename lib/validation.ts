@@ -13,13 +13,41 @@ export function localToday() {
 export const numberOrNull = (value: unknown) => (value === "" || value === null || value === undefined ? null : Number(value));
 
 const phone = z.string().regex(/^07\d{9}$/, "validation.phone");
+
+// Words that belong to the next word, so "عبد الكريم" or "Abd al Kareem" count as one part of the name.
+const JOINS_NEXT = /^(عبد|ابو|أبو|abd|abdul|abdel|abu|al|el)$/i;
+
+// Splits a full name into its parts: the person's name, the father's, the grandfather's.
+// A title at the start (د. / Dr.) is not a part.
+export function nameParts(value: string) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (words.length && /^(د\.?|dr\.?)$/i.test(words[0])) words.shift();
+  const parts: string[] = [];
+  for (const word of words) {
+    const last = parts[parts.length - 1];
+    if (last !== undefined && JOINS_NEXT.test(last.split(" ").pop() ?? "")) parts[parts.length - 1] = `${last} ${word}`;
+    else parts.push(word);
+  }
+  return parts;
+}
+
+// A person's full name: exactly three parts, like "Yasser Ammar Abdalkreem". Each part at least 2 letters.
+const fullName = z
+  .string()
+  .trim()
+  .min(1, "validation.name")
+  .max(60, "validation.name3")
+  .refine((v) => {
+    const parts = nameParts(v);
+    return parts.length === 3 && parts.every((p) => p.length >= 2);
+  }, "validation.name3");
 const password = z.string().min(6, "validation.password");
 
 export const loginSchema = z.object({ phone, password });
 export type LoginForm = z.infer<typeof loginSchema>;
 
 export const registerSchema = loginSchema.extend({
-  name: z.string().trim().min(2, "validation.name"),
+  name: fullName,
 });
 export type RegisterForm = z.infer<typeof registerSchema>;
 
@@ -43,7 +71,7 @@ export const changePasswordSchema = z
 export type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 export const walkInSchema = z.object({
-  name: z.string().trim().min(2, "validation.name"),
+  name: fullName,
   phone,
   doctor_id: z.string(),
   emergency: z.boolean(),
@@ -52,14 +80,14 @@ export type WalkInForm = z.infer<typeof walkInSchema>;
 
 // A caller who has never been to the clinic: just a name and a phone, like a walk-in.
 export const newPatientSchema = z.object({
-  name: z.string().trim().min(2, "validation.name"),
+  name: fullName,
   phone,
 });
 export type NewPatientForm = z.infer<typeof newPatientSchema>;
 
 // Someone on a patient's account. Birth date and phone are optional; empty boxes give "".
 export const familySchema = z.object({
-  name: z.string().trim().min(2, "validation.name"),
+  name: fullName,
   relation: z.enum(["child", "parent", "spouse", "sibling", "other"]),
   birth_date: z.string().refine((d) => d === "" || d <= localToday(), "validation.futureDate"),
   phone: z.string().trim().refine((p) => p === "" || /^07\d{9}$/.test(p), "validation.phone"),
@@ -69,7 +97,7 @@ export type FamilyForm = z.infer<typeof familySchema>;
 // Staff accounts are made by reception. Doctors also need their profile.
 export const staffSchema = z
   .object({
-    name: z.string().trim().min(2, "validation.name"),
+    name: fullName,
     phone,
     password,
     role: z.enum(["reception", "doctor", "pharmacy", "lab", "accountant", "manager", "patient"]),
@@ -89,7 +117,7 @@ export type StaffForm = z.infer<typeof staffSchema>;
 
 // Editing an account: the new password is optional, empty means "keep the old one".
 export const editStaffSchema = z.object({
-  name: z.string().trim().min(2, "validation.name"),
+  name: fullName,
   phone,
   new_password: z.union([z.literal(""), password]),
 });

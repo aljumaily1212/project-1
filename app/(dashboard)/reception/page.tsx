@@ -159,7 +159,7 @@ function WalkInCard({ doctors, onAdded }: { doctors: Doctor[]; onAdded: () => vo
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
         <h2 className="font-semibold">{t("reception.walkIn")}</h2>
         <Field label={t("reception.name")} error={errors.name?.message}>
-          <Input invalid={!!errors.name} {...register("name")} />
+          <Input maxLength={60} placeholder={t("validation.nameExample")} invalid={!!errors.name} {...register("name")} />
         </Field>
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />

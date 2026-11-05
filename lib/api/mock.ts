@@ -69,7 +69,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v20";
+const STORAGE_KEY = "alrahma.mock.v21";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -290,22 +290,22 @@ function seed(): Db {
       },
     ],
     users: [
-      { id: 1, name: "سارة موظفة", phone: MOCK_LOGINS.reception, role: "reception", password: MOCK_PASSWORD },
-      { id: 2, name: "د. علي حسن", phone: MOCK_LOGINS.doctor, role: "doctor", doctor_id: 1, password: MOCK_PASSWORD },
-      { id: 3, name: "د. نور جاسم", phone: "07800000003", role: "doctor", doctor_id: 2, password: MOCK_PASSWORD },
-      { id: 4, name: "أحمد الصيدلي", phone: MOCK_LOGINS.pharmacy, role: "pharmacy", password: MOCK_PASSWORD },
-      { id: 5, name: "زينب كريم", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
-      { id: 6, name: "مدير المجمع", phone: MOCK_LOGINS.manager, role: "manager", password: MOCK_PASSWORD },
-      { id: 7, name: "حيدر المختبر", phone: MOCK_LOGINS.lab, role: "lab", password: MOCK_PASSWORD },
-      { id: 8, name: "رنا المحاسبة", phone: MOCK_LOGINS.accountant, role: "accountant", password: MOCK_PASSWORD },
+      { id: 1, name: "سارة علي حسين", phone: MOCK_LOGINS.reception, role: "reception", password: MOCK_PASSWORD },
+      { id: 2, name: "د. علي حسن كاظم", phone: MOCK_LOGINS.doctor, role: "doctor", doctor_id: 1, password: MOCK_PASSWORD },
+      { id: 3, name: "د. نور جاسم محمد", phone: "07800000003", role: "doctor", doctor_id: 2, password: MOCK_PASSWORD },
+      { id: 4, name: "أحمد سالم جواد", phone: MOCK_LOGINS.pharmacy, role: "pharmacy", password: MOCK_PASSWORD },
+      { id: 5, name: "زينب كريم عباس", phone: MOCK_LOGINS.patient, role: "patient", password: MOCK_PASSWORD },
+      { id: 6, name: "علي حسين مهدي", phone: MOCK_LOGINS.manager, role: "manager", password: MOCK_PASSWORD },
+      { id: 7, name: "حيدر فاضل نوري", phone: MOCK_LOGINS.lab, role: "lab", password: MOCK_PASSWORD },
+      { id: 8, name: "رنا عادل يوسف", phone: MOCK_LOGINS.accountant, role: "accountant", password: MOCK_PASSWORD },
     ],
     patients: [
-      { id: 1, name: "زينب كريم", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
-      { id: 2, name: "مصطفى كريم", phone: "07700000002", account_id: 5, relation: "child" },
-      { id: 3, name: "حسن عباس", phone: "07700000003", account_id: null },
+      { id: 1, name: "زينب كريم عباس", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
+      { id: 2, name: "مصطفى كريم عباس", phone: "07700000002", account_id: 5, relation: "child" },
+      { id: 3, name: "حسن عباس جبار", phone: "07700000003", account_id: null },
       {
         id: 4,
-        name: "مريم ناصر",
+        name: "مريم ناصر حميد",
         phone: "07700000004",
         account_id: null,
         alerts: { allergies: ["Aspirin", "Ibuprofen"], conditions: ["ارتفاع ضغط الدم"], blood_type: "O+" },
@@ -423,7 +423,7 @@ function fakeVitals(random: () => number, at: Date): Omit<VitalsRecord, "appoint
     weight: between(55, 95),
     height: between(155, 185),
     at: new Date(at.getTime() - 900_000).toISOString(),
-    by: "سارة موظفة",
+    by: "سارة علي حسين",
   };
 }
 
@@ -447,7 +447,7 @@ function fakeExpenses(day: string): Expense[] {
       amount,
       currency: "IQD" as const,
       note,
-      by: "رنا المحاسبة",
+      by: "رنا عادل يوسف",
       at: `${addDays(day, back)}T10:00:00`,
       voided: null,
     }))
@@ -567,7 +567,7 @@ function addPastMonth(db: Db) {
             method: currency === "USD" ? "cash" : method,
             kind: "payment",
             at: new Date(at.getTime() + 1_800_000).toISOString(),
-            by: method === "online" && currency === "IQD" ? patientName(db, patientId) : "سارة موظفة",
+            by: method === "online" && currency === "IQD" ? patientName(db, patientId) : "سارة علي حسين",
             reason: "",
             ref_id: null,
             key: `seed:${paymentId}`,
