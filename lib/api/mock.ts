@@ -1638,6 +1638,20 @@ export const mockApi: Api = {
     );
   },
 
+  upcomingAppointments: async ({ days, doctor_id }) => {
+    const db = read();
+    const user = requireUser(db, "reception", "manager", "doctor");
+    const only = user.role === "doctor" ? user.doctor_id : doctor_id;
+    const from = addDays(today(), 1);
+    const to = addDays(today(), Math.min(Math.max(days, 1), 60));
+    return delay(
+      db.appointments
+        .filter((a) => a.status === "booked" && a.date >= from && a.date <= to && (!only || a.doctor_id === only))
+        .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+        .map((a) => staffView(db, a)),
+    );
+  },
+
   doctorQueue: async (doctorId) => {
     const db = read();
     const user = requireUser(db, "reception", "doctor");

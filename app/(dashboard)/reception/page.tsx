@@ -9,6 +9,7 @@ import { doctorName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { flush, queue, useOnline, useOutbox } from "@/lib/offline";
 import { useLoad } from "@/lib/useLoad";
+import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { walkInSchema, type WalkInForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge, TicketBadge } from "@/components/common";
 import { CardsSkeleton, FormSkeleton } from "@/components/skeleton";
@@ -284,6 +285,7 @@ export default function ReceptionPage() {
                   );
                 })}
             </Card>
+            <UpcomingBookings doctors={doctors.state.data} />
             <WalkInCard doctors={doctors.state.data} onAdded={afterChange} />
           </div>
           <div className="space-y-4">

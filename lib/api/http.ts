@@ -193,6 +193,11 @@ export const httpApi = {
 
   bookedToday: () => http.get<StaffAppointment[]>("/appointments/booked-today").then((r) => r.data),
 
+  // Booked appointments from tomorrow for the next `days` days, sorted by date then time.
+  // A doctor gets only their own, whatever doctor_id says.
+  upcomingAppointments: (q: { days: number; doctor_id?: number }) =>
+    http.get<StaffAppointment[]>("/appointments/upcoming", { params: q }).then((r) => r.data),
+
   doctorQueue: (doctorId: number) =>
     http.get<StaffAppointment[]>(`/doctors/${doctorId}/queue`).then((r) => r.data),
 

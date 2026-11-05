@@ -1108,6 +1108,12 @@ export const en = {
   "audit.welfare.approve": "Approved the social welfare card of",
   "audit.welfare.reject": "Rejected the social welfare card of",
   "password.codeSentNoTime": "If {phone} has an account, a code was sent to it by SMS.",
+  "upcoming.title": "Upcoming bookings",
+  "upcoming.range": "Next {n} days",
+  "upcoming.doctor": "Doctor",
+  "upcoming.allDoctors": "All doctors",
+  "upcoming.empty": "No bookings in the next {n} days",
+  "upcoming.count": "Bookings: {n}",
 };
 
 export type MessageKey = keyof typeof en;

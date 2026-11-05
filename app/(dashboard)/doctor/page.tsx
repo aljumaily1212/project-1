@@ -10,6 +10,7 @@ import { useSession } from "@/lib/auth";
 import { dateTime, doctorName, fullDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { visitSchema, type VisitForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, MedicineList, PageHeader, Select, StatusBadge, Textarea, TicketBadge } from "@/components/common";
 import { ResultView, serviceName } from "@/components/result-view";
@@ -369,6 +370,9 @@ export default function DoctorPage() {
               </Button>
             )}
           </Card>
+          <div className="lg:col-start-3">
+            <UpcomingBookings doctorId={doctorId} />
+          </div>
         </div>
       )}
     </>

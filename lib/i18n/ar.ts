@@ -1110,4 +1110,10 @@ export const ar: Record<MessageKey, string> = {
   "audit.welfare.approve": "قبل بطاقة الرعاية الاجتماعية لـ",
   "audit.welfare.reject": "رفض بطاقة الرعاية الاجتماعية لـ",
   "password.codeSentNoTime": "إذا كان للرقم {phone} حساب، فقد أُرسل إليه رمز برسالة نصية.",
+  "upcoming.title": "المواعيد القادمة",
+  "upcoming.range": "خلال {n} يوماً",
+  "upcoming.doctor": "الطبيب",
+  "upcoming.allDoctors": "كل الأطباء",
+  "upcoming.empty": "لا توجد مواعيد خلال {n} يوماً القادمة",
+  "upcoming.count": "عدد المواعيد: {n}",
 };
