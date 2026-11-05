@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, CalendarClock, CalendarPlus, FileHeart, UserRound, Users } from "lucide-react";
+import { Bell, CalendarClock, CalendarPlus, FileHeart, Receipt, UserRound, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearSession, useSession } from "@/lib/auth";
 import { USE_MOCK } from "@/lib/config";
@@ -20,6 +20,7 @@ const NAV: { href: string; label: MessageKey; icon: typeof CalendarPlus }[] = [
   { href: "/account", label: "account.nav.book", icon: CalendarPlus },
   { href: "/account/appointments", label: "account.nav.appointments", icon: CalendarClock },
   { href: "/account/records", label: "account.nav.records", icon: FileHeart },
+  { href: "/account/payments", label: "account.nav.payments", icon: Receipt },
   { href: "/account/family", label: "account.nav.family", icon: Users },
   { href: "/account/profile", label: "account.nav.profile", icon: UserRound },
 ];

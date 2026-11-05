@@ -23,6 +23,7 @@ import type {
   LoginResponse,
   PageQuery,
   PaymentStatus,
+  PaymentLogEntry,
   PaymentSession,
   MedicalAlerts,
   Medicine,
@@ -657,6 +658,52 @@ function settle(db: Db, s: MockPaymentSession) {
     appointment.pay_by = null;
   }
   return true;
+}
+
+// The payment history of some appointments: money that moved, and online payments that didn't go through.
+function paymentLog(db: Db, appointmentIds: number[]): PaymentLogEntry[] {
+  const about = (appointmentId: number) => {
+    const a = findAppointment(db, appointmentId);
+    return {
+      appointment_id: a.id,
+      patient_name: patientName(db, a.patient_id),
+      doctor_name: doctorNameOf(db, a.doctor_id),
+      appointment_date: a.date,
+      appointment_time: a.time,
+    };
+  };
+  const moved: PaymentLogEntry[] = db.payments
+    .filter((p) => appointmentIds.includes(p.appointment_id))
+    .map((p) => ({
+      id: `payment-${p.id}`,
+      kind: p.kind,
+      status: null,
+      at: p.at,
+      amount: p.amount,
+      currency: p.currency,
+      method: p.method,
+      receipt_no: p.id,
+      by: p.by,
+      reason: p.reason,
+      ...about(p.appointment_id),
+    }));
+  // A successful online payment is already in the list above, as a payment.
+  const attempts: PaymentLogEntry[] = db.paymentSessions
+    .filter((s) => appointmentIds.includes(s.appointment_id) && s.status !== "success")
+    .map((s) => ({
+      id: `attempt-${s.id}`,
+      kind: "attempt",
+      status: s.status,
+      at: s.created_at,
+      amount: s.amount,
+      currency: "IQD",
+      method: "online",
+      receipt_no: null,
+      by: db.users.find((u) => u.id === s.user_id)?.name ?? "",
+      reason: "",
+      ...about(s.appointment_id),
+    }));
+  return [...moved, ...attempts].sort((a, b) => b.at.localeCompare(a.at));
 }
 
 // Only for the demo payment page (/pay/demo). The real gateway is Qi Card's own site, so this isn't in the Api.
@@ -2156,6 +2203,14 @@ export const mockApi: Api = {
     return delay(sessionView(db, session));
   },
 
+  myPayments: async ({ patient_id, ...q }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const mine = ownedPatientIds(db, user).filter((id) => !patient_id || id === patient_id);
+    const appointmentIds = db.appointments.filter((a) => mine.includes(a.patient_id)).map((a) => a.id);
+    return delay(pageOf(paymentLog(db, appointmentIds), q));
+  },
+
   paymentStatus: async (paymentId) => {
     const db = read();
     const user = requireUser(db, "patient");
@@ -2551,6 +2606,7 @@ export const mockApi: Api = {
         .filter((p) => appointments.some((a) => a.id === p.appointment_id))
         .sort((a, b) => b.at.localeCompare(a.at))
         .map(({ ref_id: _r, key: _k, ...p }) => (void _r, void _k, p)),
+      payment_log: paymentLog(db, appointments.map((a) => a.id)),
       money: { total, paid, balance: { IQD: total.IQD - paid.IQD, USD: total.USD - paid.USD } },
     };
     return delay(file);

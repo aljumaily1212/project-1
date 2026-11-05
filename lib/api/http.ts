@@ -34,6 +34,7 @@ import type {
   LedgerEntry,
   LoginResponse,
   Page,
+  PaymentLogEntry,
   PaymentSession,
   PageQuery,
   ManagerOverview,
@@ -252,6 +253,10 @@ export const httpApi = {
   // Online payment of what's left on an appointment. Nothing is paid yet: the patient finishes on form_url.
   startPayment: (appointmentId: number, body: StartPaymentRequest) =>
     http.post<PaymentSession>(`/appointments/${appointmentId}/payments`, body).then((r) => r.data),
+
+  // Every payment, refund and online attempt for the patient and their family, newest first.
+  // patient_id keeps only one person's.
+  myPayments: (q: PageQuery & { patient_id?: number }) => http.get<Page<PaymentLogEntry>>("/me/payments", { params: q }).then((r) => r.data),
 
   // The result, as the server knows it from the gateway (its signed notification, then a status check).
   paymentStatus: (paymentId: string) => http.get<PaymentSession>(`/payments/${paymentId}`).then((r) => r.data),
