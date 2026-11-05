@@ -373,7 +373,7 @@ export default function DoctorPage() {
                 </Button>
               )}
             </Card>
-            <UpcomingBookings doctorId={doctorId} />
+            <UpcomingBookings doctorId={doctorId} includeToday />
           </div>
         </div>
       )}

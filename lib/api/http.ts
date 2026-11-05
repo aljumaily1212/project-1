@@ -194,8 +194,9 @@ export const httpApi = {
   bookedToday: () => http.get<StaffAppointment[]>("/appointments/booked-today").then((r) => r.data),
 
   // Booked appointments from tomorrow for the next `days` days, sorted by date then time.
+  // include_today starts from today instead (today's bookings whose patient hasn't arrived yet).
   // A doctor gets only their own, whatever doctor_id says.
-  upcomingAppointments: (q: { days: number; doctor_id?: number }) =>
+  upcomingAppointments: (q: { days: number; doctor_id?: number; include_today?: boolean }) =>
     http.get<StaffAppointment[]>("/appointments/upcoming", { params: q }).then((r) => r.data),
 
   doctorQueue: (doctorId: number) =>

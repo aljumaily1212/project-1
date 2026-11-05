@@ -1114,6 +1114,7 @@ export const en = {
   "upcoming.allDoctors": "All doctors",
   "upcoming.empty": "No bookings in the next {n} days",
   "upcoming.count": "Bookings: {n}",
+  "upcoming.todayNotArrived": "Today, not arrived yet",
 };
 
 export type MessageKey = keyof typeof en;

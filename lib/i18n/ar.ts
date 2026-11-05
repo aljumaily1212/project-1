@@ -1116,4 +1116,5 @@ export const ar: Record<MessageKey, string> = {
   "upcoming.allDoctors": "كل الأطباء",
   "upcoming.empty": "لا توجد مواعيد خلال {n} يوماً القادمة",
   "upcoming.count": "عدد المواعيد: {n}",
+  "upcoming.todayNotArrived": "اليوم: لم يصلوا بعد",
 };

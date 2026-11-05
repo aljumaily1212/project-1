@@ -1638,11 +1638,12 @@ export const mockApi: Api = {
     );
   },
 
-  upcomingAppointments: async ({ days, doctor_id }) => {
+  upcomingAppointments: async ({ days, doctor_id, include_today }) => {
     const db = read();
     const user = requireUser(db, "reception", "manager", "doctor");
     const only = user.role === "doctor" ? user.doctor_id : doctor_id;
-    const from = addDays(today(), 1);
+    // Still "booked" today means the patient hasn't arrived yet. Arrived ones are in the waiting list instead.
+    const from = include_today ? today() : addDays(today(), 1);
     const to = addDays(today(), Math.min(Math.max(days, 1), 60));
     return delay(
       db.appointments
