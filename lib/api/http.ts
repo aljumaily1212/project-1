@@ -81,6 +81,47 @@ import type {
   WalkInResult,
 } from "./types";
 
+// ---------- answers from a backend that is one step behind ----------
+// The front end sometimes gets new fields before the backend sends them. Instead of crashing (or showing
+// "NaN IQD"), a missing field gets a safe value here, in one place. Once the backend sends the field, these do nothing.
+
+const withBookingRules = (r: BookingRules): BookingRules => ({ ...r, welfare_percent: r.welfare_percent ?? 0 });
+
+const withSettings = (s: ClinicSettings): ClinicSettings => ({ ...s, welfare_discount_percent: s.welfare_discount_percent ?? 0 });
+
+// An older backend answers a booking with nothing. The booking was still made; there's just no online payment to open.
+const withBookResult = (r: BookResult | null | undefined): BookResult => ({ appointment_id: r?.appointment_id ?? 0, payment: r?.payment ?? null });
+
+const withPayBy = (list: MyAppointment[]) => list.map((a) => ({ ...a, pay_by: a.pay_by ?? null }));
+
+// Without payment_log, the history is built from the plain payments list (no failed online attempts in that case).
+function withPatientFile(f: PatientFile): PatientFile {
+  const visitOf = (id: number) => f.appointments.find((a) => a.id === id);
+  return {
+    ...f,
+    welfare: f.welfare ?? null,
+    payment_log:
+      f.payment_log ??
+      (f.payments ?? []).map((p) => ({
+        id: `payment-${p.id}`,
+        kind: p.kind,
+        status: null,
+        at: p.at,
+        amount: p.amount,
+        currency: p.currency,
+        method: p.method,
+        receipt_no: p.id,
+        by: p.by,
+        reason: p.reason,
+        appointment_id: p.appointment_id,
+        patient_name: f.patient.name,
+        doctor_name: visitOf(p.appointment_id)?.doctor_name ?? "",
+        appointment_date: visitOf(p.appointment_id)?.date ?? "",
+        appointment_time: visitOf(p.appointment_id)?.time ?? "",
+      })),
+  };
+}
+
 export const httpApi = {
   login: (body: LoginRequest) => http.post<LoginResponse>("/auth/login", body).then((r) => r.data),
 
@@ -122,7 +163,7 @@ export const httpApi = {
   // Takes the person off the account. Their medical file stays with the clinic.
   removeFamilyMember: (id: number) => http.delete<null>(`/me/family/${id}`).then(() => undefined),
 
-  myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => r.data),
+  myAppointments: () => http.get<MyAppointment[]>("/me/appointments").then((r) => withPayBy(r.data)),
 
   // Follow-ups doctors asked for that aren't booked yet, for everyone on the account.
   myFollowUps: () => http.get<FollowUp[]>("/me/follow-ups").then((r) => r.data),
@@ -133,7 +174,7 @@ export const httpApi = {
   rateVisit: (visitId: number, body: RateVisitRequest) => http.post<VisitRating>(`/me/visits/${visitId}/rating`, body).then((r) => r.data),
 
   // Paying online: the answer has the payment to finish on the gateway's page (payment.form_url).
-  book: (body: BookRequest) => http.post<BookResult>("/appointments", body).then((r) => r.data),
+  book: (body: BookRequest) => http.post<BookResult | null>("/appointments", body).then((r) => withBookResult(r.data)),
 
   cancelAppointment: (id: number) => http.post<null>(`/appointments/${id}/cancel`, {}).then(() => undefined),
 
@@ -212,7 +253,7 @@ export const httpApi = {
   // Stop or restart an account (manager only). A stopped account is signed out and can't sign in again.
   setStaffActive: (id: number, active: boolean) => http.post<null>(`/users/${id}/${active ? "enable" : "disable"}`).then(() => undefined),
 
-  getSettings: () => http.get<ClinicSettings>("/settings").then((r) => r.data),
+  getSettings: () => http.get<ClinicSettings>("/settings").then((r) => withSettings(r.data)),
 
   updateSettings: (body: ClinicSettings) => http.put<ClinicSettings>("/settings", body).then((r) => r.data),
 
@@ -251,7 +292,7 @@ export const httpApi = {
 
   myResults: () => http.get<TestResult[]>("/me/results").then((r) => r.data),
 
-  bookingRules: (patientId: number) => http.get<BookingRules>(`/patients/${patientId}/booking-rules`).then((r) => r.data),
+  bookingRules: (patientId: number) => http.get<BookingRules>(`/patients/${patientId}/booking-rules`).then((r) => withBookingRules(r.data)),
 
   // In the real system this starts the payment gateway. The idempotency key stops double charges.
   // Online payment of what's left on an appointment. Nothing is paid yet: the patient finishes on form_url.
@@ -332,7 +373,7 @@ export const httpApi = {
   searchPatients: (query: string, q: PageQuery) =>
     http.get<Page<PatientSummary>>("/patients", { params: { q: query, ...q } }).then((r) => r.data),
 
-  patientFile: (patientId: number) => http.get<PatientFile>(`/patients/${patientId}/file`).then((r) => r.data),
+  patientFile: (patientId: number) => http.get<PatientFile>(`/patients/${patientId}/file`).then((r) => withPatientFile(r.data)),
 
   // The account is removed, but the medical file stays with the clinic.
   deleteMyAccount: (password: string) => http.delete<null>("/me", { data: { password } }).then(() => undefined),
