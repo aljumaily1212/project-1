@@ -3,18 +3,27 @@
 import { useId } from "react";
 import { useTheme } from "@/lib/theme";
 
+// The heart: two round tops and the two straight sides down to the point.
+const HEART = "M60 99.24 L25.53 59.84 A22.35 22.35 0 1 1 60 31.4 A22.35 22.35 0 1 1 94.47 59.84 Z";
+
+// The logo: a white heart (الرحمة: mercy and care) with a medical cross cut through it, on the green tile.
+// The tile and the cross share one gradient laid over the whole drawing (userSpaceOnUse), so the cross looks
+// like a hole in the heart. app/icon.svg (the browser tab) is the same drawing: change both together.
 export function LogoMark({ size = 32, className = "" }: { size?: number; className?: string }) {
   const id = useId();
+  const fill = `url(#${id})`;
   return (
     <svg viewBox="0 0 120 120" width={size} height={size} className={className} aria-hidden>
       <defs>
-        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={id} x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="#14b8a6" />
           <stop offset="1" stopColor="#0f766e" />
         </linearGradient>
       </defs>
-      <rect width="120" height="120" rx="28" fill={`url(#${id})`} />
-      <path d="M50 28 H70 V50 H92 V70 H70 V92 H50 V70 H28 V50 H50 Z" fill="#fff" />
+      <rect width="120" height="120" rx="28" fill={fill} />
+      <path d={HEART} fill="#fff" stroke="#fff" strokeWidth="4" strokeLinejoin="round" />
+      <rect x="53.5" y="39.5" width="13" height="36" rx="3" fill={fill} />
+      <rect x="42" y="51" width="36" height="13" rx="3" fill={fill} />
     </svg>
   );
 }
