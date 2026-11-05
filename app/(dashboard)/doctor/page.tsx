@@ -348,29 +348,31 @@ export default function DoctorPage() {
               <EmptyState title={t("doctor.noCurrent")} description={t("doctor.noCurrentHint")} />
             )}
           </div>
-          <Card className="space-y-3">
-            <h2 className="font-semibold">{t("queue.title")}</h2>
-            {waiting.length === 0 && <p className="text-sm text-slate-500">{t("queue.empty")}</p>}
-            <ol className="space-y-2">
-              {waiting.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex items-center gap-2">
-                    <TicketBadge ticket={a.ticket} />
-                    {a.patient_name}
-                  </span>
-                  {a.emergency && (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
-                  )}
-                </li>
-              ))}
-            </ol>
-            {!current && waiting.length > 0 && (
-              <Button className="w-full" onClick={() => callNext(waiting[0].id)}>
-                {t("doctor.callNext")}
-              </Button>
-            )}
-          </Card>
-          <div className="lg:col-start-3">
+          {/* The waiting list and the upcoming bookings share one column, so the second sits right under the first
+              (in the grid it would start below the tall visit form). */}
+          <div className="space-y-4">
+            <Card className="space-y-3">
+              <h2 className="font-semibold">{t("queue.title")}</h2>
+              {waiting.length === 0 && <p className="text-sm text-slate-500">{t("queue.empty")}</p>}
+              <ol className="space-y-2">
+                {waiting.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="flex items-center gap-2">
+                      <TicketBadge ticket={a.ticket} />
+                      {a.patient_name}
+                    </span>
+                    {a.emergency && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">{t("queue.emergency")}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+              {!current && waiting.length > 0 && (
+                <Button className="w-full" onClick={() => callNext(waiting[0].id)}>
+                  {t("doctor.callNext")}
+                </Button>
+              )}
+            </Card>
             <UpcomingBookings doctorId={doctorId} />
           </div>
         </div>
