@@ -72,6 +72,10 @@ import type {
   VisitKind,
   ResetPasswordRequest,
   StartPaymentRequest,
+  WelfareRequest,
+  WelfareReview,
+  WelfareStatus,
+  WelfareSubmit,
   UpdateStaffRequest,
   WalkInRequest,
   WalkInResult,
@@ -253,6 +257,24 @@ export const httpApi = {
   // Online payment of what's left on an appointment. Nothing is paid yet: the patient finishes on form_url.
   startPayment: (appointmentId: number, body: StartPaymentRequest) =>
     http.post<PaymentSession>(`/appointments/${appointmentId}/payments`, body).then((r) => r.data),
+
+  // ---------- social welfare ----------
+
+  // The latest request of each family member.
+  myWelfare: () => http.get<WelfareRequest[]>("/me/welfare").then((r) => r.data),
+
+  // Sends the card number and a photo of the card. The photo goes as a file (multipart), not as JSON.
+  submitWelfare: (patientId: number, { card_number, photo }: WelfareSubmit) => {
+    const form = new FormData();
+    form.append("card_number", card_number);
+    form.append("photo", photo);
+    return http.post<WelfareRequest>(`/patients/${patientId}/welfare`, form).then((r) => r.data);
+  },
+
+  // Reception and the manager: requests by status, newest first.
+  listWelfare: (status: WelfareStatus) => http.get<WelfareRequest[]>("/welfare", { params: { status } }).then((r) => r.data),
+
+  reviewWelfare: (id: number, body: WelfareReview) => http.post<WelfareRequest>(`/welfare/${id}/review`, body).then((r) => r.data),
 
   // Every payment, refund and online attempt for the patient and their family, newest first.
   // patient_id keeps only one person's.

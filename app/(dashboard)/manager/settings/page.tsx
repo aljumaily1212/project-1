@@ -10,7 +10,7 @@ import { settingsSchema, type SettingsForm } from "@/lib/validation";
 import { Button, Card, ErrorState, Field, Input, PageHeader } from "@/components/common";
 import { FormSkeleton } from "@/components/skeleton";
 
-const FIELDS: (keyof ClinicSettings)[] = ["cancel_hours", "no_show_limit", "deposit_amount", "prescription_days", "usd_rate"];
+const FIELDS: (keyof ClinicSettings)[] = ["cancel_hours", "no_show_limit", "deposit_amount", "prescription_days", "usd_rate", "welfare_discount_percent"];
 
 function SettingsFormCard({ initial }: { initial: ClinicSettings }) {
   const { t } = useT();
@@ -52,7 +52,7 @@ export default function SettingsPage() {
   return (
     <>
       <PageHeader title={t("settings.title")} description={t("settings.subtitle")} />
-      {state.status === "loading" && <FormSkeleton fields={5} />}
+      {state.status === "loading" && <FormSkeleton fields={6} />}
       {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
       {state.status === "success" && <SettingsFormCard initial={state.data} />}
     </>

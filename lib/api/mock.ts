@@ -25,6 +25,7 @@ import type {
   PaymentStatus,
   PaymentLogEntry,
   PaymentSession,
+  WelfareRequest,
   MedicalAlerts,
   Medicine,
   MyAppointment,
@@ -80,6 +81,7 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   deposit_amount: 10000,
   prescription_days: 7,
   usd_rate: 1310,
+  welfare_discount_percent: 25,
 };
 
 const SHIFTS: Record<Shift, { start: string; end: string }> = {
@@ -209,7 +211,10 @@ type Db = {
   expenses: Expense[];
   resetCodes: ResetCode[];
   paymentSessions: MockPaymentSession[];
+  welfare: MockWelfare[];
 };
+
+type MockWelfare = Omit<WelfareRequest, "patient_name" | "patient_phone">;
 
 // An online payment waiting on the (demo) gateway. `outcome` is what the gateway page decided; it becomes the
 // status a moment later (`settles_at`), the way a real gateway's notification reaches the server after the redirect.
@@ -384,6 +389,7 @@ function seed(): Db {
     expenses: fakeExpenses(day),
     resetCodes: [],
     paymentSessions: [],
+    welfare: [],
   };
   addPastMonth(db);
   return db;
@@ -586,6 +592,8 @@ function read(): Db {
     db.expenses ??= [];
     db.resetCodes ??= [];
     db.paymentSessions ??= [];
+    db.welfare ??= [];
+    db.settings.welfare_discount_percent ??= DEFAULT_SETTINGS.welfare_discount_percent;
     expireUnpaid(db);
     return db;
   }
@@ -974,7 +982,46 @@ function moneyOf(db: Db, appointmentId: number) {
 
 function addItem(db: Db, appointmentId: number, item: Omit<InvoiceItem, "id">) {
   db.items.push({ id: db.nextId++, appointment_id: appointmentId, ...item });
+  if (item.kind === "visit") addWelfareDiscount(db, appointmentId);
 }
+
+// ---------- social welfare ----------
+
+// The approved card that covers this person on this day, if there is one.
+function activeWelfare(db: Db, patientId: number, date: string) {
+  return db.welfare.find((w) => w.patient_id === patientId && w.status === "approved" && !!w.valid_until && w.valid_until >= date) ?? null;
+}
+
+const welfarePercent = (db: Db, patientId: number, date: string) =>
+  activeWelfare(db, patientId, date) ? db.settings.welfare_discount_percent : 0;
+
+// The discount is a line of its own on the bill, so the receipt shows it. Rounded to 250 dinars, the smallest note.
+// Only once per appointment, and only on the visit fee (not lab tests or medicines).
+function addWelfareDiscount(db: Db, appointmentId: number) {
+  const a = findAppointment(db, appointmentId);
+  const percent = welfarePercent(db, a.patient_id, a.date);
+  if (percent <= 0 || db.items.some((i) => i.appointment_id === appointmentId && i.kind === "discount")) return;
+  const visit = db.items.filter((i) => i.appointment_id === appointmentId && i.kind === "visit" && i.currency === "IQD").reduce((s, i) => s + i.price, 0);
+  const amount = Math.round((visit * percent) / 100 / 250) * 250;
+  if (amount <= 0) return;
+  db.items.push({
+    id: db.nextId++,
+    appointment_id: appointmentId,
+    label: `Social welfare discount (${percent}%)`,
+    label_ar: `خصم الرعاية الاجتماعية (${percent}%)`,
+    kind: "discount",
+    price: -amount,
+    currency: "IQD",
+  });
+}
+
+function welfareView(db: Db, w: MockWelfare): WelfareRequest {
+  const patient = db.patients.find((p) => p.id === w.patient_id);
+  return { ...w, patient_name: patient?.name ?? "", patient_phone: patient?.phone ?? "" };
+}
+
+const latestWelfare = (db: Db, patientId: number) =>
+  db.welfare.filter((w) => w.patient_id === patientId).sort((a, b) => b.submitted_at.localeCompare(a.submitted_at))[0] ?? null;
 
 const visitFee = (doctor: MockDoctor): Omit<InvoiceItem, "id"> => ({
   label: "Visit fee",
@@ -1020,7 +1067,12 @@ const noShowsOf = (db: Db, patientId: number) => db.appointments.filter((a) => a
 
 function rulesFor(db: Db, patientId: number) {
   const noShows = noShowsOf(db, patientId);
-  return { no_shows: noShows, deposit_required: noShows >= db.settings.no_show_limit, deposit_amount: db.settings.deposit_amount };
+  return {
+    no_shows: noShows,
+    deposit_required: noShows >= db.settings.no_show_limit,
+    deposit_amount: db.settings.deposit_amount,
+    welfare_percent: welfarePercent(db, patientId, today()),
+  };
 }
 
 function invoiceOf(db: Db, a: MockAppointment) {
@@ -1497,7 +1549,8 @@ export const mockApi: Api = {
     // Paying online: nothing is paid yet. The patient finishes on the gateway's page.
     let payment: PaymentSession | null = null;
     if (pay !== "clinic") {
-      const amount = pay === "full" ? doctor.fee : Math.min(db.settings.deposit_amount, doctor.fee);
+      const owed = moneyOf(db, id).balance.IQD;
+      const amount = pay === "full" ? owed : Math.min(db.settings.deposit_amount, owed);
       payment = sessionView(db, openPayment(db, user, id, amount, `${idempotency_key}:pay`, return_url));
     }
     log(db, user, "appointment.book", patientName(db, patient_id));
@@ -2203,6 +2256,88 @@ export const mockApi: Api = {
     return delay(sessionView(db, session));
   },
 
+  myWelfare: async () => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    return delay(
+      ownedPatientIds(db, user)
+        .map((id) => latestWelfare(db, id))
+        .filter((w): w is MockWelfare => w !== null)
+        .map((w) => welfareView(db, w)),
+    );
+  },
+
+  submitWelfare: async (patientId, { card_number, photo }) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    if (!ownedPatientIds(db, user).includes(patientId)) fail(403);
+    if (!photo.type.startsWith("image/")) fail(422, "not_an_image");
+    if (photo.size > 3 * 1024 * 1024) fail(413, "file_too_big");
+    // One open request at a time: a new photo replaces one that's still waiting.
+    db.welfare = db.welfare.filter((w) => !(w.patient_id === patientId && w.status === "pending"));
+    const request: MockWelfare = {
+      id: db.nextId++,
+      patient_id: patientId,
+      card_number: card_number.trim(),
+      photo_url: await fileToDataUrl(photo),
+      status: "pending",
+      submitted_at: now().toISOString(),
+      reviewed_by: null,
+      reviewed_at: null,
+      valid_until: null,
+      reject_reason: "",
+    };
+    db.welfare.push(request);
+    // Every receptionist is told there's a card to check.
+    for (const r of db.users.filter((u) => u.role === "reception" && !u.disabled)) {
+      notifyUser(db, r.id, `welfare-submitted-${request.id}-${r.id}`, "welfare_submitted", { patient: patientName(db, patientId) });
+    }
+    log(db, user, "welfare.submit", patientName(db, patientId));
+    write(db);
+    return delay(welfareView(db, request));
+  },
+
+  listWelfare: async (status) => {
+    const db = read();
+    requireUser(db, "reception", "manager");
+    return delay(
+      db.welfare
+        .filter((w) => w.status === status)
+        .sort((a, b) => (status === "pending" ? a.submitted_at.localeCompare(b.submitted_at) : (b.reviewed_at ?? "").localeCompare(a.reviewed_at ?? "")))
+        .map((w) => welfareView(db, w)),
+    );
+  },
+
+  reviewWelfare: async (id, review) => {
+    const db = read();
+    const user = requireUser(db, "reception", "manager");
+    const w = db.welfare.find((x) => x.id === id);
+    if (!w) fail(404);
+    if (w.status !== "pending") fail(409, "already_reviewed");
+    const name = patientName(db, w.patient_id);
+    if (review.approve) {
+      if (review.valid_until <= today()) fail(422, "bad_valid_until");
+      Object.assign(w, { status: "approved", valid_until: review.valid_until, reviewed_by: user.name, reviewed_at: now().toISOString() });
+      // Appointments already booked and not paid yet get the discount too.
+      for (const a of db.appointments.filter((x) => x.patient_id === w.patient_id && x.status === "booked" && x.date >= today())) {
+        if (moneyOf(db, a.id).paid.IQD === 0) addWelfareDiscount(db, a.id);
+      }
+      notify(db, w.patient_id, `welfare-approved-${w.id}`, "welfare_approved", {
+        patient: name,
+        percent: db.settings.welfare_discount_percent,
+        date: review.valid_until,
+      });
+      log(db, user, "welfare.approve", name);
+    } else {
+      if (review.reason.trim().length < 3) fail(422, "reason_needed");
+      Object.assign(w, { status: "rejected", reject_reason: review.reason.trim(), reviewed_by: user.name, reviewed_at: now().toISOString() });
+      notify(db, w.patient_id, `welfare-rejected-${w.id}`, "welfare_rejected", { patient: name, reason: w.reject_reason });
+      log(db, user, "welfare.reject", `${name} · ${w.reject_reason}`);
+    }
+    write(db);
+    return delay(welfareView(db, w));
+  },
+
   myPayments: async ({ patient_id, ...q }) => {
     const db = read();
     const user = requireUser(db, "patient");
@@ -2386,7 +2521,8 @@ export const mockApi: Api = {
           // Only money actually collected counts. Refunds and reversals lower it by themselves.
           const share = total.IQD > 0 ? Math.max(0, Math.min(1, paid.IQD / total.IQD)) : 0;
           for (const item of db.items.filter((i) => i.appointment_id === a.id && i.currency === "IQD")) {
-            if (item.kind === "visit") visitIncome += item.price * share;
+            // The welfare discount comes off the visit income, so it's shared like the visit fee.
+            if (item.kind === "visit" || item.kind === "discount") visitIncome += item.price * share;
             if (item.kind === "procedure") procedureIncome += item.price * share;
           }
         }
@@ -2607,6 +2743,10 @@ export const mockApi: Api = {
         .sort((a, b) => b.at.localeCompare(a.at))
         .map(({ ref_id: _r, key: _k, ...p }) => (void _r, void _k, p)),
       payment_log: paymentLog(db, appointments.map((a) => a.id)),
+      welfare: (() => {
+        const w = latestWelfare(db, patientId);
+        return w ? welfareView(db, w) : null;
+      })(),
       money: { total, paid, balance: { IQD: total.IQD - paid.IQD, USD: total.USD - paid.USD } },
     };
     return delay(file);

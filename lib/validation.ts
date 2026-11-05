@@ -104,6 +104,7 @@ export const settingsSchema = z.object({
   deposit_amount: wholeNumber(0, 1_000_000),
   prescription_days: wholeNumber(1, 90),
   usd_rate: wholeNumber(1, 100_000),
+  welfare_discount_percent: wholeNumber(0, 100),
 });
 export type SettingsForm = z.infer<typeof settingsSchema>;
 

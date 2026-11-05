@@ -1,5 +1,5 @@
 import type { AppNotification } from "./api/types";
-import { longDate } from "./display";
+import { longDate, yearDate } from "./display";
 import type { Locale, TFunction } from "./i18n";
 
 // Turns a stored message into a sentence in the reader's language.
@@ -29,6 +29,12 @@ export function messageText(n: AppNotification, t: TFunction, locale: Locale) {
       // abnormal is 1 when a reading is outside its normal range, so the doctor knows to look soon.
       return Number(p.abnormal) === 1 ? `${text} ${t("notifications.abnormal")}` : text;
     }
+    case "welfare_submitted":
+      return t("notifications.welfare_submitted", { patient: p.patient });
+    case "welfare_approved":
+      return t("notifications.welfare_approved", { patient: p.patient, percent: p.percent, date: typeof p.date === "string" ? yearDate(p.date, locale) : "" });
+    case "welfare_rejected":
+      return t("notifications.welfare_rejected", { patient: p.patient, reason: p.reason });
     default: {
       // A new message type without a sentence here fails the type check, instead of showing an empty message.
       const missing: never = n.type;

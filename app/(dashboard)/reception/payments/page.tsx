@@ -65,7 +65,7 @@ function InvoiceCard({ invoice, usdRate, onPaid }: { invoice: Invoice; usdRate: 
 
       <ul className="space-y-1 text-sm">
         {invoice.items.map((item) => (
-          <li key={item.id} className="flex justify-between gap-2">
+          <li key={item.id} className={`flex justify-between gap-2 ${item.kind === "discount" ? "text-emerald-700" : ""}`}>
             <span>{locale === "ar" ? item.label_ar : item.label}</span>
             <span>{amountText(item.price, item.currency, t)}</span>
           </li>

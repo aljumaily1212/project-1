@@ -37,7 +37,10 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
 
   const doctor = doctors.find((d) => d.id === doctorId) ?? doctors[0];
   const depositRequired = rules.state.status === "success" && rules.state.data.deposit_required;
-  const depositAmount = rules.state.status === "success" ? Math.min(rules.state.data.deposit_amount, doctor.fee) : 0;
+  const welfarePercent = rules.state.status === "success" ? rules.state.data.welfare_percent : 0;
+  // The same rounding as the bill: the discount is rounded to 250 dinars.
+  const fee = doctor.fee - Math.round((doctor.fee * welfarePercent) / 100 / 250) * 250;
+  const depositAmount = rules.state.status === "success" ? Math.min(rules.state.data.deposit_amount, fee) : 0;
   // After too many no-shows, paying at the clinic is not allowed.
   const payChoice: PayChoice = depositRequired && pay === "clinic" ? "deposit" : pay;
 
@@ -145,6 +148,11 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
 
       <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.payment")}</p>
+        {welfarePercent > 0 && (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status" data-welfare-discount>
+            {t("book.welfareDiscount", { percent: welfarePercent, fee: amountText(fee, "IQD", t), full: amountText(doctor.fee, "IQD", t) })}
+          </p>
+        )}
         {depositRequired && rules.state.status === "success" && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
             {t("book.depositRequired", { n: rules.state.data.no_shows })}
@@ -155,7 +163,7 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
             [
               { choice: "clinic", label: t("book.payClinic") },
               { choice: "deposit", label: t("book.payDeposit", { amount: amountText(depositAmount, "IQD", t) }) },
-              { choice: "full", label: t("book.payFull", { amount: amountText(doctor.fee, "IQD", t) }) },
+              { choice: "full", label: t("book.payFull", { amount: amountText(fee, "IQD", t) }) },
             ] as const
           ).map(({ choice, label }) => (
             <Button

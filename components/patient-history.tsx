@@ -4,10 +4,11 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Search } from "lucide-react";
 import { api, type PatientFile, type PatientSummary } from "@/lib/api";
-import { dateTime, shortDate } from "@/lib/display";
+import { dateTime, shortDate, yearDate } from "@/lib/display";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
+import { localToday } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, ShowMore, StatusBadge } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { ResultView, serviceName } from "@/components/result-view";
@@ -324,6 +325,26 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
           </div>
 
           <AlertsBanner alerts={state.data.alerts} quiet />
+
+          {state.data.welfare && (
+            <p
+              className={`rounded-lg px-3 py-2 text-sm ${
+                state.data.welfare.status === "approved" && state.data.welfare.valid_until! >= localToday()
+                  ? "bg-emerald-50 text-emerald-800"
+                  : state.data.welfare.status === "pending"
+                    ? "bg-amber-50 text-amber-800"
+                    : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {state.data.welfare.status === "approved" && state.data.welfare.valid_until! >= localToday()
+                ? t("welfare.file.approved", { date: yearDate(state.data.welfare.valid_until!, locale) })
+                : state.data.welfare.status === "pending"
+                  ? t("welfare.file.pending")
+                  : state.data.welfare.status === "rejected"
+                    ? t("welfare.file.rejected")
+                    : t("welfare.file.expired")}
+            </p>
+          )}
 
           {state.data.family.length > 0 && (
             <p className="text-sm text-slate-600">

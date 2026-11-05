@@ -38,6 +38,10 @@ export function age(birth: string) {
 export const longDate = (date: string, locale: Locale) =>
   new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long" }).format(asDate(date));
 
+// "5 تشرين الثاني 2027": with the year, for dates that can be next year, like when a welfare card ends.
+export const yearDate = (date: string, locale: Locale) =>
+  new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "long", year: "numeric" }).format(asDate(date));
+
 export const STATUS_COLOR: Record<AppointmentStatus, string> = {
   booked: "bg-sky-100 text-sky-800",
   arrived: "bg-amber-100 text-amber-800",

@@ -26,6 +26,7 @@ const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
     { href: "/reception/payments", label: "nav.payments" },
     { href: "/reception/closing", label: "nav.closing" },
     { href: "/reception/patients", label: "nav.patients" },
+    { href: "/reception/welfare", label: "nav.welfare" },
     { href: "/reception/users", label: "nav.users" },
   ],
   doctor: [{ href: "/doctor", label: "nav.doctor" }],
@@ -45,6 +46,7 @@ const NAV: Record<StaffRole, { href: string; label: MessageKey }[]> = {
   manager: [
     { href: "/manager", label: "nav.overview" },
     { href: "/manager/patients", label: "nav.patients" },
+    { href: "/manager/welfare", label: "nav.welfare" },
     { href: "/manager/doctors", label: "nav.doctors" },
     { href: "/manager/prices", label: "nav.prices" },
     { href: "/manager/reports", label: "nav.reports" },

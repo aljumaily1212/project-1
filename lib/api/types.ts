@@ -214,7 +214,40 @@ export interface BookingRules {
   no_shows: number;
   deposit_required: boolean;
   deposit_amount: number;
+  // The social welfare discount on the visit fee, in percent, if this person has an approved card. 0 if not.
+  welfare_percent: number;
 }
+
+// ---------- social welfare (الرعاية الاجتماعية) ----------
+// Families covered by Iraq's social protection network (Ministry of Labour and Social Affairs) get a discount
+// on the visit fee. It's the complex's own policy: the patient sends a photo of the welfare card, reception checks
+// it and approves it until a date, and from then on the discount is added to the bill by itself.
+
+export type WelfareStatus = "pending" | "approved" | "rejected";
+
+export interface WelfareRequest {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  patient_phone: string;
+  card_number: string;
+  // The card photo. Only the patient's account, reception and the manager can see it.
+  photo_url: string;
+  status: WelfareStatus;
+  submitted_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  // Approved: the discount works until this date (welfare cards are renewed).
+  valid_until: string | null;
+  reject_reason: string;
+}
+
+export interface WelfareSubmit {
+  card_number: string;
+  photo: File;
+}
+
+export type WelfareReview = { approve: true; valid_until: string } | { approve: false; reason: string };
 
 export interface RescheduleRequest {
   date: string;
@@ -371,7 +404,8 @@ export interface InvoiceItem {
   id: number;
   label: string;
   label_ar: string;
-  kind: "visit" | ServiceKind;
+  // discount: a line with a negative price, like the social welfare discount on the visit fee.
+  kind: "visit" | "discount" | ServiceKind;
   price: number;
   currency: Currency;
 }
@@ -677,6 +711,8 @@ export interface ClinicSettings {
   deposit_amount: number;
   prescription_days: number;
   usd_rate: number;
+  // The social welfare discount on visit fees, in percent. 0 turns it off.
+  welfare_discount_percent: number;
 }
 
 export type AuditAction =
@@ -715,6 +751,9 @@ export type AuditAction =
   | "staff.update"
   | "staff.disable"
   | "staff.enable"
+  | "welfare.submit"
+  | "welfare.approve"
+  | "welfare.reject"
   | "family.add"
   | "family.remove"
   | "stock.create"
@@ -875,6 +914,8 @@ export interface PatientFile {
   // The same payments with their visit, plus online attempts that didn't go through. Newest first.
   payment_log: PaymentLogEntry[];
   money: MoneySummary;
+  // The latest social welfare request, if any.
+  welfare: WelfareRequest | null;
 }
 
 // One day on the manager's charts. Money is net dinars received that day.
@@ -916,7 +957,19 @@ export interface Analytics {
   };
 }
 
-export type NotificationType = "doctor_absent" | "doctor_late" | "result_ready" | "reminder" | "turn_near" | "booked" | "rate_visit" | "follow_up" | "result_for_doctor";
+export type NotificationType =
+  | "doctor_absent"
+  | "doctor_late"
+  | "result_ready"
+  | "reminder"
+  | "turn_near"
+  | "booked"
+  | "rate_visit"
+  | "follow_up"
+  | "result_for_doctor"
+  | "welfare_submitted"
+  | "welfare_approved"
+  | "welfare_rejected";
 
 export interface AppNotification {
   id: number;
