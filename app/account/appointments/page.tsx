@@ -7,6 +7,11 @@ import { api, type MyAppointment } from "@/lib/api";
 import { doctorName, longDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { goToPayment, paymentReturnUrl } from "@/lib/payment";
+
+// "10:45", in the page's language with western digits.
+const timeOf = (iso: string, locale: string) =>
+  new Intl.DateTimeFormat(locale === "ar" ? "ar-IQ-u-nu-latn" : "en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 import { localToday } from "@/lib/validation";
 import { DayPicker, SlotPicker } from "@/components/booking";
 import { AmountsText, amountText } from "@/components/money";
@@ -62,24 +67,22 @@ function ReschedulePanel({ appointment, onDone, onClose }: { appointment: MyAppo
   );
 }
 
-function PayRest({ appointment, onPaid }: { appointment: MyAppointment; onPaid: () => void }) {
+function PayRest({ appointment }: { appointment: MyAppointment }) {
   const { t } = useT();
-  // A new key for each payment. Pressing twice reuses it, so the server charges once.
-  const [key, setKey] = useState(() => crypto.randomUUID());
+  // One key per press of the button: pressing twice opens the same payment, not two.
+  const [key] = useState(() => crypto.randomUUID());
   const [paying, setPaying] = useState(false);
   const rest = appointment.money.balance.IQD;
 
+  // Opens the payment page. The money only counts once the server confirms it (on the result page).
   async function payNow() {
     setPaying(true);
     try {
-      await api.payOnline(appointment.id, { amount: rest, currency: "IQD", idempotency_key: key });
-      toast.success(t("appointments.paid"));
-      setKey(crypto.randomUUID());
-      onPaid();
+      goToPayment(await api.startPayment(appointment.id, { idempotency_key: key, return_url: paymentReturnUrl() }));
     } catch (err) {
       toast.error(errorText(err, t));
+      setPaying(false);
     }
-    setPaying(false);
   }
 
   return (
@@ -116,6 +119,14 @@ function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointme
         {longDate(a.date, locale)} · <span dir="ltr">{a.time}</span> · {t(`branch.${a.branch}`)}
       </p>
 
+      {a.cancel_reason === "unpaid" && (
+        <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          <p>{t("appointments.cancelledUnpaid")}</p>
+          <Link href="/account" replace className="font-medium underline">
+            {t("appointments.bookAgain")}
+          </Link>
+        </div>
+      )}
       {a.cancel_reason === "doctor_absent" && (
         <div className="space-y-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
           <p>{t("appointments.cancelledAbsent")}</p>
@@ -129,7 +140,12 @@ function AppointmentCard({ appointment: a, cancelHours, onChanged }: { appointme
           {t("appointments.paidOf")} <AmountsText amounts={a.money.paid} /> / <AmountsText amounts={a.money.total} />
         </p>
       )}
-      {a.status === "booked" && a.money.balance.IQD > 0 && <PayRest appointment={a} onPaid={onChanged} />}
+      {a.status === "booked" && a.pay_by && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status" data-pay-by>
+          {t("appointments.payBy", { time: timeOf(a.pay_by, locale) })}
+        </p>
+      )}
+      {a.status === "booked" && a.money.balance.IQD > 0 && <PayRest appointment={a} />}
       {a.late_minutes > 0 && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
           {t("appointments.late", { n: a.late_minutes })}

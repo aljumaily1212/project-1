@@ -5,6 +5,7 @@ import type {
   AppNotification,
   AuditEntry,
   BookRequest,
+  BookResult,
   BookingRules,
   CatalogMedicine,
   CashClosing,
@@ -33,6 +34,7 @@ import type {
   LedgerEntry,
   LoginResponse,
   Page,
+  PaymentSession,
   PageQuery,
   ManagerOverview,
   MedicalAlerts,
@@ -68,6 +70,7 @@ import type {
   VitalsRecord,
   VisitKind,
   ResetPasswordRequest,
+  StartPaymentRequest,
   UpdateStaffRequest,
   WalkInRequest,
   WalkInResult,
@@ -124,7 +127,8 @@ export const httpApi = {
   // Once per visit. The answer is the saved rating.
   rateVisit: (visitId: number, body: RateVisitRequest) => http.post<VisitRating>(`/me/visits/${visitId}/rating`, body).then((r) => r.data),
 
-  book: (body: BookRequest) => http.post<null>("/appointments", body).then(() => undefined),
+  // Paying online: the answer has the payment to finish on the gateway's page (payment.form_url).
+  book: (body: BookRequest) => http.post<BookResult>("/appointments", body).then((r) => r.data),
 
   cancelAppointment: (id: number) => http.post<null>(`/appointments/${id}/cancel`, {}).then(() => undefined),
 
@@ -245,8 +249,12 @@ export const httpApi = {
   bookingRules: (patientId: number) => http.get<BookingRules>(`/patients/${patientId}/booking-rules`).then((r) => r.data),
 
   // In the real system this starts the payment gateway. The idempotency key stops double charges.
-  payOnline: (appointmentId: number, body: PayRequest) =>
-    http.post<null>(`/appointments/${appointmentId}/pay-online`, body).then(() => undefined),
+  // Online payment of what's left on an appointment. Nothing is paid yet: the patient finishes on form_url.
+  startPayment: (appointmentId: number, body: StartPaymentRequest) =>
+    http.post<PaymentSession>(`/appointments/${appointmentId}/payments`, body).then((r) => r.data),
+
+  // The result, as the server knows it from the gateway (its signed notification, then a status check).
+  paymentStatus: (paymentId: string) => http.get<PaymentSession>(`/payments/${paymentId}`).then((r) => r.data),
 
   payCash: (appointmentId: number, body: PayRequest) =>
     http.post<null>(`/appointments/${appointmentId}/pay-cash`, body).then(() => undefined),

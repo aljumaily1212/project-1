@@ -145,6 +145,7 @@ function AppointmentsTab({ file }: { file: PatientFile }) {
               {t(`kind.${a.kind}`)} · {t(`branch.${a.branch}`)}
               {a.emergency && ` · ${t("queue.emergency")}`}
               {a.cancel_reason === "doctor_absent" && ` · ${t("book.absent")}`}
+              {a.cancel_reason === "unpaid" && ` · ${t("appointments.unpaidShort")}`}
             </p>
           </div>
           <div className="flex items-center gap-3">

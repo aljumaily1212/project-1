@@ -9,7 +9,8 @@ export type AppointmentStatus = "booked" | "arrived" | "in_progress" | "done" | 
 export type BranchId = "main" | "second";
 export type Shift = "morning" | "evening";
 export type VisitKind = "new" | "followup";
-export type CancelReason = "patient" | "doctor_absent";
+// unpaid: the patient had to pay a deposit online and didn't within the time given, so the slot was freed.
+export type CancelReason = "patient" | "doctor_absent" | "unpaid";
 
 // A long list comes in parts. `limit` is how many to send (the server sends at most 200),
 // `offset` how many to skip from the start. `total` is how many there are in all, with the same filters.
@@ -136,6 +137,39 @@ export interface BookRequest {
   pay: PayChoice;
   // The same key on a repeated request means "this is the same booking", so nothing is booked or charged twice.
   idempotency_key: string;
+  // Where the payment page sends the patient back to (only used when paying online).
+  return_url: string;
+}
+
+export interface BookResult {
+  appointment_id: number;
+  // Paying online: the payment to finish on the payment page. null when paying at the clinic.
+  payment: PaymentSession | null;
+}
+
+// ---------- online payment ----------
+// Shaped like the Qi Card gateway: the server creates the payment, the patient pays on the gateway's own page
+// (form_url), comes back to return_url, and the site asks the server for the result. Only the server's answer counts:
+// coming back to the site does not mean the payment worked.
+
+export type PaymentStatus = "created" | "success" | "failed" | "authentication_failed" | "canceled";
+
+export interface PaymentSession {
+  payment_id: string;
+  appointment_id: number;
+  amount: number;
+  currency: Currency;
+  status: PaymentStatus;
+  // The gateway's payment page. The card number is typed there, never on our site.
+  form_url: string;
+  created_at: string;
+  // If set, the appointment is cancelled when it isn't paid by then (patients who must pay a deposit).
+  pay_by: string | null;
+}
+
+export interface StartPaymentRequest {
+  idempotency_key: string;
+  return_url: string;
 }
 
 // Reception books for someone who phoned: an existing patient, or a new one by name and phone.
@@ -180,6 +214,8 @@ export interface MyAppointment {
   // The queue number, like "A-012". null until the patient arrives at the clinic.
   ticket: string | null;
   money: MoneySummary;
+  // Must be paid online by this time or the appointment is cancelled. null when there's no deadline.
+  pay_by: string | null;
 }
 
 export interface StaffAppointment {

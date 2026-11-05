@@ -22,6 +22,8 @@ import type {
   LabStatus,
   LoginResponse,
   PageQuery,
+  PaymentStatus,
+  PaymentSession,
   MedicalAlerts,
   Medicine,
   MyAppointment,
@@ -65,7 +67,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v19";
+const STORAGE_KEY = "alrahma.mock.v20";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -141,6 +143,8 @@ type MockAppointment = Omit<StaffAppointment, "patient_name" | "ticket" | "has_v
   cancel_reason: CancelReason | null;
   idempotency_key?: string;
   checkin_key?: string;
+  // A deposit that must be paid online by this time, or the appointment is cancelled.
+  pay_by?: string | null;
   vitals?: Omit<VitalsRecord, "appointment_id">;
 };
 type MockItem = InvoiceItem & { appointment_id: number };
@@ -203,7 +207,25 @@ type Db = {
   sales: PharmacySale[];
   expenses: Expense[];
   resetCodes: ResetCode[];
+  paymentSessions: MockPaymentSession[];
 };
+
+// An online payment waiting on the (demo) gateway. `outcome` is what the gateway page decided; it becomes the
+// status a moment later (`settles_at`), the way a real gateway's notification reaches the server after the redirect.
+type MockPaymentSession = {
+  id: string;
+  appointment_id: number;
+  user_id: number;
+  amount: number;
+  status: PaymentStatus;
+  created_at: string;
+  key: string;
+  return_url: string;
+  outcome?: PaymentStatus;
+  settles_at?: number;
+};
+// How long a patient who must pay a deposit has to pay, before the slot is freed.
+const PAY_BY_MINUTES = 15;
 
 // A "forgot password" code waiting to be used. Wrong tries are counted, so nobody can guess all 1,000,000 codes.
 type ResetCode = { phone: string; code: string; expires: number; tries: number };
@@ -360,6 +382,7 @@ function seed(): Db {
     sales: [],
     expenses: fakeExpenses(day),
     resetCodes: [],
+    paymentSessions: [],
   };
   addPastMonth(db);
   return db;
@@ -561,6 +584,8 @@ function read(): Db {
     db.sales ??= [];
     db.expenses ??= [];
     db.resetCodes ??= [];
+    db.paymentSessions ??= [];
+    expireUnpaid(db);
     return db;
   }
   // Save the starting data once, so every tab works on the same copy from the start.
@@ -568,6 +593,93 @@ function read(): Db {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   return db;
 }
+
+// Deposits not paid in time: the appointment is cancelled and the slot is free again.
+// Checked whenever the data is read, so it happens without a timer.
+function expireUnpaid(db: Db) {
+  const nowIso = now().toISOString();
+  for (const a of db.appointments) {
+    if (a.status !== "booked" || !a.pay_by || a.pay_by > nowIso) continue;
+    const paid = db.payments.some((p) => p.appointment_id === a.id && p.kind === "payment" && p.method === "online");
+    if (paid) a.pay_by = null;
+    else Object.assign(a, { status: "cancelled", cancel_reason: "unpaid", pay_by: null });
+  }
+}
+
+function sessionView(db: Db, s: MockPaymentSession): PaymentSession {
+  const appointment = findAppointment(db, s.appointment_id);
+  return {
+    payment_id: s.id,
+    appointment_id: s.appointment_id,
+    amount: s.amount,
+    currency: "IQD",
+    status: s.status,
+    // The real gateway's page is on its own site. The demo one is a page of ours.
+    form_url: `/pay/demo?payment=${s.id}`,
+    created_at: s.created_at,
+    pay_by: appointment.pay_by ?? null,
+  };
+}
+
+// Starts an online payment. The same key again (a second press, a retry) gives back the same payment.
+function openPayment(db: Db, user: MockUser, appointmentId: number, amount: number, key: string, returnUrl: string) {
+  const existing = db.paymentSessions.find((s) => s.key === key);
+  if (existing) return existing;
+  if (!(amount > 0)) fail(422, "bad_amount");
+  const session: MockPaymentSession = {
+    id: crypto.randomUUID(),
+    appointment_id: appointmentId,
+    user_id: user.id,
+    amount,
+    status: "created",
+    created_at: now().toISOString(),
+    key,
+    return_url: returnUrl,
+  };
+  db.paymentSessions.push(session);
+  return session;
+}
+
+// The gateway's notification has "arrived": the result becomes final, and a success is recorded as a payment.
+function settle(db: Db, s: MockPaymentSession) {
+  if (s.status !== "created" || !s.outcome || (s.settles_at ?? 0) > Date.now()) return false;
+  s.status = s.outcome;
+  if (s.status === "success") {
+    const appointment = findAppointment(db, s.appointment_id);
+    const user = db.users.find((u) => u.id === s.user_id)!;
+    // Paid after the deadline passed and the slot was freed: the money goes back.
+    if (appointment.status === "cancelled") {
+      s.status = "canceled";
+      return true;
+    }
+    const amount = Math.min(s.amount, moneyOf(db, s.appointment_id).balance.IQD);
+    if (amount > 0) takePayment(db, user, s.appointment_id, amount, "IQD", "online", `gateway:${s.id}`);
+    appointment.pay_by = null;
+  }
+  return true;
+}
+
+// Only for the demo payment page (/pay/demo). The real gateway is Qi Card's own site, so this isn't in the Api.
+export const demoGateway = {
+  // What the payment page shows: the amount and who is being paid.
+  info: async (paymentId: string) => {
+    const db = read();
+    const s = db.paymentSessions.find((x) => x.id === paymentId);
+    if (!s) fail(404);
+    return delay({ amount: s.amount, currency: "IQD" as const, status: s.status, finished: !!s.outcome });
+  },
+  // The patient finished on the payment page. Returns where to send them back to.
+  finish: async (paymentId: string, outcome: Exclude<PaymentStatus, "created">) => {
+    const db = read();
+    const s = db.paymentSessions.find((x) => x.id === paymentId);
+    if (!s) fail(404);
+    if (!s.outcome) Object.assign(s, { outcome, settles_at: Date.now() + 1500 });
+    write(db);
+    const back = new URL(s.return_url, window.location.origin);
+    back.searchParams.set("payment", s.id);
+    return delay(back.pathname + back.search);
+  },
+};
 
 function write(db: Db) {
   try {
@@ -1234,7 +1346,7 @@ export const mockApi: Api = {
         (a) =>
           ids.includes(a.patient_id) &&
           a.date >= today() &&
-          (["booked", "arrived", "in_progress"].includes(a.status) || a.cancel_reason === "doctor_absent"),
+          (["booked", "arrived", "in_progress"].includes(a.status) || a.cancel_reason === "doctor_absent" || a.cancel_reason === "unpaid"),
       )
       .sort((a, b) => startOf(a).getTime() - startOf(b).getTime())
       .map((a): MyAppointment => {
@@ -1256,6 +1368,7 @@ export const mockApi: Api = {
           late_minutes: late,
           ticket: ticketLabel(db, a),
           money: moneyOf(db, a.id),
+          pay_by: a.pay_by ?? null,
         };
       });
     return delay(list);
@@ -1314,26 +1427,35 @@ export const mockApi: Api = {
     return delay(visit.rating);
   },
 
-  book: async ({ patient_id, doctor_id, date, time, kind, pay, idempotency_key }) => {
+  book: async ({ patient_id, doctor_id, date, time, kind, pay, idempotency_key, return_url }) => {
     const db = read();
     const user = requireUser(db, "patient");
     if (!ownedPatientIds(db, user).includes(patient_id)) fail(403);
     // Pressed twice, or sent again after the connection dropped: the booking already exists.
-    if (db.appointments.some((a) => a.idempotency_key === idempotency_key)) return delay(undefined);
+    const repeated = db.appointments.find((a) => a.idempotency_key === idempotency_key);
+    if (repeated) {
+      const session = db.paymentSessions.find((s) => s.key === `${idempotency_key}:pay`);
+      return delay({ appointment_id: repeated.id, payment: session ? sessionView(db, session) : null });
+    }
     const doctor = findDoctor(db, doctor_id);
     requireFreeSlot(db, doctor, date, time, kind);
-    if (rulesFor(db, patient_id).deposit_required && pay === "clinic") fail(409, "deposit_required");
+    const depositRequired = rulesFor(db, patient_id).deposit_required;
+    if (depositRequired && pay === "clinic") fail(409, "deposit_required");
     const branch = workDayOf(doctor, date)!.branch;
     const id = db.nextId++;
-    db.appointments.push({ id, patient_id, doctor_id, date, time, kind, branch, status: "booked", emergency: false, arrival_order: 0, cancel_reason: null, idempotency_key });
+    // A patient who must pay a deposit gets a little time to pay. If they don't, the slot is freed for others.
+    const payBy = depositRequired ? new Date(now().getTime() + PAY_BY_MINUTES * 60_000).toISOString() : null;
+    db.appointments.push({ id, patient_id, doctor_id, date, time, kind, branch, status: "booked", emergency: false, arrival_order: 0, cancel_reason: null, idempotency_key, pay_by: payBy });
     addItem(db, id, visitFee(doctor));
+    // Paying online: nothing is paid yet. The patient finishes on the gateway's page.
+    let payment: PaymentSession | null = null;
     if (pay !== "clinic") {
       const amount = pay === "full" ? doctor.fee : Math.min(db.settings.deposit_amount, doctor.fee);
-      takePayment(db, user, id, amount, "IQD", "online", `${idempotency_key}:pay`);
+      payment = sessionView(db, openPayment(db, user, id, amount, `${idempotency_key}:pay`, return_url));
     }
     log(db, user, "appointment.book", patientName(db, patient_id));
     write(db);
-    return delay(undefined);
+    return delay({ appointment_id: id, payment });
   },
 
   cancelAppointment: async (id) => {
@@ -2024,14 +2146,24 @@ export const mockApi: Api = {
     return delay(rulesFor(db, patientId));
   },
 
-  payOnline: async (appointmentId, { amount, currency, idempotency_key }) => {
+  startPayment: async (appointmentId, { idempotency_key, return_url }) => {
     const db = read();
     const user = requireUser(db, "patient");
     const appointment = requireOwnAppointment(db, user, appointmentId);
-    if (appointment.status === "cancelled") fail(409, "cancelled");
-    takePayment(db, user, appointmentId, amount, currency, "online", idempotency_key);
+    if (appointment.status !== "booked") fail(409, "cancelled");
+    const session = openPayment(db, user, appointmentId, moneyOf(db, appointmentId).balance.IQD, idempotency_key, return_url);
     write(db);
-    return delay(undefined);
+    return delay(sessionView(db, session));
+  },
+
+  paymentStatus: async (paymentId) => {
+    const db = read();
+    const user = requireUser(db, "patient");
+    const session = db.paymentSessions.find((s) => s.id === paymentId);
+    // Only the person who started the payment can see it.
+    if (!session || session.user_id !== user.id) fail(404);
+    if (settle(db, session)) write(db);
+    return delay(sessionView(db, session));
   },
 
   payCash: async (appointmentId, { amount, currency, idempotency_key }) => {

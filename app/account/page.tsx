@@ -9,6 +9,7 @@ import { USE_MOCK } from "@/lib/config";
 import { doctorName, doctorSpecialty, money } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
+import { goToPayment, paymentReturnUrl } from "@/lib/payment";
 import { DayPicker, KindPicker, SlotPicker } from "@/components/booking";
 import { amountText } from "@/components/money";
 import { Button, Card, ErrorState, Field, PageHeader, Select } from "@/components/common";
@@ -44,7 +45,22 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
     setError("");
     setSaving(true);
     try {
-      await api.book({ patient_id: patientId, doctor_id: doctorId, date, time, kind, pay: payChoice, idempotency_key: idempotencyKey });
+      const result = await api.book({
+        patient_id: patientId,
+        doctor_id: doctorId,
+        date,
+        time,
+        kind,
+        pay: payChoice,
+        idempotency_key: idempotencyKey,
+        return_url: paymentReturnUrl(),
+      });
+      // Paying online: the appointment is made, now the patient pays on the payment page.
+      if (result.payment) {
+        toast.success(t("book.doneGoPay"));
+        goToPayment(result.payment);
+        return;
+      }
       toast.success(t("book.done"));
       router.replace("/account/appointments");
     } catch (err) {
