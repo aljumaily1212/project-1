@@ -77,5 +77,8 @@ export function errorText(err: unknown, t: TFunction): string {
     const key = `error.${err.status}` as MessageKey;
     return key in en ? t(key) : t("error.generic");
   }
+  // Not an answer from the server: something broke in the page itself. The screen only says "something went wrong",
+  // so the real error is written to the browser console (F12) to find the cause.
+  console.error("Unexpected error:", err);
   return t("error.generic");
 }
