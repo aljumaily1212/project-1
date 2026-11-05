@@ -85,6 +85,12 @@ import type {
 // The front end sometimes gets new fields before the backend sends them. Instead of crashing (or showing
 // "NaN IQD"), a missing field gets a safe value here, in one place. Once the backend sends the field, these do nothing.
 
+// An older backend doesn't say how long the code works. 0 means "not known": the page then leaves the time out.
+const withForgotResult = (r: Partial<ForgotPasswordResult> | null | undefined): ForgotPasswordResult => ({
+  expires_in_minutes: r?.expires_in_minutes ?? 0,
+  dev_code: r?.dev_code,
+});
+
 const withBookingRules = (r: BookingRules): BookingRules => ({ ...r, welfare_percent: r.welfare_percent ?? 0 });
 
 const withSettings = (s: ClinicSettings): ClinicSettings => ({ ...s, welfare_discount_percent: s.welfare_discount_percent ?? 0 });
@@ -128,7 +134,8 @@ export const httpApi = {
   register: (body: RegisterRequest) => http.post<LoginResponse>("/auth/register", body).then((r) => r.data),
 
   // Forgot password: send a code to the phone, then set a new password with that code. No sign-in needed.
-  forgotPassword: (phone: string) => http.post<ForgotPasswordResult>("/auth/password/forgot", { phone }).then((r) => r.data),
+  forgotPassword: (phone: string) =>
+    http.post<Partial<ForgotPasswordResult> | null>("/auth/password/forgot", { phone }).then((r) => withForgotResult(r.data)),
 
   resetPassword: (body: ResetPasswordRequest) => http.post<null>("/auth/password/reset", body).then(() => undefined),
 

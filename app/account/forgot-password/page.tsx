@@ -65,7 +65,7 @@ function CodeStep({ phone, minutes, devCode, onBack }: { phone: string; minutes:
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4" data-step="code">
       <p className="rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-800">
-        {t("password.codeSent", { phone, n: minutes })}
+        {minutes > 0 ? t("password.codeSent", { phone, n: minutes }) : t("password.codeSentNoTime", { phone })}
       </p>
       {/* Only with the fake data: there is no real SMS, so the code is shown here to try the flow. */}
       {devCode && (

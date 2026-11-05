@@ -1107,6 +1107,7 @@ export const en = {
   "audit.welfare.submit": "Sent a social welfare card for",
   "audit.welfare.approve": "Approved the social welfare card of",
   "audit.welfare.reject": "Rejected the social welfare card of",
+  "password.codeSentNoTime": "If {phone} has an account, a code was sent to it by SMS.",
 };
 
 export type MessageKey = keyof typeof en;

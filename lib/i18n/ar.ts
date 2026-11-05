@@ -1109,4 +1109,5 @@ export const ar: Record<MessageKey, string> = {
   "audit.welfare.submit": "أرسل بطاقة رعاية اجتماعية لـ",
   "audit.welfare.approve": "قبل بطاقة الرعاية الاجتماعية لـ",
   "audit.welfare.reject": "رفض بطاقة الرعاية الاجتماعية لـ",
+  "password.codeSentNoTime": "إذا كان للرقم {phone} حساب، فقد أُرسل إليه رمز برسالة نصية.",
 };
