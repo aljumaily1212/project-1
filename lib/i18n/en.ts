@@ -1,5 +1,5 @@
 export const en = {
-  "app.name": "Al-Rahma Medical Complex",
+  "app.name": "مجمع الرحمة الطبي",
   "app.subtitle": "Al-Rahma Medical Complex · Staff",
   "app.mockBadge": "Mock data",
 
@@ -38,7 +38,7 @@ export const en = {
   "login.subtitle": "Sign in with your phone number. We open the right page for you.",
   "login.showPassword": "Show password",
   "login.hidePassword": "Hide password",
-  "login.panel.tagline": "Al-Rahma Medical Complex",
+  "login.panel.tagline": "مجمع الرحمة الطبي",
   "login.panel.title": "Your whole visit in one place.",
   "login.panel.subtitle": "One platform for patients, reception, doctors, the lab and the pharmacy, so your visit is easier and faster.",
   "login.feature.booking": "Online booking",

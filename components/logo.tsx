@@ -1,7 +1,6 @@
 "use client";
 
 import { useId } from "react";
-import { useT } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 
 export function LogoMark({ size = 32, className = "" }: { size?: number; className?: string }) {
@@ -20,18 +19,24 @@ export function LogoMark({ size = 32, className = "" }: { size?: number; classNa
   );
 }
 
+// The complex's name is the same in both languages: it's a name, not something to translate.
+export const BRAND_NAME = "مجمع الرحمة الطبي";
+
 export function Wordmark({ onDark, className = "" }: { onDark?: boolean; className?: string }) {
-  const { t } = useT();
   const theme = useTheme();
   onDark ??= theme === "dark";
   const color = onDark ? "text-[#f8fafc]" : "text-[#0f172a]";
-  return <span className={`font-extrabold tracking-tight ${color} ${className}`}>{t("app.name")}</span>;
+  // lang and dir keep the Arabic letters joined and in the right order inside an English page.
+  return (
+    <span lang="ar" dir="rtl" className={`font-extrabold tracking-tight ${color} ${className}`}>
+      {BRAND_NAME}
+    </span>
+  );
 }
 
 export function Logo({ size = 32, onDark, className = "" }: { size?: number; onDark?: boolean; className?: string }) {
-  const { t } = useT();
   return (
-    <span className={`inline-flex items-center gap-2 ${className}`} aria-label={t("app.name")}>
+    <span className={`inline-flex items-center gap-2 ${className}`} aria-label={BRAND_NAME}>
       <LogoMark size={size} />
       <Wordmark onDark={onDark} />
     </span>
