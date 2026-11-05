@@ -167,6 +167,29 @@ export interface PaymentSession {
   pay_by: string | null;
 }
 
+// One line of a payment history: money received (cash or online), money given back, or an online
+// payment that didn't go through (`attempt`: nothing was taken, but it's shown so the patient and staff can see it).
+export interface PaymentLogEntry {
+  id: string;
+  kind: PaymentKind | "attempt";
+  // For attempts only: why it didn't go through (or "created" while it's still open).
+  status: PaymentStatus | null;
+  at: string;
+  amount: number;
+  currency: Currency;
+  method: PaymentMethod;
+  // The receipt number for money that moved. null for attempts.
+  receipt_no: number | null;
+  // Who took it: the receptionist for cash, the patient's account for online.
+  by: string;
+  reason: string;
+  appointment_id: number;
+  patient_name: string;
+  doctor_name: string;
+  appointment_date: string;
+  appointment_time: string;
+}
+
 export interface StartPaymentRequest {
   idempotency_key: string;
   return_url: string;
@@ -849,6 +872,8 @@ export interface PatientFile {
   appointments: PatientAppointment[];
   visits: PatientFileVisit[];
   payments: (Payment & { appointment_id: number })[];
+  // The same payments with their visit, plus online attempts that didn't go through. Newest first.
+  payment_log: PaymentLogEntry[];
   money: MoneySummary;
 }
 

@@ -14,6 +14,7 @@ import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
 import { AlertsBanner } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
+import { PaymentLog } from "@/components/payment-log";
 
 const TABS = ["visits", "appointments", "tests", "payments"] as const;
 type Tab = (typeof TABS)[number];
@@ -180,24 +181,11 @@ function TestsTab({ file }: { file: PatientFile }) {
 }
 
 function PaymentsTab({ file }: { file: PatientFile }) {
-  const { t, locale } = useT();
-  if (file.payments.length === 0) return <EmptyState title={t("patients.noPayments")} />;
+  const { t } = useT();
+  if (file.payment_log.length === 0) return <EmptyState title={t("patients.noPayments")} />;
   return (
-    <Card className="divide-y divide-slate-200 p-0">
-      {file.payments.map((p) => (
-        <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-          <span>
-            {t(`payments.kind.${p.kind}`)} · {t(`payments.method.${p.method}`)}
-            <span className="block text-slate-500">
-              {dateTime(p.at, locale)} · {p.by}
-            </span>
-          </span>
-          <span className={`font-semibold ${p.kind === "payment" ? "" : "text-red-700"}`} dir="auto">
-            {p.kind === "payment" ? "" : "−"}
-            {amountText(p.amount, p.currency, t)}
-          </span>
-        </div>
-      ))}
+    <Card className="p-0">
+      <PaymentLog entries={file.payment_log} />
     </Card>
   );
 }
@@ -261,18 +249,22 @@ function PrintedPatientFile({ file }: { file: PatientFile }) {
       <PrintSection title={t("patients.tab.payments")}>
         <table className="w-full text-sm">
           <tbody>
-            {file.payments.map((pay) => (
-              <tr key={pay.id} className="border-b border-[#e2e8f0]">
-                <td className="py-1">{dateTime(pay.at, locale)}</td>
-                <td className="py-1">
-                  {t(`payments.kind.${pay.kind}`)} · {t(`payments.method.${pay.method}`)}
-                </td>
-                <td className="py-1 text-end" dir="auto">
-                  {pay.kind === "payment" ? "" : "−"}
-                  {amountText(pay.amount, pay.currency, t)}
-                </td>
-              </tr>
-            ))}
+            {/* On paper only money that moved, with its receipt number and visit. */}
+            {file.payment_log
+              .filter((pay) => pay.kind !== "attempt")
+              .map((pay) => (
+                <tr key={pay.id} className="border-b border-[#e2e8f0]">
+                  <td className="py-1">{dateTime(pay.at, locale)}</td>
+                  <td className="py-1">
+                    {t(`paylog.${pay.kind as "payment" | "refund" | "reversal"}.${pay.method}`)} · {pay.doctor_name}
+                    {pay.receipt_no !== null && ` · ${t("paylog.receipt", { n: pay.receipt_no })}`}
+                  </td>
+                  <td className="py-1 text-end" dir="auto">
+                    {pay.kind === "payment" ? "" : "−"}
+                    {amountText(pay.amount, pay.currency, t)}
+                  </td>
+                </tr>
+              ))}
           </tbody>
         </table>
       </PrintSection>

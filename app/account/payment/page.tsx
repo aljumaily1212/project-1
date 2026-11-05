@@ -103,9 +103,14 @@ function PaymentResult() {
           </Button>
         </>
       )}
-      <Link href="/account/appointments" replace className="inline-block font-medium text-brand-600 hover:underline">
-        {t("payment.toAppointments")}
-      </Link>
+      <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+        <Link href="/account/appointments" replace className="font-medium text-brand-600 hover:underline">
+          {t("payment.toAppointments")}
+        </Link>
+        <Link href="/account/payments" replace className="font-medium text-brand-600 hover:underline">
+          {t("payment.toHistory")}
+        </Link>
+      </div>
     </Card>
   );
 }
