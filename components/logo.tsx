@@ -6,9 +6,12 @@ import { useTheme } from "@/lib/theme";
 // The heart: two round tops and the two straight sides down to the point.
 const HEART = "M60 99.24 L25.53 59.84 A22.35 22.35 0 1 1 60 31.4 A22.35 22.35 0 1 1 94.47 59.84 Z";
 
-// The logo: a white heart (الرحمة: mercy and care) with a medical cross cut through it, on the green tile.
-// The tile and the cross share one gradient laid over the whole drawing (userSpaceOnUse), so the cross looks
-// like a hole in the heart. app/icon.svg (the browser tab) is the same drawing: change both together.
+// A heartbeat line: flat, a small rise, a deep fall, a rise, then flat again (points on the 120 × 120 grid).
+const HEARTBEAT = "31,58 45,58 51,46 59,70 65,51 70,58 89,58";
+
+// The logo: a white heart (الرحمة: mercy and care) with a heartbeat line (medicine, life) cut through it,
+// on the green tile. The tile and the line share one gradient laid over the whole drawing (userSpaceOnUse),
+// so the line looks like a cut in the heart. app/icon.svg (the browser tab) is the same drawing: change both together.
 export function LogoMark({ size = 32, className = "" }: { size?: number; className?: string }) {
   const id = useId();
   const fill = `url(#${id})`;
@@ -22,8 +25,14 @@ export function LogoMark({ size = 32, className = "" }: { size?: number; classNa
       </defs>
       <rect width="120" height="120" rx="28" fill={fill} />
       <path d={HEART} fill="#fff" stroke="#fff" strokeWidth="4" strokeLinejoin="round" />
-      <rect x="53.5" y="39.5" width="13" height="36" rx="3" fill={fill} />
-      <rect x="42" y="51" width="36" height="13" rx="3" fill={fill} />
+      <polyline
+        points={HEARTBEAT}
+        fill="none"
+        stroke={fill}
+        strokeWidth="6.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
