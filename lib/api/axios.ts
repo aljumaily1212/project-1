@@ -27,6 +27,11 @@ http.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   config.headers["Accept-Language"] = currentLocale();
+  // Requests that must happen only once (bookings, walk-ins, check-ins, payments, sales) carry a key in the body.
+  // The backend also reads it from the Idempotency-Key header, so it goes there too. On a double press or a
+  // network retry the server sees the same key and returns the first result instead of doing it twice.
+  const key = (config.data as { idempotency_key?: unknown } | undefined)?.idempotency_key;
+  if (typeof key === "string" && key) config.headers["Idempotency-Key"] = key;
   return config;
 });
 
