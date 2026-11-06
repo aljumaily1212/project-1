@@ -1176,4 +1176,7 @@ export const ar: Record<MessageKey, string> = {
   "audit.patient.merge": "دمج ملفات المرضى:",
   "offline.bar": "لا يوجد اتصال بالإنترنت. تعرض الصفحات آخر بيانات محمّلة، وتُحفظ تسجيلات الوصول والمراجعون بدون موعد وتُرسل عند عودة الاتصال.",
   "offline.back": "عاد الاتصال بالإنترنت",
+  "doctors.from": "من",
+  "doctors.to": "إلى",
+  "validation.hours": "وقت النهاية يجب أن يكون بعد وقت البداية",
 };

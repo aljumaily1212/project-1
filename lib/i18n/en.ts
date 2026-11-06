@@ -1174,6 +1174,9 @@ export const en = {
   "audit.patient.merge": "Merged patient files:",
   "offline.bar": "No internet. Pages show the last loaded data. Check-ins and walk-ins are saved and sent when the connection is back.",
   "offline.back": "Back online",
+  "doctors.from": "From",
+  "doctors.to": "To",
+  "validation.hours": "The end time must be after the start time",
 };
 
 export type MessageKey = keyof typeof en;

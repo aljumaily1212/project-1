@@ -1,5 +1,6 @@
 import { getToken } from "../auth";
 import { ApiError } from "./errors";
+import { hoursOf } from "../shifts";
 import type { Api } from "./http";
 import type {
   Analytics,
@@ -85,10 +86,6 @@ const DEFAULT_SETTINGS: ClinicSettings = {
   welfare_discount_percent: 25,
 };
 
-const SHIFTS: Record<Shift, { start: string; end: string }> = {
-  morning: { start: "09:00", end: "13:00" },
-  evening: { start: "16:00", end: "20:00" },
-};
 
 // Appointments in these states still take the doctor's time.
 const ACTIVE: AppointmentStatus[] = ["booked", "arrived", "in_progress", "done"];
@@ -495,7 +492,7 @@ function addPastMonth(db: Db) {
     for (const doctor of db.doctors) {
       const day = doctor.days[weekday(date)];
       if (!day) continue;
-      let minute = toMinutes(SHIFTS[day.shift].start);
+      let minute = toMinutes(hoursOf(day).start);
       for (let n = 1 + Math.floor(random() * 3); n > 0; n--) {
         const patientId = pick(patientIds);
         const kind: VisitKind = random() < 0.3 ? "followup" : "new";
@@ -522,7 +519,7 @@ function addPastMonth(db: Db) {
         db.items.push({ id: id++, appointment_id: appointmentId, ...visitFee(doctor) });
         if (status !== "done") continue;
 
-        const at = new Date(`${date}T${time || SHIFTS[day.shift].start}:00`);
+        const at = new Date(`${date}T${time || hoursOf(day).start}:00`);
         if (random() < 0.7) db.appointments[db.appointments.length - 1].vitals = fakeVitals(random, at);
         const visitId = id++;
         const { diagnosis, medicines } = pick(DIAGNOSES);
@@ -941,7 +938,7 @@ function slotsFor(db: Db, doctor: MockDoctor, date: string, kind: VisitKind, ign
     .map((a) => [toMinutes(a.time), toMinutes(a.time) + lengthOf(doctor, a.kind)]);
   const nowMinutes = date === today() ? now().getHours() * 60 + now().getMinutes() : -1;
   const slots = [];
-  for (let m = toMinutes(SHIFTS[day.shift].start); m + length <= toMinutes(SHIFTS[day.shift].end); m += length) {
+  for (let m = toMinutes(hoursOf(day).start); m + length <= toMinutes(hoursOf(day).end); m += length) {
     const free = m > nowMinutes && !busy.some(([start, end]) => m < end && m + length > start);
     slots.push({ time: toTime(m), available: free });
   }
@@ -2134,7 +2131,8 @@ export const mockApi: Api = {
         doctor: publicDoctor(d),
         clinic_percent: d.clinic_percent,
         service_percent: d.service_percent,
-        days: d.days,
+        // Like a server that supports working hours: every work day comes with its times.
+        days: d.days.map((day) => (day ? { ...day, ...hoursOf(day) } : null)),
         absences: d.absences.filter((date) => date >= today()),
         late: d.late?.date === today() ? d.late : null,
       })),

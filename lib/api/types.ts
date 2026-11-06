@@ -62,6 +62,10 @@ export interface Doctor {
 export interface WorkDay {
   branch: BranchId;
   shift: Shift;
+  // The doctor's own hours that day, "HH:MM". Empty or missing: the shift's usual hours (lib/shifts.ts).
+  // The real server sends these only once it supports them; until then the screen doesn't show the time boxes.
+  start?: string | null;
+  end?: string | null;
 }
 
 export interface DoctorDay {

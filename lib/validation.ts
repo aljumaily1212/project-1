@@ -146,6 +146,14 @@ export const scheduleSchema = z.object({
   new_minutes: wholeNumber(5, 120),
   followup_minutes: wholeNumber(5, 120),
   days: z.array(z.enum(DAY_CHOICES)).length(7),
+  // From / to for each weekday ("HH:MM"). Empty means the shift's usual hours.
+  hours: z
+    .array(
+      z
+        .object({ start: z.string(), end: z.string() })
+        .refine((h) => !h.start || !h.end || h.end > h.start, { message: "validation.hours", path: ["end"] }),
+    )
+    .length(7),
 });
 export type ScheduleForm = z.infer<typeof scheduleSchema>;
 

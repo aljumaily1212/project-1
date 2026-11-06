@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type BranchId, type DoctorSchedule, type Shift, type WorkDay } from "@/lib/api";
 import { doctorName, longDate } from "@/lib/display";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
+import { SHIFT_HOURS } from "@/lib/shifts";
 import { useLoad } from "@/lib/useLoad";
 import { DAY_CHOICES, scheduleSchema, type ScheduleForm } from "@/lib/validation";
 import { Button, Card, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
@@ -19,10 +20,18 @@ type Choice = ScheduleForm["days"][number];
 
 const toChoice = (day: WorkDay | null): Choice => (day ? (`${day.branch}-${day.shift}` as Choice) : "off");
 
-function fromChoice(choice: Choice): WorkDay | null {
+// withHours: only when the server already works with hours, so it never gets fields it would ignore.
+function fromChoice(choice: Choice, hours: { start: string; end: string }, withHours: boolean): WorkDay | null {
   if (choice === "off") return null;
   const [branch, shift] = choice.split("-") as [BranchId, Shift];
-  return { branch, shift };
+  if (!withHours) return { branch, shift };
+  return { branch, shift, start: hours.start || SHIFT_HOURS[shift].start, end: hours.end || SHIFT_HOURS[shift].end };
+}
+
+// The usual hours of a choice, to fill the boxes when the manager picks another shift.
+function defaultHours(choice: Choice) {
+  if (choice === "off") return { start: "", end: "" };
+  return { ...SHIFT_HOURS[choice.split("-")[1] as Shift] };
 }
 
 function choiceLabel(choice: Choice, t: (key: MessageKey) => string) {
@@ -72,9 +81,14 @@ function AbsenceForm({ schedule, onDone }: { schedule: DoctorSchedule; onDone: (
 function DoctorCard({ schedule, onAbsent }: { schedule: DoctorSchedule; onAbsent: (date: string) => void }) {
   const { t, locale } = useT();
   const { doctor } = schedule;
+  // The real server doesn't have working hours yet. When its schedule data starts including them, the
+  // from / to boxes appear by themselves. The demo data already has them.
+  const withHours = schedule.days.some((d) => d !== null && d.start !== undefined);
   const {
     register,
     handleSubmit,
+    setValue,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<ScheduleForm>({
     resolver: zodResolver(scheduleSchema),
@@ -85,12 +99,15 @@ function DoctorCard({ schedule, onAbsent }: { schedule: DoctorSchedule; onAbsent
       new_minutes: doctor.new_minutes,
       followup_minutes: doctor.followup_minutes,
       days: schedule.days.map(toChoice),
+      hours: schedule.days.map((d) => ({ start: d?.start ?? "", end: d?.end ?? "" })),
     },
   });
+  const days = useWatch({ control, name: "days" });
 
   async function onSubmit(values: ScheduleForm) {
     try {
-      await api.updateSchedule(doctor.id, { ...values, days: values.days.map(fromChoice) });
+      const { hours, ...rest } = values;
+      await api.updateSchedule(doctor.id, { ...rest, days: values.days.map((choice, i) => fromChoice(choice, hours[i], withHours)) });
       // No reload: the form already shows the saved values.
       toast.success(t("doctors.saved"));
     } catch (err) {
@@ -127,15 +144,32 @@ function DoctorCard({ schedule, onAbsent }: { schedule: DoctorSchedule; onAbsent
           <legend className="text-sm font-semibold">{t("doctors.week")}</legend>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {WEEK_ORDER.map((index) => (
-              <Field key={index} label={t(`weekday.${index}` as MessageKey)}>
-                <Select {...register(`days.${index}`)}>
-                  {DAY_CHOICES.map((choice) => (
-                    <option key={choice} value={choice}>
-                      {choiceLabel(choice, t)}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
+              <div key={index} className="space-y-2" data-weekday={index}>
+                <Field label={t(`weekday.${index}` as MessageKey)}>
+                  <Select
+                    {...register(`days.${index}`, {
+                      // Another shift starts from that shift's usual hours.
+                      onChange: (e) => setValue(`hours.${index}`, defaultHours(e.target.value as Choice)),
+                    })}
+                  >
+                    {DAY_CHOICES.map((choice) => (
+                      <option key={choice} value={choice}>
+                        {choiceLabel(choice, t)}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {withHours && days[index] !== "off" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Field label={t("doctors.from")}>
+                      <Input type="time" dir="ltr" step={300} {...register(`hours.${index}.start`)} />
+                    </Field>
+                    <Field label={t("doctors.to")} error={errors.hours?.[index]?.end?.message}>
+                      <Input type="time" dir="ltr" step={300} invalid={!!errors.hours?.[index]?.end} {...register(`hours.${index}.end`)} />
+                    </Field>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </fieldset>
