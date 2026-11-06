@@ -15,6 +15,7 @@ import { ROLE_LABEL } from "@/components/staff-users";
 
 const ACTIONS: AuditAction[] = [
   "file.open",
+  "patient.merge",
   "visit.finish",
   "prescription.dispense",
   "appointment.book",

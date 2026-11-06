@@ -3,6 +3,7 @@ import { ApiError } from "./errors";
 import type { Api } from "./http";
 import type {
   Analytics,
+  DuplicateGroup,
   AppointmentStatus,
   AuditAction,
   AuditEntry,
@@ -69,7 +70,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v21";
+const STORAGE_KEY = "alrahma.mock.v22";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -303,6 +304,8 @@ function seed(): Db {
       { id: 1, name: "زينب كريم عباس", phone: MOCK_LOGINS.patient, account_id: 5, relation: "self" },
       { id: 2, name: "مصطفى كريم عباس", phone: "07700000002", account_id: 5, relation: "child" },
       { id: 3, name: "حسن عباس جبار", phone: "07700000003", account_id: null },
+      // The same man registered a second time by mistake at reception, with an allergy written only here.
+      { id: 6, name: "حسن عباس جبّار", phone: "07700000003", account_id: null, alerts: { allergies: ["Penicillin"], conditions: [], blood_type: null } },
       {
         id: 4,
         name: "مريم ناصر حميد",
@@ -852,6 +855,8 @@ function sameName(a: string, b: string) {
       .replace(/[أإآ]/g, "ا")
       .replace(/ة/g, "ه")
       .replace(/ى/g, "ي")
+      // Arabic marks like shadda (ّ) and the short vowels don't change who the person is.
+      .replace(/[\u064B-\u0652]/g, "")
       .replace(/\s+/g, " ")
       .toLowerCase();
   return norm(a) === norm(b);
@@ -2692,6 +2697,60 @@ export const mockApi: Api = {
     return delay(result);
   },
 
+  listDuplicates: async () => {
+    const db = read();
+    requireUser(db, "manager");
+    // Same phone and the same name (spelling aside): very likely one person registered twice.
+    const groups: DuplicateGroup[] = [];
+    const seen = new Set<number>();
+    for (const p of db.patients) {
+      if (seen.has(p.id)) continue;
+      const same = db.patients.filter((q) => q.phone === p.phone && sameName(q.name, p.name));
+      if (same.length < 2) continue;
+      same.forEach((q) => seen.add(q.id));
+      groups.push({
+        match_type: "exact_match",
+        confidence: 1,
+        reasons: ["تطابق كامل في رقم الهاتف والاسم (Exact phone and name match)"],
+        patients: same.map((q) => {
+          const s = patientSummary(db, q);
+          return { id: q.id, name: q.name, phone: q.phone, appointments: s.appointments, visits: s.visits };
+        }),
+      });
+    }
+    return delay(groups);
+  },
+
+  mergePatients: async ({ primary_patient_id, source_patient_id, reason }) => {
+    const db = read();
+    const user = requireUser(db, "manager");
+    const keep = db.patients.find((p) => p.id === primary_patient_id);
+    const from = db.patients.find((p) => p.id === source_patient_id);
+    if (!keep || !from) fail(404);
+    if (keep.id === from.id || reason.trim().length < 5) fail(422);
+    // Every record of the second file moves to the first one.
+    for (const a of db.appointments) if (a.patient_id === from.id) a.patient_id = keep.id;
+    for (const v of db.visits) if (v.patient_id === from.id) v.patient_id = keep.id;
+    for (const o of db.labOrders) if (o.patient_id === from.id) o.patient_id = keep.id;
+    for (const w of db.welfare) if (w.patient_id === from.id) w.patient_id = keep.id;
+    // Medical alerts are joined, never lost: an allergy written in either file stays.
+    const a = alertsOf(db, keep.id);
+    const b = alertsOf(db, from.id);
+    keep.alerts = {
+      allergies: [...new Set([...a.allergies, ...b.allergies])],
+      conditions: [...new Set([...a.conditions, ...b.conditions])],
+      blood_type: a.blood_type ?? b.blood_type,
+    };
+    if (keep.account_id === null && from.account_id !== null) {
+      keep.account_id = from.account_id;
+      keep.relation = from.relation;
+    }
+    db.patients = db.patients.filter((p) => p.id !== from.id);
+    log(db, user, "patient.merge", `${from.name} → ${keep.name}`);
+    write(db);
+    return delay(undefined);
+  },
+
   checkDuplicates: async ({ name, phone }) => {
     const db = read();
     requireUser(db, "reception", "manager");
@@ -2705,7 +2764,13 @@ export const mockApi: Api = {
           patient: { id: p.id, name: p.name, phone: p.phone, appointments: summary.appointments, visits: summary.visits },
           confidence: phoneToo && nameToo ? 1 : phoneToo ? 0.6 : 0.5,
           match_type: phoneToo && nameToo ? "exact_match" : phoneToo ? "shared_phone_family" : "same_name",
-          reasons: [phoneToo && nameToo ? "Exact phone and name match" : phoneToo ? "Same phone number" : "Same name"],
+          reasons: [
+            phoneToo && nameToo
+              ? "تطابق كامل في رقم الهاتف والاسم (Exact phone and name match)"
+              : phoneToo
+                ? "نفس رقم الهاتف (Same phone number)"
+                : "نفس الاسم (Same name)",
+          ],
         };
       })
       .sort((a, b) => b.confidence - a.confidence);

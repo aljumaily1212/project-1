@@ -81,6 +81,9 @@ import type {
   WalkInResult,
   DuplicateCheck,
   DuplicateCheckRequest,
+  DuplicateGroup,
+  DuplicatePatient,
+  MergeRequest,
 } from "./types";
 
 // ---------- answers from a backend that is one step behind ----------
@@ -92,6 +95,27 @@ const withForgotResult = (r: Partial<ForgotPasswordResult> | null | undefined): 
   expires_in_minutes: r?.expires_in_minutes ?? 0,
   dev_code: r?.dev_code,
 });
+
+// GET /patients/duplicates: the backend guide only says "suspicious groups with match types". This accepts a plain
+// list or { groups } / { items }, and patients given as `patients` or as duplicate-check `candidates`.
+type RawGroup = Partial<Omit<DuplicateGroup, "patients">> & {
+  patients?: Partial<DuplicatePatient>[];
+  candidates?: { patient?: Partial<DuplicatePatient> }[];
+};
+function toDuplicateGroups(data: unknown): DuplicateGroup[] {
+  const box = data as { groups?: RawGroup[]; items?: RawGroup[] } | null;
+  const list: RawGroup[] = Array.isArray(data) ? data : (box?.groups ?? box?.items ?? []);
+  return list
+    .map((g) => ({
+      match_type: g.match_type ?? "possible",
+      confidence: g.confidence ?? 0,
+      reasons: g.reasons ?? [],
+      patients: (g.patients ?? g.candidates?.map((c) => c.patient ?? {}) ?? [])
+        .filter((p) => typeof p.id === "number")
+        .map((p) => ({ id: p.id!, name: p.name ?? "", phone: p.phone ?? "", appointments: p.appointments ?? 0, visits: p.visits ?? 0 })),
+    }))
+    .filter((g) => g.patients.length >= 2);
+}
 
 const withBookingRules = (r: BookingRules): BookingRules => ({ ...r, welfare_percent: r.welfare_percent ?? 0 });
 
@@ -388,6 +412,10 @@ export const httpApi = {
   // Is this new patient already registered? Asked while reception types a name and phone.
   checkDuplicates: (body: DuplicateCheckRequest) =>
     http.post<DuplicateCheck>("/patients/duplicates/check", body).then((r) => ({ has_exact_match: !!r.data?.has_exact_match, candidates: r.data?.candidates ?? [] })),
+
+  // Manager: groups of patients who may be registered twice, and merging two of them into one file.
+  listDuplicates: () => http.get<unknown>("/patients/duplicates").then((r) => toDuplicateGroups(r.data)),
+  mergePatients: (body: MergeRequest) => http.post<unknown>("/patients/merge", body).then(() => undefined),
 
   searchPatients: (query: string, q: PageQuery) =>
     http.get<Page<PatientSummary>>("/patients", { params: { q: query, ...q } }).then((r) => r.data),

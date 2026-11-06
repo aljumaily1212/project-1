@@ -359,6 +359,29 @@ export interface DuplicateCheck {
   candidates: DuplicateCandidate[];
 }
 
+// A group of patients who may be the same person (manager's merge page).
+export interface DuplicatePatient {
+  id: number;
+  name: string;
+  phone: string;
+  appointments: number;
+  visits: number;
+}
+
+export interface DuplicateGroup {
+  match_type: DuplicateMatchType;
+  confidence: number;
+  reasons: string[];
+  patients: DuplicatePatient[];
+}
+
+// Everything of the source patient moves to the primary patient; the source file is closed (soft-merged).
+export interface MergeRequest {
+  primary_patient_id: number;
+  source_patient_id: number;
+  reason: string;
+}
+
 export interface WalkInRequest {
   name: string;
   phone: string;
@@ -743,6 +766,7 @@ export interface ClinicSettings {
 
 export type AuditAction =
   | "file.open"
+  | "patient.merge"
   | "visit.finish"
   | "prescription.dispense"
   | "staff.create"
