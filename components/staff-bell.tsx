@@ -55,7 +55,12 @@ export function StaffBell() {
         )}
       </button>
       {open && (
-        <div className="absolute end-0 top-10 z-30 w-80 max-w-[85vw] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-staff-notifications>
+        // Phone: a full-width box under the top bar. Computer: the bell is in the side menu at the screen's edge,
+        // so the panel opens toward the page (start-0: leftwards in Arabic, rightwards in English), never off-screen.
+        <div
+          className="fixed inset-x-4 top-16 z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg md:absolute md:inset-x-auto md:start-0 md:top-10 md:w-80"
+          data-staff-notifications
+        >
           <p className="border-b border-slate-200 px-4 py-2.5 text-sm font-semibold">{t("notifications.title")}</p>
           {list.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-slate-500">{t("notifications.empty")}</p>
