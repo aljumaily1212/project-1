@@ -55,6 +55,8 @@ export function clearSession() {
     localStorage.removeItem(KEY);
   } catch {
   }
+  // Copies of data kept for offline use (public/sw.js) belong to this person: they go on sign-out.
+  if (typeof caches !== "undefined") caches.delete("alrahma-api").catch(() => undefined);
   emit();
 }
 

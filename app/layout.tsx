@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
+import { OfflineBar, ServiceWorkerSetup } from "@/components/offline-bar";
 import { Toaster } from "@/components/toaster";
 import { bootScript, DEFAULT_LOCALE } from "@/lib/boot";
 import { LocaleSync } from "@/lib/i18n";
@@ -27,6 +28,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <LocaleSync />
         <ThemeSync />
         {children}
+        <OfflineBar />
+        <ServiceWorkerSetup />
         <Toaster />
       </body>
     </html>

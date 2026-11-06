@@ -1172,6 +1172,8 @@ export const en = {
   "merge.done": "The two files are now one",
   "merge.noAlerts": "No medical alerts",
   "audit.patient.merge": "Merged patient files:",
+  "offline.bar": "No internet. Pages show the last loaded data. Check-ins and walk-ins are saved and sent when the connection is back.",
+  "offline.back": "Back online",
 };
 
 export type MessageKey = keyof typeof en;
