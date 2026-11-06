@@ -84,6 +84,7 @@ import type {
   DuplicateGroup,
   DuplicatePatient,
   MergeRequest,
+  Role,
 } from "./types";
 
 // ---------- answers from a backend that is one step behind ----------
@@ -115,6 +116,19 @@ function toDuplicateGroups(data: unknown): DuplicateGroup[] {
         .map((p) => ({ id: p.id!, name: p.name ?? "", phone: p.phone ?? "", appointments: p.appointments ?? 0, visits: p.visits ?? 0 })),
     }))
     .filter((g) => g.patients.length >= 2);
+}
+
+// GET /users used to send every account as one plain list; now it sends { items, total } pages.
+// With a plain list the page is cut out here, so the users page works with both.
+type StaffQuery = PageQuery & { search?: string; role?: Role };
+function toStaffPage(data: StaffUser[] | Page<StaffUser>, q: StaffQuery): Page<StaffUser> {
+  if (!Array.isArray(data)) return { items: data?.items ?? [], total: data?.total ?? 0 };
+  const words = (q.search ?? "").trim().toLowerCase();
+  const matching = data
+    .filter((u) => (!q.role || u.role === q.role) && (!words || u.name.toLowerCase().includes(words) || u.phone.includes(words)))
+    .sort((a, b) => Number(b.active) - Number(a.active));
+  const start = q.offset ?? 0;
+  return { items: matching.slice(start, start + q.limit), total: matching.length };
 }
 
 const withBookingRules = (r: BookingRules): BookingRules => ({ ...r, welfare_percent: r.welfare_percent ?? 0 });
@@ -282,7 +296,11 @@ export const httpApi = {
   // The latest changes to the stock, newest first.
   stockLog: (limit: number) => http.get<StockMove[]>("/pharmacy/stock/log", { params: { limit } }).then((r) => r.data),
 
-  listStaff: () => http.get<StaffUser[]>("/users").then((r) => r.data),
+  // Pages and a search on name or phone. role is sent too (the server may not filter by it yet).
+  listStaff: (q: StaffQuery) =>
+    http
+      .get<StaffUser[] | Page<StaffUser>>("/users", { params: { limit: q.limit, offset: q.offset, search: q.search || undefined, role: q.role || undefined } })
+      .then((r) => toStaffPage(r.data, q)),
 
   createStaff: (body: CreateStaffRequest) => http.post<null>("/users", body).then(() => undefined),
 

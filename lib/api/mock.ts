@@ -1998,14 +1998,17 @@ export const mockApi: Api = {
     return delay(db.stockLog.slice(0, limit));
   },
 
-  listStaff: async () => {
+  listStaff: async ({ limit, offset, search, role }) => {
     const db = read();
     const viewer = requireUser(db, "reception", "manager");
-    return delay(
-      db.users
-        .filter((u) => viewer.role === "manager" || u.role !== "patient")
-        .map(({ id, name, phone, role, disabled }): StaffUser => ({ id, name, phone, role, active: !disabled })),
-    );
+    const words = (search ?? "").trim().toLowerCase();
+    const list = db.users
+      .filter((u) => viewer.role === "manager" || u.role !== "patient")
+      .filter((u) => (!role || u.role === role) && (!words || u.name.toLowerCase().includes(words) || u.phone.includes(words)))
+      .map(({ id, name, phone, role, disabled }): StaffUser => ({ id, name, phone, role, active: !disabled }))
+      // Stopped accounts go to the end.
+      .sort((a, b) => Number(b.active) - Number(a.active));
+    return delay(pageOf(list, { limit, offset }));
   },
 
   createStaff: async ({ name, phone, password, role, doctor }: CreateStaffRequest) => {

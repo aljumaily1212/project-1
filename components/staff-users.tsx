@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -8,8 +8,7 @@ import { Search } from "lucide-react";
 import { api, type Role, type StaffUser } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
-import { pageSlice } from "@/lib/paging";
-import { useLoad } from "@/lib/useLoad";
+import { usePaged } from "@/lib/paging";
 import { editStaffSchema, staffSchema, type EditStaffForm, type StaffForm } from "@/lib/validation";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Pager, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
@@ -251,20 +250,20 @@ function StaffRow({ user, canManage, isMe, onChanged }: { user: StaffUser; canMa
 // Used by both /reception/users and /manager/users.
 export function StaffUsersPage() {
   const { t } = useT();
-  const { state, reload, refresh } = useLoad(api.listStaff);
   const { session } = useSession();
   const isManager = session?.user.role === "manager";
-  // Search by name or phone, filter by job, and 20 per page: there will be thousands of patient accounts.
+  // Search by name or phone, filter by job, and 20 per page from the server: there will be thousands of patient accounts.
   const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role | "">("");
-  const [page, setPage] = useState(1);
-  const words = query.trim().toLowerCase();
-  // Stopped accounts go to the end of the list.
-  const users = state.status === "success" ? [...state.data].sort((a, b) => Number(b.active) - Number(a.active)) : [];
-  const matching = users.filter(
-    (u) => (!roleFilter || u.role === roleFilter) && (!words || u.name.toLowerCase().includes(words) || u.phone.includes(words)),
-  );
-  const view = pageSlice(matching, page);
+  // Waits until typing stops for a moment, so every letter doesn't send a request.
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+  const users = usePaged((q) => api.listStaff({ ...q, search, role: roleFilter || undefined }), `${search}|${roleFilter}`);
+  const { state, reload, refresh, items } = users;
+  const filtering = search !== "" || roleFilter !== "";
 
   return (
     <>
@@ -275,17 +274,14 @@ export function StaffUsersPage() {
           <h2 className="font-semibold">{isManager ? t("users.listAll") : t("users.list")}</h2>
           {state.status === "loading" && <CardsSkeleton count={1} />}
           {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
-          {state.status === "success" && state.data.length > 0 && (
+          {state.status === "success" && (users.total > 0 || filtering) && (
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-slate-400" aria-hidden />
                 <Input
                   type="search"
                   value={query}
-                  onChange={(e) => {
-                    setQuery(e.target.value);
-                    setPage(1);
-                  }}
+                  onChange={(e) => setQuery(e.target.value)}
                   placeholder={t("users.search")}
                   aria-label={t("users.search")}
                   className="ps-9"
@@ -293,10 +289,7 @@ export function StaffUsersPage() {
               </div>
               <Select
                 value={roleFilter}
-                onChange={(e) => {
-                  setRoleFilter(e.target.value as Role | "");
-                  setPage(1);
-                }}
+                onChange={(e) => setRoleFilter(e.target.value as Role | "")}
                 aria-label={t("users.filterRole")}
               >
                 <option value="">{t("users.allRoles")}</option>
@@ -308,16 +301,15 @@ export function StaffUsersPage() {
               </Select>
             </div>
           )}
-          {state.status === "success" && state.data.length === 0 && <EmptyState title={t("users.empty")} />}
-          {state.status === "success" && state.data.length > 0 && matching.length === 0 && <EmptyState title={t("users.noMatch")} />}
+          {state.status === "success" && items.length === 0 && <EmptyState title={t(filtering ? "users.noMatch" : "users.empty")} />}
           {state.status === "success" && (
             <ul className="divide-y divide-slate-200">
-              {view.items.map((user) => (
+              {items.map((user) => (
                 <StaffRow key={user.id} user={user} canManage={isManager} isMe={user.id === session?.user.id} onChanged={refresh} />
               ))}
             </ul>
           )}
-          <Pager page={view.page} pageSize={view.pageSize} total={view.total} onPage={setPage} />
+          <Pager page={users.page} pageSize={users.pageSize} total={users.total} loading={users.loadingPage} onPage={users.setPage} />
         </Card>
       </div>
     </>

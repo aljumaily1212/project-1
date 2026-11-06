@@ -1177,6 +1177,7 @@ export const en = {
   "doctors.from": "From",
   "doctors.to": "To",
   "validation.hours": "The end time must be after the start time",
+  "apiError.invalid_name": "Enter the three-part name: your name, your father's, your grandfather's",
 };
 
 export type MessageKey = keyof typeof en;

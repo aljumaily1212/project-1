@@ -1179,4 +1179,5 @@ export const ar: Record<MessageKey, string> = {
   "doctors.from": "من",
   "doctors.to": "إلى",
   "validation.hours": "وقت النهاية يجب أن يكون بعد وقت البداية",
+  "apiError.invalid_name": "اكتب الاسم الثلاثي: الاسم واسم الأب واسم الجد",
 };

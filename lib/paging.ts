@@ -36,13 +36,6 @@ export function usePaged<T>(fetchPage: (q: PageQuery) => Promise<Page<T>>, key =
   };
 }
 
-// The same pages for a list that is already fully in the browser (for example the staff accounts).
-export function pageSlice<T>(list: T[], page: number, pageSize = PAGE_SIZE) {
-  const pages = Math.max(1, Math.ceil(list.length / pageSize));
-  const current = Math.min(Math.max(1, page), pages);
-  return { items: list.slice((current - 1) * pageSize, current * pageSize), page: current, total: list.length, pageSize };
-}
-
 // Everything, part by part, for an Excel export: the screen shows a part, the file gets it all.
 export async function fetchAll<T>(fetchPage: (q: PageQuery) => Promise<Page<T>>): Promise<T[]> {
   const all: T[] = [];

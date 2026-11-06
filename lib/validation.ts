@@ -14,18 +14,25 @@ export const numberOrNull = (value: unknown) => (value === "" || value === null 
 
 const phone = z.string().regex(/^07\d{9}$/, "validation.phone");
 
-// Words that belong to the next word, so "عبد الكريم" or "Abd al Kareem" count as one part of the name.
-const JOINS_NEXT = /^(عبد|ابو|أبو|abd|abdul|abdel|abu|al|el)$/i;
+// The same rules as the server (validate_three_part_name in the backend), so the form and the server agree.
+// Titles at the start are not part of the name: "د. علي حسن كاظم" is three parts.
+const TITLE = /^(د|د\.|د\/|دكتور|الدكتور|أستاذ|استاذ|الأستاذ|مهندس|المهندس|سيد|السيد|شيخ|الشيخ|حاج|الحاج|dr\.?|mr\.?|mrs\.?|ms\.?)$/i;
+// Words that belong to the next word: "عبد الكريم", "أبو بكر", "أم كلثوم", "ابن بطوطة", "آل ...", "Abd al Kareem".
+const JOINS_NEXT = /^(عبد|ابو|أبو|ام|أم|ابن|آل|abd|abdul|abdel|abu|al|el)$/i;
+// Words that belong to the word before: "نور الدين", "فضل الله", "عطاء الله".
+const JOINS_PREVIOUS = /^(الدين|الله)$/;
+// Not copied from the server: it also joins "محمد علي" and "محمد حسن" into one part, but "محمد علي حسن"
+// (Mohammed, son of Ali, son of Hassan) is a normal three-part name, so that rule would reject real people.
 
 // Splits a full name into its parts: the person's name, the father's, the grandfather's.
-// A title at the start (د. / Dr.) is not a part.
 export function nameParts(value: string) {
   const words = value.trim().split(/\s+/).filter(Boolean);
-  if (words.length && /^(د\.?|dr\.?)$/i.test(words[0])) words.shift();
+  while (words.length && TITLE.test(words[0])) words.shift();
   const parts: string[] = [];
   for (const word of words) {
     const last = parts[parts.length - 1];
-    if (last !== undefined && JOINS_NEXT.test(last.split(" ").pop() ?? "")) parts[parts.length - 1] = `${last} ${word}`;
+    const glue = last !== undefined && (JOINS_NEXT.test(last.split(" ").pop() ?? "") || JOINS_PREVIOUS.test(word));
+    if (glue) parts[parts.length - 1] = `${last} ${word}`;
     else parts.push(word);
   }
   return parts;
