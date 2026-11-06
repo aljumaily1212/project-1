@@ -1140,4 +1140,6 @@ export const ar: Record<MessageKey, string> = {
   "errorPage.500.text": "المشكلة ليست منك. حاول مرة أخرى بعد قليل.",
   "errorPage.503.title": "سنعود قريباً",
   "errorPage.503.text": "الموقع قيد التحديث. حاول مرة أخرى بعد بضع دقائق.",
+  "patients.receptionNote": "الملف الطبي (التشخيص والأدوية والتحاليل والتنبيهات الطبية) يظهر للطبيب والإدارة فقط.",
+  "print.patientRecord": "سجل المريض",
 };

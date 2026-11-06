@@ -1138,6 +1138,8 @@ export const en = {
   "errorPage.500.text": "It's not your fault. Try again in a moment.",
   "errorPage.503.title": "We'll be back soon",
   "errorPage.503.text": "The site is being updated. Try again in a few minutes.",
+  "patients.receptionNote": "The medical file (diagnoses, medicines, tests and alerts) is shown only to doctors and the manager.",
+  "print.patientRecord": "Patient record",
 };
 
 export type MessageKey = keyof typeof en;

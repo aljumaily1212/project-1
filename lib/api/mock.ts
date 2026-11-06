@@ -2764,6 +2764,12 @@ export const mockApi: Api = {
       })(),
       money: { total, paid, balance: { IQD: total.IQD - paid.IQD, USD: total.USD - paid.USD } },
     };
+    // Like the real server: reception gets no medical data at all, not just hidden on the screen.
+    if (user.role === "reception") {
+      file.visits = [];
+      file.alerts = NO_ALERTS;
+      file.family = file.family.map((f) => ({ ...f, alerts: NO_ALERTS }));
+    }
     return delay(file);
   },
 

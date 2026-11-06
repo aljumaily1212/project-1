@@ -19,6 +19,9 @@ import { PaymentLog } from "@/components/payment-log";
 
 const TABS = ["visits", "appointments", "tests", "payments"] as const;
 type Tab = (typeof TABS)[number];
+// Reception books and takes money, so it sees appointments and payments only. Diagnoses, medicines,
+// tests and medical alerts are for the doctor and the manager (the server also leaves them out for reception).
+const BASIC_TABS: Tab[] = ["appointments", "payments"];
 
 // ---------- the search list ----------
 
@@ -192,7 +195,7 @@ function PaymentsTab({ file }: { file: PatientFile }) {
 }
 
 // The full file on paper: who the patient is, the totals, then every visit, appointment and payment.
-function PrintedPatientFile({ file }: { file: PatientFile }) {
+function PrintedPatientFile({ file, medical }: { file: PatientFile; medical: boolean }) {
   const { t, locale } = useT();
   const p = file.patient;
   return (
@@ -201,7 +204,7 @@ function PrintedPatientFile({ file }: { file: PatientFile }) {
         <p>
           {p.name} · <span dir="ltr">{p.phone}</span>
         </p>
-        <AlertsBanner alerts={file.alerts} />
+        {medical && <AlertsBanner alerts={file.alerts} />}
         <p>
           {t("patients.stat.appointments")}: {p.appointments} · {t("patients.stat.visits")}: {p.visits} · {t("patients.stat.noShows")}: {p.no_shows}
         </p>
@@ -209,26 +212,28 @@ function PrintedPatientFile({ file }: { file: PatientFile }) {
           {t("patients.stat.paid")}: <AmountsText amounts={file.money.paid} /> · {t("patients.stat.balance")}: <AmountsText amounts={file.money.balance} />
         </p>
       </PrintSection>
-      <PrintSection title={t("patients.tab.visits")}>
-        {file.visits.length === 0 && <p>{t("patients.noVisits")}</p>}
-        {file.visits.map((v) => (
-          <div key={v.id} className="print-keep space-y-1 border-b border-[#e2e8f0] pb-2">
-            <p className="font-semibold">
-              {dateTime(v.created_at, locale)} · {v.doctor_name}
-            </p>
-            <p>
-              {t("visit.diagnosis")}: {v.diagnosis}
-            </p>
-            {v.medicines.length > 0 ? <MedicineList medicines={v.medicines} /> : <p>{t("visit.noMedicines")}</p>}
-            {v.tests.map((test) => (
-              <div key={test.id} className="space-y-1">
-                <p className="font-medium">{serviceName(test.test, locale)}</p>
-                {test.result ? <ResultView result={test.result} /> : <p>{t(`lab.status.${test.status}`)}</p>}
-              </div>
-            ))}
-          </div>
-        ))}
-      </PrintSection>
+      {medical && (
+        <PrintSection title={t("patients.tab.visits")}>
+          {file.visits.length === 0 && <p>{t("patients.noVisits")}</p>}
+          {file.visits.map((v) => (
+            <div key={v.id} className="print-keep space-y-1 border-b border-[#e2e8f0] pb-2">
+              <p className="font-semibold">
+                {dateTime(v.created_at, locale)} · {v.doctor_name}
+              </p>
+              <p>
+                {t("visit.diagnosis")}: {v.diagnosis}
+              </p>
+              {v.medicines.length > 0 ? <MedicineList medicines={v.medicines} /> : <p>{t("visit.noMedicines")}</p>}
+              {v.tests.map((test) => (
+                <div key={test.id} className="space-y-1">
+                  <p className="font-medium">{serviceName(test.test, locale)}</p>
+                  {test.result ? <ResultView result={test.result} /> : <p>{t(`lab.status.${test.status}`)}</p>}
+                </div>
+              ))}
+            </div>
+          ))}
+        </PrintSection>
+      )}
       <PrintSection title={t("patients.tab.appointments")}>
         <table className="w-full text-sm">
           <tbody>
@@ -273,10 +278,11 @@ function PrintedPatientFile({ file }: { file: PatientFile }) {
   );
 }
 
-function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () => void }) {
+function PatientFileView({ patientId, medical, onBack }: { patientId: number; medical: boolean; onBack: () => void }) {
   const { t, locale } = useT();
   const { state, reload } = useLoad(() => api.patientFile(patientId), String(patientId));
-  const [tab, setTab] = useState<Tab>("visits");
+  const tabs = medical ? TABS : BASIC_TABS;
+  const [tab, setTab] = useState<Tab>(tabs[0]);
   const Back = locale === "ar" ? ArrowRight : ArrowLeft;
 
   return (
@@ -299,8 +305,8 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-            <PrintButton title={t("print.medicalFile")} subject={state.data.patient.name}>
-              {() => state.status === "success" && <PrintedPatientFile file={state.data} />}
+            <PrintButton title={t(medical ? "print.medicalFile" : "print.patientRecord")} subject={state.data.patient.name}>
+              {() => state.status === "success" && <PrintedPatientFile file={state.data} medical={medical} />}
             </PrintButton>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
               {state.data.patient.has_account
@@ -324,7 +330,7 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
             </Stat>
           </div>
 
-          <AlertsBanner alerts={state.data.alerts} quiet />
+          {medical && <AlertsBanner alerts={state.data.alerts} quiet />}
 
           {state.data.welfare && (
             <p
@@ -354,7 +360,7 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
           )}
 
           <div className="flex flex-wrap gap-2">
-            {TABS.map((item) => (
+            {tabs.map((item) => (
               <Button key={item} variant={item === tab ? "primary" : "secondary"} onClick={() => setTab(item)}>
                 {t(`patients.tab.${item}`)}
               </Button>
@@ -364,38 +370,38 @@ function PatientFileView({ patientId, onBack }: { patientId: number; onBack: () 
           {tab === "appointments" && <AppointmentsTab file={state.data} />}
           {tab === "tests" && <TestsTab file={state.data} />}
           {tab === "payments" && <PaymentsTab file={state.data} />}
-          <p className="text-xs text-slate-500">{t("patients.privateNote")}</p>
+          <p className="text-xs text-slate-500">{t(medical ? "patients.privateNote" : "patients.receptionNote")}</p>
         </>
       )}
     </div>
   );
 }
 
-function PatientHistory({ startId }: { startId: number | null }) {
+function PatientHistory({ startId, medical }: { startId: number | null; medical: boolean }) {
   const { t } = useT();
   const [openId, setOpenId] = useState<number | null>(startId);
 
   return (
     <>
       <PageHeader title={t("patients.title")} description={t("patients.subtitle")} />
-      {openId === null ? <PatientSearch onOpen={setOpenId} /> : <PatientFileView patientId={openId} onBack={() => setOpenId(null)} />}
+      {openId === null ? <PatientSearch onOpen={setOpenId} /> : <PatientFileView patientId={openId} medical={medical} onBack={() => setOpenId(null)} />}
     </>
   );
 }
 
 // Reads ?patient=ID. The key makes a new search result start fresh even when this page is already open.
-function FromAddress() {
+function FromAddress({ medical }: { medical: boolean }) {
   const params = useSearchParams();
   const id = Number(params.get("patient")) || null;
-  return <PatientHistory key={id ?? "list"} startId={id} />;
+  return <PatientHistory key={id ?? "list"} startId={id} medical={medical} />;
 }
 
-// Used by both reception and the manager: search, then open everything about one patient.
-// useSearchParams needs a Suspense boundary in a static export.
-export function PatientHistoryPage() {
+// Used by both reception and the manager: search, then open one patient.
+// medical={false} (reception) leaves out everything medical. useSearchParams needs a Suspense boundary in a static export.
+export function PatientHistoryPage({ medical = true }: { medical?: boolean }) {
   return (
     <Suspense fallback={<CardsSkeleton count={2} />}>
-      <FromAddress />
+      <FromAddress medical={medical} />
     </Suspense>
   );
 }
