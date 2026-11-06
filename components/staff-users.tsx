@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { api, type Role, type StaffUser } from "@/lib/api";
 import { useSession } from "@/lib/auth";
 import { errorText, useT, type MessageKey } from "@/lib/i18n";
+import { pageSlice } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
 import { editStaffSchema, staffSchema, type EditStaffForm, type StaffForm } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Pager, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
 export const ROLE_LABEL: Record<Role, MessageKey> = {
@@ -252,8 +254,17 @@ export function StaffUsersPage() {
   const { state, reload, refresh } = useLoad(api.listStaff);
   const { session } = useSession();
   const isManager = session?.user.role === "manager";
+  // Search by name or phone, filter by job, and 20 per page: there will be thousands of patient accounts.
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<Role | "">("");
+  const [page, setPage] = useState(1);
+  const words = query.trim().toLowerCase();
   // Stopped accounts go to the end of the list.
   const users = state.status === "success" ? [...state.data].sort((a, b) => Number(b.active) - Number(a.active)) : [];
+  const matching = users.filter(
+    (u) => (!roleFilter || u.role === roleFilter) && (!words || u.name.toLowerCase().includes(words) || u.phone.includes(words)),
+  );
+  const view = pageSlice(matching, page);
 
   return (
     <>
@@ -264,14 +275,49 @@ export function StaffUsersPage() {
           <h2 className="font-semibold">{isManager ? t("users.listAll") : t("users.list")}</h2>
           {state.status === "loading" && <CardsSkeleton count={1} />}
           {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
+          {state.status === "success" && state.data.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute inset-y-0 start-3 my-auto size-4 text-slate-400" aria-hidden />
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder={t("users.search")}
+                  aria-label={t("users.search")}
+                  className="ps-9"
+                />
+              </div>
+              <Select
+                value={roleFilter}
+                onChange={(e) => {
+                  setRoleFilter(e.target.value as Role | "");
+                  setPage(1);
+                }}
+                aria-label={t("users.filterRole")}
+              >
+                <option value="">{t("users.allRoles")}</option>
+                {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                  <option key={r} value={r}>
+                    {t(ROLE_LABEL[r])}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           {state.status === "success" && state.data.length === 0 && <EmptyState title={t("users.empty")} />}
+          {state.status === "success" && state.data.length > 0 && matching.length === 0 && <EmptyState title={t("users.noMatch")} />}
           {state.status === "success" && (
             <ul className="divide-y divide-slate-200">
-              {users.map((user) => (
+              {view.items.map((user) => (
                 <StaffRow key={user.id} user={user} canManage={isManager} isMe={user.id === session?.user.id} onChanged={refresh} />
               ))}
             </ul>
           )}
+          <Pager page={view.page} pageSize={view.pageSize} total={view.total} onPage={setPage} />
         </Card>
       </div>
     </>

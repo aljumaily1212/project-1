@@ -984,8 +984,6 @@ export const en = {
   "audit.staff.update": "Edited the account of",
   "audit.staff.disable": "Stopped the account of",
   "audit.staff.enable": "Restarted the account of",
-  "paging.shown": "Showing {shown} of {total}",
-  "paging.more": "Show more",
   "slides.next": "Next slide",
   "book.doneGoPay": "Appointment made. Opening the payment page…",
   "appointments.payBy": "Pay online before {time}, or this appointment will be cancelled and the time given to someone else.",
@@ -1140,6 +1138,14 @@ export const en = {
   "errorPage.503.text": "The site is being updated. Try again in a few minutes.",
   "patients.receptionNote": "The medical file (diagnoses, medicines, tests and alerts) is shown only to doctors and the manager.",
   "print.patientRecord": "Patient record",
+  "paging.label": "Pages",
+  "paging.range": "Showing {from}–{to} of {total}",
+  "paging.prev": "Previous page",
+  "paging.next": "Next page",
+  "users.search": "Search by name or phone",
+  "users.filterRole": "Job",
+  "users.allRoles": "All jobs",
+  "users.noMatch": "No account matches the search",
 };
 
 export type MessageKey = keyof typeof en;

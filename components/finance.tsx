@@ -10,7 +10,7 @@ import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { fetchAll, usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
 import { localToday, type ReverseForm, reverseSchema } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Field, Input, ShowMore } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Field, Input, Pager } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { CardsSkeleton } from "@/components/skeleton";
 import { ExportButton } from "@/components/export-button";
@@ -144,7 +144,7 @@ export function LedgerView({ canReverse }: { canReverse: boolean }) {
           ))}
         </ul>
       )}
-      <ShowMore shown={entries.length} total={ledger.total} loading={ledger.loadingMore} onMore={ledger.more} />
+      <Pager page={ledger.page} pageSize={ledger.pageSize} total={ledger.total} loading={ledger.loadingPage} onPage={ledger.setPage} />
     </Card>
   );
 }

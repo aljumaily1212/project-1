@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { errorText, useT } from "@/lib/i18n";
 import { usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
-import { Card, EmptyState, ErrorState, Field, PageHeader, Select, ShowMore } from "@/components/common";
+import { Card, EmptyState, ErrorState, Field, PageHeader, Select, Pager } from "@/components/common";
 import { PaymentLog } from "@/components/payment-log";
 import { CardsSkeleton } from "@/components/skeleton";
 
@@ -14,7 +14,7 @@ export default function MyPaymentsPage() {
   const { t } = useT();
   const family = useLoad(api.myFamily);
   const [person, setPerson] = useState("");
-  const log = usePaged((q) => api.myPayments({ ...q, patient_id: person ? Number(person) : undefined }), person, { pageSize: 20, every: 15000 });
+  const log = usePaged((q) => api.myPayments({ ...q, patient_id: person ? Number(person) : undefined }), person, { every: 15000 });
   const people = family.state.status === "success" ? family.state.data : [];
 
   return (
@@ -44,7 +44,7 @@ export default function MyPaymentsPage() {
             <Card className="space-y-3 p-0 pb-3">
               <PaymentLog entries={log.items} showPatient={people.length > 1 && !person} />
               <div className="px-4">
-                <ShowMore shown={log.items.length} total={log.total} loading={log.loadingMore} onMore={log.more} />
+                <Pager page={log.page} pageSize={log.pageSize} total={log.total} loading={log.loadingPage} onPage={log.setPage} />
               </div>
             </Card>
           ))}

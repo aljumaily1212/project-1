@@ -9,7 +9,7 @@ import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { usePaged } from "@/lib/paging";
 import { useLoad } from "@/lib/useLoad";
 import { localToday } from "@/lib/validation";
-import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, ShowMore, StatusBadge } from "@/components/common";
+import { Button, Card, EmptyState, ErrorState, Input, MedicineList, PageHeader, Pager, StatusBadge } from "@/components/common";
 import { AmountsText, amountText } from "@/components/money";
 import { ResultView, serviceName } from "@/components/result-view";
 import { PrintButton, PrintSection } from "@/components/print";
@@ -60,7 +60,7 @@ function PatientSearch({ onOpen }: { onOpen: (id: number) => void }) {
     const timer = setTimeout(() => setSearch(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
-  const patients = usePaged((q) => api.searchPatients(search, q), search, { pageSize: 30 });
+  const patients = usePaged((q) => api.searchPatients(search, q), search);
   const { state, reload, items } = patients;
 
   return (
@@ -86,7 +86,7 @@ function PatientSearch({ onOpen }: { onOpen: (id: number) => void }) {
           ))}
         </ul>
       )}
-      <ShowMore shown={items.length} total={patients.total} loading={patients.loadingMore} onMore={patients.more} />
+      <Pager page={patients.page} pageSize={patients.pageSize} total={patients.total} loading={patients.loadingPage} onPage={patients.setPage} />
     </Card>
   );
 }

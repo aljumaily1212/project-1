@@ -1,6 +1,7 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ComponentProps, ReactNode, TextareaHTMLAttributes } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AppointmentStatus, DoseInstructions, Medicine } from "@/lib/api/types";
 import { STATUS_COLOR } from "@/lib/display";
@@ -159,17 +160,94 @@ export function MedicineList({ medicines }: { medicines: Medicine[] }) {
 }
 
 // Under a list shown in parts: how many are shown, and a button for the next part.
-export function ShowMore({ shown, total, loading, onMore }: { shown: number; total: number; loading: boolean; onMore: () => void }) {
+// Which page buttons to show: the first, the last, and the pages next to the open one. A jump is "…".
+// Example: page 6 of 20 → 1 … 5 6 7 … 20.
+function pageNumbers(page: number, pages: number): (number | "gap")[] {
+  const keep = [...new Set([1, page - 1, page, page + 1, pages])].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
+  const out: (number | "gap")[] = [];
+  for (const n of keep) {
+    const last = out[out.length - 1];
+    // A jump over one page shows that page instead of "…".
+    if (typeof last === "number" && n - last === 2) out.push(last + 1);
+    else if (typeof last === "number" && n - last > 2) out.push("gap");
+    out.push(n);
+  }
+  return out;
+}
+
+// Numbered pages under a long list. In Arabic page 1 sits on the right, like the text.
+export function Pager({
+  page,
+  pageSize,
+  total,
+  loading = false,
+  onPage,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  loading?: boolean;
+  onPage: (page: number) => void;
+}) {
   const { t } = useT();
   if (total === 0) return null;
+  const pages = Math.ceil(total / pageSize);
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+  // After changing page, bring the top of the list back into view.
+  const go = (n: number, el: HTMLElement) => {
+    onPage(n);
+    el.closest("[data-pager]")?.parentElement?.scrollIntoView({ block: "start", behavior: "smooth" });
+  };
+  const box = "inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-medium";
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm text-slate-500" data-show-more>
-      <span>{t("paging.shown", { shown, total })}</span>
-      {shown < total && (
-        <Button type="button" variant="secondary" loading={loading} onClick={onMore}>
-          {t("paging.more")}
-        </Button>
+    <nav
+      aria-label={t("paging.label")}
+      aria-busy={loading || undefined}
+      className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3 text-sm text-slate-500"
+      data-pager
+    >
+      <span>{t("paging.range", { from, to, total })}</span>
+      {pages > 1 && (
+        <div className={cn("flex flex-wrap items-center gap-1", loading && "opacity-60")}>
+          <button
+            type="button"
+            className={cn(box, "border border-slate-300 hover:bg-slate-100 disabled:opacity-40")}
+            disabled={page === 1}
+            onClick={(e) => go(page - 1, e.currentTarget)}
+            aria-label={t("paging.prev")}
+          >
+            <ChevronLeft className="size-4 rtl:rotate-180" aria-hidden />
+          </button>
+          {pageNumbers(page, pages).map((n, i) =>
+            n === "gap" ? (
+              <span key={`gap${i}`} className="px-1" aria-hidden>
+                …
+              </span>
+            ) : (
+              <button
+                key={n}
+                type="button"
+                aria-current={n === page ? "page" : undefined}
+                className={cn(box, n === page ? "bg-brand-600 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100")}
+                onClick={(e) => go(n, e.currentTarget)}
+              >
+                {n}
+              </button>
+            ),
+          )}
+          <button
+            type="button"
+            className={cn(box, "border border-slate-300 hover:bg-slate-100 disabled:opacity-40")}
+            disabled={page === pages}
+            onClick={(e) => go(page + 1, e.currentTarget)}
+            aria-label={t("paging.next")}
+          >
+            <ChevronRight className="size-4 rtl:rotate-180" aria-hidden />
+          </button>
+        </div>
       )}
-    </div>
+    </nav>
   );
 }

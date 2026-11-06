@@ -8,7 +8,7 @@ import { errorText, useT, type MessageKey } from "@/lib/i18n";
 import { fetchAll, usePaged } from "@/lib/paging";
 import { localToday } from "@/lib/validation";
 import { AuditList } from "@/components/audit-list";
-import { Card, EmptyState, ErrorState, Field, PageHeader, Select, ShowMore } from "@/components/common";
+import { Card, EmptyState, ErrorState, Field, PageHeader, Select, Pager } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 import { ExportButton } from "@/components/export-button";
 import { ROLE_LABEL } from "@/components/staff-users";
@@ -97,7 +97,7 @@ export default function AuditPage() {
         {state.status === "error" && <ErrorState message={errorText(state.error, t)} onRetry={reload} />}
         {state.status === "success" && entries.length === 0 && <EmptyState title={t("audit.empty")} />}
         {state.status === "success" && <AuditList entries={entries} />}
-        <ShowMore shown={entries.length} total={audit.total} loading={audit.loadingMore} onMore={audit.more} />
+        <Pager page={audit.page} pageSize={audit.pageSize} total={audit.total} loading={audit.loadingPage} onPage={audit.setPage} />
       </Card>
     </>
   );
