@@ -844,6 +844,19 @@ function requireDoctorSeesPatient(db: Db, user: MockUser, patientId: number) {
 
 const NO_ALERTS: MedicalAlerts = { allergies: [], conditions: [], blood_type: null };
 
+// Arabic names are written in many ways: أحمد / احمد, ة / ه, ى / ي, extra spaces. This makes them comparable.
+function sameName(a: string, b: string) {
+  const norm = (s: string) =>
+    s
+      .trim()
+      .replace(/[أإآ]/g, "ا")
+      .replace(/ة/g, "ه")
+      .replace(/ى/g, "ي")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  return norm(a) === norm(b);
+}
+
 function alertsOf(db: Db, patientId: number): MedicalAlerts {
   return db.patients.find((p) => p.id === patientId)?.alerts ?? NO_ALERTS;
 }
@@ -1680,7 +1693,8 @@ export const mockApi: Api = {
     // The same walk-in sent again: it's already in the line, so don't add a second one.
     if (db.appointments.some((a) => a.idempotency_key === idempotency_key)) return delay({ duplicate: false });
     const doctor = findDoctor(db, doctor_id);
-    const existing = db.patients.find((p) => p.phone === phone);
+    // The same person is the same phone AND name. A family member with the same phone is a different patient.
+    const existing = db.patients.find((p) => p.phone === phone && sameName(p.name, name));
     const patient = existing ?? { id: db.nextId++, name, phone, account_id: null };
     if (!existing) db.patients.push(patient);
     db.appointments.push({
@@ -2676,6 +2690,26 @@ export const mockApi: Api = {
       ratings: ratingsOf(db, db.visits.filter((v) => v.rating && inRange(dateOf(new Date(v.created_at))))),
     };
     return delay(result);
+  },
+
+  checkDuplicates: async ({ name, phone }) => {
+    const db = read();
+    requireUser(db, "reception", "manager");
+    const candidates = db.patients
+      .filter((p) => p.phone === phone || sameName(p.name, name))
+      .map((p) => {
+        const phoneToo = p.phone === phone;
+        const nameToo = sameName(p.name, name);
+        const summary = patientSummary(db, p);
+        return {
+          patient: { id: p.id, name: p.name, phone: p.phone, appointments: summary.appointments, visits: summary.visits },
+          confidence: phoneToo && nameToo ? 1 : phoneToo ? 0.6 : 0.5,
+          match_type: phoneToo && nameToo ? "exact_match" : phoneToo ? "shared_phone_family" : "same_name",
+          reasons: [phoneToo && nameToo ? "Exact phone and name match" : phoneToo ? "Same phone number" : "Same name"],
+        };
+      })
+      .sort((a, b) => b.confidence - a.confidence);
+    return delay({ has_exact_match: candidates.some((c) => c.match_type === "exact_match"), candidates });
   },
 
   searchPatients: async (query, paging) => {

@@ -79,6 +79,8 @@ import type {
   UpdateStaffRequest,
   WalkInRequest,
   WalkInResult,
+  DuplicateCheck,
+  DuplicateCheckRequest,
 } from "./types";
 
 // ---------- answers from a backend that is one step behind ----------
@@ -383,6 +385,10 @@ export const httpApi = {
   analytics: (days: number) => http.get<Analytics>("/manager/analytics", { params: { days } }).then((r) => r.data),
 
   // Reception and the manager search by name or phone. An empty search lists the latest patients.
+  // Is this new patient already registered? Asked while reception types a name and phone.
+  checkDuplicates: (body: DuplicateCheckRequest) =>
+    http.post<DuplicateCheck>("/patients/duplicates/check", body).then((r) => ({ has_exact_match: !!r.data?.has_exact_match, candidates: r.data?.candidates ?? [] })),
+
   searchPatients: (query: string, q: PageQuery) =>
     http.get<Page<PatientSummary>>("/patients", { params: { q: query, ...q } }).then((r) => r.data),
 

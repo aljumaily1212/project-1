@@ -333,6 +333,32 @@ export interface ChangePasswordRequest {
   new_password: string;
 }
 
+// ---------- duplicate patients ----------
+
+// "exact_match": same name and phone, almost surely the same person.
+// "shared_phone_family": same phone, different name, usually a family member. Other kinds may come later.
+export type DuplicateMatchType = "exact_match" | "shared_phone_family" | (string & {});
+
+export interface DuplicateCheckRequest {
+  name: string;
+  phone: string;
+  birth_date?: string | null;
+}
+
+export interface DuplicateCandidate {
+  patient: { id: number; name: string; phone: string; appointments: number; visits: number };
+  // 1 = certain, lower = less sure.
+  confidence: number;
+  match_type: DuplicateMatchType;
+  // Why the server thinks so, for example "Exact phone and name match".
+  reasons: string[];
+}
+
+export interface DuplicateCheck {
+  has_exact_match: boolean;
+  candidates: DuplicateCandidate[];
+}
+
 export interface WalkInRequest {
   name: string;
   phone: string;

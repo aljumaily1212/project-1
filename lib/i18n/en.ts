@@ -1146,6 +1146,12 @@ export const en = {
   "users.filterRole": "Job",
   "users.allRoles": "All jobs",
   "users.noMatch": "No account matches the search",
+  "dup.exact": "A patient with the same name and phone number is already registered. Do you want to choose them instead of creating a new file?",
+  "dup.family": "Phone number shared with another patient (a family member)",
+  "dup.possible": "This patient may already be registered:",
+  "dup.use": "Choose this patient",
+  "dup.using": "The visit goes on the existing patient's file. No new file is made.",
+  "dup.counts": "Visits: {v} · Appointments: {a}",
 };
 
 export type MessageKey = keyof typeof en;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Search, UserPlus } from "lucide-react";
@@ -13,6 +13,7 @@ import { newPatientSchema, type NewPatientForm } from "@/lib/validation";
 import { DayPicker, KindPicker, SlotPicker } from "@/components/booking";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader } from "@/components/common";
 import { FormSkeleton } from "@/components/skeleton";
+import { DuplicateWarning } from "@/components/duplicate-warning";
 
 // Who the booking is for: someone found by the search, or a new caller typed in.
 type Who = { kind: "existing"; patient: PatientSummary } | { kind: "new"; name: string; phone: string };
@@ -32,8 +33,21 @@ function PatientPicker({ noShowLimit, onPick }: { noShowLimit: number; onPick: (
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<NewPatientForm>({ resolver: zodResolver(newPatientSchema), defaultValues: { name: "", phone: "" } });
+  const [typedName, typedPhone] = useWatch({ control, name: ["name", "phone"] });
+
+  // The duplicate check found this caller: switch to their existing file (with their no-show count).
+  async function pickExisting(id: number, phone: string) {
+    try {
+      const found = (await api.searchPatients(phone, { limit: 20 })).items.find((p) => p.id === id);
+      if (found) onPick({ kind: "existing", patient: found });
+      else toast.error(t("error.404"));
+    } catch (err) {
+      toast.error(errorText(err, t));
+    }
+  }
 
   if (adding) {
     return (
@@ -44,6 +58,7 @@ function PatientPicker({ noShowLimit, onPick }: { noShowLimit: number; onPick: (
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />
         </Field>
+        <DuplicateWarning name={typedName} phone={typedPhone} mode="pick" onUse={(p) => void pickExisting(p.id, p.phone)} />
         <div className="flex gap-2">
           <Button type="submit">{t("staffBook.continue")}</Button>
           <Button type="button" variant="secondary" onClick={() => setAdding(false)}>

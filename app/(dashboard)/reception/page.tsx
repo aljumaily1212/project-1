@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { api, type Doctor } from "@/lib/api";
@@ -11,6 +11,7 @@ import { flush, queue, useOnline, useOutbox } from "@/lib/offline";
 import { useLoad } from "@/lib/useLoad";
 import { UpcomingBookings } from "@/components/upcoming-bookings";
 import { walkInSchema, type WalkInForm } from "@/lib/validation";
+import { DuplicateWarning } from "@/components/duplicate-warning";
 import { Button, Card, EmptyState, ErrorState, Field, Input, PageHeader, Select, StatusBadge, TicketBadge } from "@/components/common";
 import { CardsSkeleton, FormSkeleton } from "@/components/skeleton";
 import { VitalsEntry } from "@/components/vitals";
@@ -126,11 +127,14 @@ function WalkInCard({ doctors, onAdded }: { doctors: Doctor[]; onAdded: () => vo
     register,
     handleSubmit,
     reset,
+    setValue,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<WalkInForm>({
     resolver: zodResolver(walkInSchema),
     defaultValues: { name: "", phone: "", doctor_id: String(doctors[0].id), emergency: false },
   });
+  const [typedName, typedPhone] = useWatch({ control, name: ["name", "phone"] });
 
   async function onSubmit(values: WalkInForm) {
     const body = { name: values.name, phone: values.phone, doctor_id: Number(values.doctor_id), emergency: values.emergency };
@@ -164,6 +168,15 @@ function WalkInCard({ doctors, onAdded }: { doctors: Doctor[]; onAdded: () => vo
         <Field label={t("login.phone")} error={errors.phone?.message}>
           <Input type="tel" inputMode="numeric" dir="ltr" placeholder="07XXXXXXXXX" invalid={!!errors.phone} {...register("phone")} />
         </Field>
+        <DuplicateWarning
+          name={typedName}
+          phone={typedPhone}
+          mode="walkIn"
+          onUse={(p) => {
+            setValue("name", p.name, { shouldValidate: true });
+            setValue("phone", p.phone, { shouldValidate: true });
+          }}
+        />
         <Field label={t("reception.doctor")}>
           <Select {...register("doctor_id")}>
             {doctors.map((d) => (
