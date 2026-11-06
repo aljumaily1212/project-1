@@ -230,7 +230,7 @@ export function Pager({
                 key={n}
                 type="button"
                 aria-current={n === page ? "page" : undefined}
-                className={cn(box, n === page ? "bg-brand-600 text-white" : "border border-slate-300 text-slate-700 hover:bg-slate-100")}
+                className={cn(box, n === page ? "bg-primary text-primary-foreground" : "border border-slate-300 text-slate-700 hover:bg-slate-100")}
                 onClick={(e) => go(n, e.currentTarget)}
               >
                 {n}
