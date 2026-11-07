@@ -1,6 +1,6 @@
 "use client";
 
-import { api, type Doctor, type VisitKind } from "@/lib/api";
+import { api, type VisitKind } from "@/lib/api";
 import { shortDate, weekdayName } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
@@ -10,18 +10,17 @@ import { Skeleton } from "@/components/skeleton";
 
 // Shared by booking and rescheduling.
 
-export function KindPicker({ doctor, value, onChange }: { doctor: Doctor; value: VisitKind; onChange: (kind: VisitKind) => void }) {
+// New visit or follow-up. Only the name of each kind: how long a visit takes is the clinic's business,
+// and the free times shown below already follow it.
+const KINDS: VisitKind[] = ["new", "followup"];
+
+export function KindPicker({ value, onChange }: { value: VisitKind; onChange: (kind: VisitKind) => void }) {
   const { t } = useT();
-  const kinds: { kind: VisitKind; minutes: number }[] = [
-    { kind: "new", minutes: doctor.new_minutes },
-    { kind: "followup", minutes: doctor.followup_minutes },
-  ];
   return (
     <div className="grid grid-cols-2 gap-2">
-      {kinds.map(({ kind, minutes }) => (
-        <Button key={kind} type="button" className="h-auto flex-col py-2" variant={kind === value ? "primary" : "secondary"} onClick={() => onChange(kind)}>
-          <span>{t(`kind.${kind}`)}</span>
-          <span className="text-xs opacity-80">{t("book.minutes", { n: minutes })}</span>
+      {KINDS.map((kind) => (
+        <Button key={kind} type="button" className="h-auto py-3" variant={kind === value ? "primary" : "secondary"} onClick={() => onChange(kind)}>
+          {t(`kind.${kind}`)}
         </Button>
       ))}
     </div>

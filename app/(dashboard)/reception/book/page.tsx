@@ -210,7 +210,6 @@ function BookingSteps({ who, doctors, depositAmount, noShowLimit, onBooked, onCh
       <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.kind")}</p>
         <KindPicker
-          doctor={doctor}
           value={kind}
           onChange={(k) => {
             setKind(k);

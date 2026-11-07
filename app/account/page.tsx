@@ -120,7 +120,6 @@ function BookingForm({ doctors, family }: { doctors: Doctor[]; family: FamilyMem
       <div className="space-y-2">
         <p className="text-sm font-medium">{t("book.kind")}</p>
         <KindPicker
-          doctor={doctor}
           value={kind}
           onChange={(next) => {
             setKind(next);
