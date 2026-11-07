@@ -107,11 +107,16 @@ export function DuplicateWarning({ name, phone, mode, onUse }: { name: string; p
           <ul className="space-y-2">{other.map((c) => row(c, false))}</ul>
         </div>
       )}
+      {/* Same phone, other name: usually a family member, but it may also be this person's own older file
+          (a nickname, a typo), so each one can still be chosen. Nothing is blocked. */}
       {family.length > 0 && (
-        <p className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-800">
-          <Users className="size-3.5" aria-hidden />
-          {t("dup.family")}: {family.map((c) => c.patient.name).join("، ")}
-        </p>
+        <div className="space-y-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-800" data-duplicate-family>
+          <p className="flex items-start gap-2 font-medium">
+            <Users className="mt-0.5 size-4 shrink-0" aria-hidden />
+            {t("dup.family")}:
+          </p>
+          <ul className="space-y-2">{family.map((c) => row(c, false))}</ul>
+        </div>
       )}
     </div>
   );
