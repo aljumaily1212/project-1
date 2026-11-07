@@ -61,7 +61,7 @@ const float = (delay: number, distance = 10) => ({
 // The clinic building with a heartbeat card, a ticket and a pill floating around it.
 function ClinicIllustration() {
   return (
-    <svg viewBox="0 0 400 340" className="h-auto w-full max-w-xl 2xl:max-w-2xl" aria-hidden>
+    <svg viewBox="0 0 400 340" className="h-auto max-h-[38vh] w-full max-w-xl 2xl:max-w-2xl" aria-hidden>
       <motion.circle
         cx="200"
         cy="180"
@@ -216,19 +216,19 @@ export function AboutSlide({ doctors, today }: { doctors: Doctor[]; today: Scree
   ];
   return (
     <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_1fr]">
-      <motion.div variants={list} initial="hidden" animate="show" className="space-y-6">
+      <motion.div variants={list} initial="hidden" animate="show" className="space-y-4 2xl:space-y-6">
         <motion.span variants={rise} className="inline-block rounded-full bg-[#5eead4]/15 px-4 py-1.5 font-semibold text-[#5eead4] 2xl:text-xl">
           {t("slides.aboutBadge")}
         </motion.span>
-        <motion.h2 variants={rise} className="text-3xl leading-tight font-bold lg:text-5xl 2xl:text-6xl">
+        <motion.h2 variants={rise} className="text-3xl leading-tight font-bold lg:text-4xl 2xl:text-6xl">
           {t("slides.aboutTitle")}
         </motion.h2>
-        <motion.p variants={rise} className="max-w-2xl text-lg opacity-80 lg:text-xl 2xl:max-w-4xl 2xl:text-2xl 2xl:leading-snug">
+        <motion.p variants={rise} className="max-w-2xl text-lg opacity-80 2xl:max-w-4xl 2xl:text-2xl 2xl:leading-snug">
           {t("slides.aboutText")}
         </motion.p>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:gap-4">
           {FEATURES.map(({ icon: Icon, key }) => (
-            <motion.div key={key} variants={rise} className="flex gap-4 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-5 2xl:p-6">
+            <motion.div key={key} variants={rise} className="flex gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm 2xl:gap-5 2xl:p-6">
               <motion.span variants={pop} className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#5eead4]/15 text-[#5eead4] 2xl:size-16 2xl:rounded-2xl">
                 <Icon className="size-5 2xl:size-8" aria-hidden />
               </motion.span>
@@ -273,8 +273,13 @@ export const DOCTOR_PAGE_MS = 9000;
 // How many doctor cards fit on this screen without scrolling: columns from the width, rows from the height.
 // With more doctors than that, the slide turns pages. `reserve` is height other things take on the page,
 // like the queue strip at the bottom of the waiting screen.
+// The most doctor cards side by side for a screen width.
+function maxColsFor(width: number) {
+  return width >= 1536 ? 4 : width >= 1024 ? 3 : width >= 768 ? 2 : 1;
+}
+
 function perPageFor(width: number, height: number, reserve: number) {
-  const cols = width >= 1024 ? 3 : width >= 768 ? 2 : 1;
+  const cols = maxColsFor(width);
   const big = width >= 1536;
   // Header, progress bar, the slide's title, the page dots and the footer.
   const fixed = big ? 560 : 470;
@@ -325,6 +330,11 @@ export function DoctorsSlide({ doctors, today, branchFirst, perPage }: { doctors
   const sorted = [...doctors].sort((a, b) => rank(a) - rank(b) || a.id - b.id);
   const pages = Math.max(1, Math.ceil(sorted.length / perPage));
   const shown = sorted.slice((page % pages) * perPage, (page % pages + 1) * perPage);
+  // Even rows: first how many rows are needed, then share the cards out, so 4 doctors are 2 + 2 (not 3 + 1)
+  // and 5 are 3 + 2. A last, shorter row is centred.
+  const maxCols = maxColsFor(useScreenWidth());
+  const rowsNeeded = Math.ceil(shown.length / maxCols);
+  const cols = Math.max(1, Math.ceil(shown.length / Math.max(1, rowsNeeded)));
 
   useEffect(() => {
     if (pages < 2) return;
@@ -346,7 +356,7 @@ export function DoctorsSlide({ doctors, today, branchFirst, perPage }: { doctors
         </motion.p>
       </motion.div>
 
-      <motion.div key={page % pages} variants={list} initial="hidden" animate="show" className="flex flex-wrap justify-center gap-4 2xl:gap-6">
+      <motion.div key={page % pages} variants={list} initial="hidden" animate="show" className="flex flex-wrap justify-center gap-4">
         {shown.map((d) => {
           const s = todayOf(d.id);
           const status = !s ? "off" : s.absent ? "absent" : "working";
@@ -355,7 +365,8 @@ export function DoctorsSlide({ doctors, today, branchFirst, perPage }: { doctors
               key={d.id}
               variants={rise}
               data-slide-doctor={d.id}
-              className="flex w-full items-center gap-4 rounded-3xl border md:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.667rem)] 2xl:w-[calc(33.333%-1rem)] border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-6 2xl:p-6"
+              style={{ width: `calc((100% - ${cols - 1}rem) / ${cols})` }}
+              className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-6 2xl:p-6"
             >
               <motion.div variants={pop} className="shrink-0">
                 <DoctorAvatar seed={d.id} className="size-16 2xl:size-32" />
