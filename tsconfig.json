@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "demo-backend": ["./lib/api/mock.ts"]
     }
   },
   "include": [

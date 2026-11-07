@@ -3,7 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, Lock, ShieldCheck } from "lucide-react";
-import { demoGateway } from "@/lib/api/mock";
+import { demoGateway } from "demo-backend";
 import type { PaymentStatus } from "@/lib/api";
 import { USE_MOCK } from "@/lib/config";
 import { errorText, useT } from "@/lib/i18n";

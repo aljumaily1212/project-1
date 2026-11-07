@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarCheck, CircleCheck, Eye, EyeOff, FileHeart, ListOrdered, Monitor, Presentation, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
-import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "@/lib/api/mock";
+import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "demo-backend";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
 import { SHOW_DEMO_ACCOUNTS } from "@/lib/config";
 import { errorText, useT } from "@/lib/i18n";
