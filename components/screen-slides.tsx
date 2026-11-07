@@ -366,23 +366,29 @@ export function DoctorsSlide({ doctors, today, branchFirst, perPage }: { doctors
               variants={rise}
               data-slide-doctor={d.id}
               style={{ width: `calc((100% - ${cols - 1}rem) / ${cols})` }}
-              className="flex items-center gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-6 2xl:p-6"
+              className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm @container 2xl:p-6"
             >
-              <motion.div variants={pop} className="shrink-0">
-                <DoctorAvatar seed={d.id} className="size-16 2xl:size-32" />
-              </motion.div>
-              <div className="min-w-0 space-y-1">
-                <h3 className="truncate text-xl font-bold 2xl:text-3xl">{doctorName(d, locale)}</h3>
-                <p className="text-base text-[#5eead4] 2xl:text-2xl">{doctorSpecialty(d, locale)}</p>
-                <p className="text-sm opacity-75 2xl:text-xl">{t("slides.fee", { amount: money(d.fee) })}</p>
-                <p
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap 2xl:px-4 2xl:py-1.5 2xl:text-lg ${
-                    status === "working" ? "bg-[#22c55e]/15 text-[#86efac]" : status === "absent" ? "bg-[#ef4444]/15 text-[#fecaca]" : "bg-white/10 opacity-80"
-                  }`}
-                >
-                  <span className={`size-2 rounded-full ${status === "working" ? "animate-pulse bg-[#4ade80]" : status === "absent" ? "bg-[#f87171]" : "bg-white/50"}`} />
-                  {status === "working" ? t("slides.workingIn", { branch: t(`branch.${s!.branch}`) }) : status === "absent" ? t("screen.absent") : t("slides.notToday")}
-                </p>
+              {/* The card is a container: the picture and text size themselves from the card's own width
+                  (cqw = 1% of it), so nothing spills out on smaller screens or with other fonts. */}
+              <div className="flex items-center gap-[4cqw]">
+                <motion.div variants={pop} className="shrink-0">
+                  <DoctorAvatar seed={d.id} className="size-[clamp(3.5rem,24cqw,8rem)]" />
+                </motion.div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <h3 className="line-clamp-2 text-[clamp(1.05rem,6.5cqw,1.875rem)] leading-tight font-bold">{doctorName(d, locale)}</h3>
+                  <p className="truncate text-[clamp(0.9rem,5cqw,1.5rem)] text-[#5eead4]">{doctorSpecialty(d, locale)}</p>
+                  <p className="text-[clamp(0.8rem,4.2cqw,1.25rem)] whitespace-nowrap opacity-75">{t("slides.fee", { amount: money(d.fee) })}</p>
+                  <p
+                    className={`inline-flex max-w-full items-center gap-2 rounded-full px-[0.8em] py-[0.3em] text-[clamp(0.7rem,3.6cqw,1.125rem)] font-semibold ${
+                      status === "working" ? "bg-[#22c55e]/15 text-[#86efac]" : status === "absent" ? "bg-[#ef4444]/15 text-[#fecaca]" : "bg-white/10 opacity-80"
+                    }`}
+                  >
+                    <span className={`size-2 shrink-0 rounded-full ${status === "working" ? "animate-pulse bg-[#4ade80]" : status === "absent" ? "bg-[#f87171]" : "bg-white/50"}`} />
+                    <span className="truncate">
+                      {status === "working" ? t("slides.workingIn", { branch: t(`branch.${s!.branch}`) }) : status === "absent" ? t("screen.absent") : t("slides.notToday")}
+                    </span>
+                  </p>
+                </div>
               </div>
             </motion.article>
           );
