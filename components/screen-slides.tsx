@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { motion, type Variants } from "motion/react";
 import { CalendarCheck, FileHeart, FlaskConical, Ticket } from "lucide-react";
 import type { Doctor, ScreenDoctor } from "@/lib/api";
@@ -265,13 +265,54 @@ export function AboutSlide({ doctors, today }: { doctors: Doctor[]; today: Scree
   );
 }
 
+// Used before the screen size is known (the first draw).
 export const DOCTORS_PER_PAGE = 6;
 // How long each page of doctors stays before the next page.
 export const DOCTOR_PAGE_MS = 9000;
 
+// How many doctor cards fit on this screen without scrolling: columns from the width, rows from the height.
+// With more doctors than that, the slide turns pages. `reserve` is height other things take on the page,
+// like the queue strip at the bottom of the waiting screen.
+function perPageFor(width: number, height: number, reserve: number) {
+  const cols = width >= 1024 ? 3 : width >= 768 ? 2 : 1;
+  const big = width >= 1536;
+  // Header, progress bar, the slide's title, the page dots and the footer.
+  const fixed = big ? 560 : 470;
+  // One row of cards, with the gap under it.
+  const row = big ? 200 : 135;
+  const rows = Math.max(1, Math.floor((height - fixed - reserve) / row));
+  return cols * rows;
+}
+
+const subscribeResize = (onChange: () => void) => {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+};
+
+export function useDoctorsPerPage(reserve = 0) {
+  return useSyncExternalStore(subscribeResize, () => perPageFor(window.innerWidth, window.innerHeight, reserve), () => DOCTORS_PER_PAGE);
+}
+
+// The screen's width, kept up to date when the window changes size.
+export function useScreenWidth() {
+  return useSyncExternalStore(subscribeResize, () => window.innerWidth, () => 1280);
+}
+
+// How the waiting screen arranges n doctors so they all fit on one screen, as large as possible:
+// 4 doctors → 2×2, 6 → 3×2, 8 → 4×2, 12 → 4×3, 15 → 5×3.
+export function queueGrid(n: number) {
+  const cols = n <= 3 ? Math.max(1, n) : n === 4 ? 2 : n <= 6 ? 3 : n <= 8 ? 4 : n === 9 ? 3 : n <= 12 ? 4 : n <= 15 ? 5 : 6;
+  return { cols, rows: Math.ceil(n / cols) };
+}
+
+// How long the doctors slide stays: long enough for every page of doctors.
+export function doctorsSlideMs(count: number, perPage: number, minimum: number) {
+  return Math.max(minimum, Math.ceil(Math.max(1, count) / perPage) * DOCTOR_PAGE_MS);
+}
+
 // The doctors: a drawn picture, name, specialty, the visit fee, and whether they work today.
-// With more than 6 doctors, the slide turns its own pages.
-export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[]; today: ScreenDoctor[]; branchFirst?: string }) {
+// When they don't all fit on the screen (perPage, from useDoctorsPerPage), the slide turns its own pages.
+export function DoctorsSlide({ doctors, today, branchFirst, perPage }: { doctors: Doctor[]; today: ScreenDoctor[]; branchFirst?: string; perPage: number }) {
   const { t, locale } = useT();
   const [page, setPage] = useState(0);
   const todayOf = (id: number) => today.find((d) => d.doctor.id === id);
@@ -282,8 +323,8 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
     return branchFirst && branchFirst !== "all" && s.branch !== branchFirst ? 1 : 0;
   };
   const sorted = [...doctors].sort((a, b) => rank(a) - rank(b) || a.id - b.id);
-  const pages = Math.max(1, Math.ceil(sorted.length / DOCTORS_PER_PAGE));
-  const shown = sorted.slice((page % pages) * DOCTORS_PER_PAGE, (page % pages + 1) * DOCTORS_PER_PAGE);
+  const pages = Math.max(1, Math.ceil(sorted.length / perPage));
+  const shown = sorted.slice((page % pages) * perPage, (page % pages + 1) * perPage);
 
   useEffect(() => {
     if (pages < 2) return;
@@ -292,12 +333,12 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
   }, [pages]);
 
   return (
-    <div className="space-y-8">
-      <motion.div variants={list} initial="hidden" animate="show" className="space-y-3 text-center">
+    <div className="space-y-6">
+      <motion.div variants={list} initial="hidden" animate="show" className="space-y-2 text-center">
         <motion.span variants={rise} className="inline-block rounded-full bg-[#5eead4]/15 px-4 py-1.5 text-lg font-semibold text-[#5eead4] 2xl:text-2xl">
           {t("slides.doctorsBadge")}
         </motion.span>
-        <motion.h2 variants={rise} className="text-4xl font-bold lg:text-6xl 2xl:text-7xl">
+        <motion.h2 variants={rise} className="text-4xl font-bold lg:text-5xl 2xl:text-7xl">
           {t("slides.doctorsTitle")}
         </motion.h2>
         <motion.p variants={rise} className="mx-auto max-w-3xl text-xl opacity-80 2xl:text-3xl">
@@ -305,7 +346,7 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
         </motion.p>
       </motion.div>
 
-      <motion.div key={page % pages} variants={list} initial="hidden" animate="show" className="flex flex-wrap justify-center gap-6">
+      <motion.div key={page % pages} variants={list} initial="hidden" animate="show" className="flex flex-wrap justify-center gap-4 2xl:gap-6">
         {shown.map((d) => {
           const s = todayOf(d.id);
           const status = !s ? "off" : s.absent ? "absent" : "working";
@@ -314,17 +355,17 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
               key={d.id}
               variants={rise}
               data-slide-doctor={d.id}
-              className="flex w-full items-center gap-5 rounded-3xl border md:w-[calc(50%-0.75rem)] xl:w-[calc(33.333%-1rem)] border-white/10 bg-white/5 p-5 backdrop-blur-sm 2xl:gap-8 2xl:p-8"
+              className="flex w-full items-center gap-4 rounded-3xl border md:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.667rem)] 2xl:w-[calc(33.333%-1rem)] border-white/10 bg-white/5 p-4 backdrop-blur-sm 2xl:gap-6 2xl:p-6"
             >
               <motion.div variants={pop} className="shrink-0">
-                <DoctorAvatar seed={d.id} />
+                <DoctorAvatar seed={d.id} className="size-16 2xl:size-32" />
               </motion.div>
-              <div className="min-w-0 space-y-1.5">
-                <h3 className="text-2xl font-bold 2xl:text-4xl">{doctorName(d, locale)}</h3>
-                <p className="text-lg text-[#5eead4] 2xl:text-2xl">{doctorSpecialty(d, locale)}</p>
-                <p className="opacity-75 2xl:text-xl">{t("slides.fee", { amount: money(d.fee) })}</p>
+              <div className="min-w-0 space-y-1">
+                <h3 className="truncate text-xl font-bold 2xl:text-3xl">{doctorName(d, locale)}</h3>
+                <p className="text-base text-[#5eead4] 2xl:text-2xl">{doctorSpecialty(d, locale)}</p>
+                <p className="text-sm opacity-75 2xl:text-xl">{t("slides.fee", { amount: money(d.fee) })}</p>
                 <p
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold 2xl:px-4 2xl:py-1.5 2xl:text-lg ${
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap 2xl:px-4 2xl:py-1.5 2xl:text-lg ${
                     status === "working" ? "bg-[#22c55e]/15 text-[#86efac]" : status === "absent" ? "bg-[#ef4444]/15 text-[#fecaca]" : "bg-white/10 opacity-80"
                   }`}
                 >
@@ -352,6 +393,18 @@ export function DoctorsSlide({ doctors, today, branchFirst }: { doctors: Doctor[
 // in the same style as the queue cards, so people waiting never lose their number.
 export function QueueStrip({ doctors, freshOf }: { doctors: ScreenDoctor[]; freshOf: (d: ScreenDoctor) => boolean }) {
   const { t, locale } = useT();
+  // One row only (the slides above keep room for one). Each doctor needs about 300 px; with more doctors
+  // than fit, the strip shows them a row at a time.
+  const width = useScreenWidth();
+  const perRow = Math.max(1, Math.floor((width - 64) / 300));
+  const rows = Math.max(1, Math.ceil(doctors.length / perRow));
+  const [row, setRow] = useState(0);
+  useEffect(() => {
+    if (rows < 2) return;
+    const timer = setInterval(() => setRow((r) => r + 1), 6000);
+    return () => clearInterval(timer);
+  }, [rows]);
+  const shown = doctors.slice((row % rows) * perRow, (row % rows + 1) * perRow);
   return (
     <motion.div
       initial={{ y: 140, opacity: 0 }}
@@ -361,8 +414,8 @@ export function QueueStrip({ doctors, freshOf }: { doctors: ScreenDoctor[]; fres
       data-queue-strip
       className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#041513]/90 px-6 py-3 backdrop-blur-md lg:px-10"
     >
-      <div className="flex flex-wrap justify-center gap-3">
-        {doctors.map((d) => {
+      <div className="flex justify-center gap-3">
+        {shown.map((d) => {
           const fresh = freshOf(d);
           return (
             <div

@@ -10,7 +10,7 @@ import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { LanguageSwitch } from "@/components/language-switch";
 import { LogoMark } from "@/components/logo";
-import { AboutSlide, Clock, DOCTOR_PAGE_MS, DOCTORS_PER_PAGE, DoctorsSlide, QueueStrip, SlideProgress, slideMotion } from "@/components/screen-slides";
+import { AboutSlide, Clock, DoctorsSlide, doctorsSlideMs, queueGrid, QueueStrip, SlideProgress, slideMotion, useDoctorsPerPage, useScreenWidth } from "@/components/screen-slides";
 
 type BranchFilter = "all" | BranchId;
 const BRANCHES: BranchFilter[] = ["all", "main", "second"];
@@ -84,48 +84,55 @@ function saveBranch(branch: BranchFilter) {
   window.dispatchEvent(new Event(BRANCH_EVENT));
 }
 
-function DoctorPanel({ item, fresh }: { item: ScreenDoctor; fresh: boolean }) {
+// One doctor's box. On a TV (fit) the box is a "size container": the text inside grows and shrinks with the
+// box (cqw / cqh / cqmin = percent of the box's width / height / smaller side), so 2 or 15 doctors all fit.
+function DoctorPanel({ item, fresh, fit }: { item: ScreenDoctor; fresh: boolean; fit: boolean }) {
   const { t, locale } = useT();
   return (
     <section
       data-screen-doctor={item.doctor.id}
-      className={`flex flex-col gap-4 rounded-3xl border bg-white/5 p-6 backdrop-blur-sm transition-colors ${
-        fresh ? "border-[#5eead4] shadow-[0_0_40px_rgb(94_234_212/0.35)]" : "border-white/10"
-      }`}
+      className={`flex flex-col gap-3 rounded-3xl border bg-white/5 p-4 backdrop-blur-sm transition-colors 2xl:p-6 ${
+        fit ? "h-full min-h-0 overflow-hidden [container-type:size]" : ""
+      } ${fresh ? "border-[#5eead4] shadow-[0_0_40px_rgb(94_234_212/0.35)]" : "border-white/10"}`}
     >
-      <div>
-        <h2 className="text-2xl font-bold">{doctorName(item.doctor, locale)}</h2>
-        <p className="opacity-70">
+      <div className="min-w-0">
+        <h2 className="truncate text-[clamp(1rem,7cqmin,2rem)] font-bold">{doctorName(item.doctor, locale)}</h2>
+        <p className="truncate text-[clamp(0.8rem,4.5cqmin,1.25rem)] opacity-70 [@container(max-height:10rem)]:hidden">
           {doctorSpecialty(item.doctor, locale)} · {t(`branch.${item.branch}`)}
         </p>
       </div>
 
       {item.absent ? (
         // Fixed colors: the TV screen is always dark, so it must not follow the day/night theme.
-        <p className="rounded-2xl bg-[#ef4444]/20 px-4 py-6 text-center text-2xl font-semibold text-[#fecaca]">{t("screen.absent")}</p>
+        <p className="rounded-2xl bg-[#ef4444]/20 px-4 py-[6cqh] text-center text-[clamp(1rem,7cqmin,2rem)] font-semibold text-[#fecaca]">{t("screen.absent")}</p>
       ) : (
         <>
-          <div className="rounded-2xl bg-black/20 px-4 py-5 text-center">
-            <p className="text-sm uppercase tracking-wide opacity-70">{t("screen.now")}</p>
-            <p dir="ltr" data-screen-now className={`font-mono text-7xl font-bold tracking-tight lg:text-8xl ${fresh ? "animate-pulse text-[#5eead4]" : ""}`}>
+          <div className="rounded-2xl bg-black/20 px-3 py-[2cqh] text-center">
+            <p className="text-[clamp(0.75rem,4cqmin,1rem)] uppercase tracking-wide opacity-70">{t("screen.now")}</p>
+            <p
+              dir="ltr"
+              data-screen-now
+              className={`font-mono text-[clamp(2.25rem,min(19cqw,24cqh),8rem)] leading-tight font-bold tracking-tight ${fresh ? "animate-pulse text-[#5eead4]" : ""}`}
+            >
               {item.now ?? "—"}
             </p>
           </div>
-          <div>
-            <p className="mb-2 text-sm opacity-70">{t("screen.next")}</p>
+          {/* "Next" on one line next to its label; tickets that don't fit are left out, not cut. */}
+          <div className="flex min-w-0 items-center gap-2 overflow-hidden text-[clamp(0.75rem,4cqmin,1rem)] [@container(max-height:8.5rem)]:hidden">
+            <span className="shrink-0 opacity-70">{t("screen.next")}:</span>
             {item.next.length === 0 ? (
-              <p className="opacity-60">{t("screen.nobody")}</p>
+              <span className="truncate opacity-60">{t("screen.nobody")}</span>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex h-[1.9em] min-w-0 flex-wrap gap-2 overflow-hidden">
                 {item.next.map((ticket) => (
-                  <span key={ticket} dir="ltr" className="rounded-xl bg-white/10 px-3 py-1.5 font-mono text-2xl font-semibold">
+                  <span key={ticket} dir="ltr" className="rounded-lg bg-white/10 px-2 font-mono text-[1.2em] font-semibold">
                     {ticket}
                   </span>
                 ))}
               </div>
             )}
           </div>
-          <div className="mt-auto flex flex-wrap justify-between gap-2 text-sm opacity-80">
+          <div className="mt-auto flex flex-wrap justify-between gap-2 text-[clamp(0.75rem,4cqmin,1rem)] opacity-80 [@container(max-height:13rem)]:hidden">
             <span>{t("screen.waiting", { n: item.waiting })}</span>
             {item.late_minutes > 0 && <span className="text-[#fde68a]">{t("screen.late", { n: item.late_minutes })}</span>}
           </div>
@@ -152,8 +159,9 @@ export default function QueueScreenPage() {
 
   const data = state.status === "success" ? state.data : null;
   const allDoctors = doctorList.state.status === "success" ? doctorList.state.data : [];
-  const doctorPages = Math.max(1, Math.ceil(allDoctors.length / DOCTORS_PER_PAGE));
-  const durationOf = (slide: Slide) => (slide === "queue" ? QUEUE_MS : slide === "about" ? ABOUT_MS : Math.max(ABOUT_MS, doctorPages * DOCTOR_PAGE_MS));
+  // On info slides the queue strip sits at the bottom, so the doctors get less height.
+  const perPage = useDoctorsPerPage(110);
+  const durationOf = (slide: Slide) => (slide === "queue" ? QUEUE_MS : slide === "about" ? ABOUT_MS : doctorsSlideMs(allDoctors.length, perPage, ABOUT_MS));
   // The latest call by any doctor. Kept in a ref so the once-a-second timer always sees the newest value.
   const latestCall = useRef(0);
   const live = useRef({ slidesOn, durationOf });
@@ -208,6 +216,10 @@ export default function QueueScreenPage() {
   }, [data, sound]);
 
   const doctors = data?.filter((d) => branch === "all" || d.branch === branch) ?? [];
+  // On a TV or computer every doctor fits on one screen: a grid as big as the space between header and footer.
+  // Phones (narrower than 768 px) keep a normal list you can scroll.
+  const fit = useScreenWidth() >= 768;
+  const grid = queueGrid(doctors.length);
   const freshOf = (d: ScreenDoctor) => !!d.called_at && nowMs - Date.parse(d.called_at) < FRESH_MS;
   const slide: Slide = slidesOn ? SEQUENCE[at.step] : "queue";
   const motionProps = slideMotion(locale === "ar");
@@ -258,16 +270,20 @@ export default function QueueScreenPage() {
                 )}
                 {state.status === "success" && doctors.length === 0 && <p className="py-20 text-center text-2xl opacity-80">{t("screen.noDoctors")}</p>}
                 {doctors.length > 0 && (
-                  <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  <div
+                    data-queue-grid
+                    className={fit ? `grid gap-4 2xl:gap-6 ${slidesOn ? "h-[calc(100vh-17rem)]" : "h-[calc(100vh-15rem)]"}` : "grid gap-6"}
+                    style={fit ? { gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${grid.rows}, minmax(0, 1fr))` } : undefined}
+                  >
                     {doctors.map((d) => (
-                      <DoctorPanel key={d.doctor.id} item={d} fresh={freshOf(d)} />
+                      <DoctorPanel key={d.doctor.id} item={d} fresh={freshOf(d)} fit={fit} />
                     ))}
                   </div>
                 )}
               </>
             )}
             {slide === "about" && <AboutSlide doctors={allDoctors} today={data ?? []} />}
-            {slide === "doctors" && <DoctorsSlide doctors={allDoctors} today={data ?? []} branchFirst={branch} />}
+            {slide === "doctors" && <DoctorsSlide doctors={allDoctors} today={data ?? []} branchFirst={branch} perPage={perPage} />}
           </motion.div>
         </AnimatePresence>
 

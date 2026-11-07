@@ -9,7 +9,7 @@ import { useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { LanguageSwitch } from "@/components/language-switch";
 import { LogoMark } from "@/components/logo";
-import { AboutSlide, Clock, DOCTOR_PAGE_MS, DOCTORS_PER_PAGE, DoctorsSlide, SlideProgress, slideMotion } from "@/components/screen-slides";
+import { AboutSlide, Clock, DoctorsSlide, doctorsSlideMs, SlideProgress, slideMotion, useDoctorsPerPage } from "@/components/screen-slides";
 
 type Slide = "about" | "doctors";
 const SEQUENCE: Slide[] = ["about", "doctors"];
@@ -23,7 +23,8 @@ export default function InfoScreenPage() {
   const today = useLoad(api.queueScreen, "", { every: 30_000 });
   const doctors = doctorList.state.status === "success" ? doctorList.state.data : [];
   const todayData = today.state.status === "success" ? today.state.data : [];
-  const doctorsMs = Math.max(ABOUT_MS, Math.ceil(Math.max(1, doctors.length) / DOCTORS_PER_PAGE) * DOCTOR_PAGE_MS);
+  const perPage = useDoctorsPerPage();
+  const doctorsMs = doctorsSlideMs(doctors.length, perPage, ABOUT_MS);
   const [at, setAt] = useState({ step: 0, since: 0 });
   const slide = SEQUENCE[at.step];
   const ms = slide === "about" ? ABOUT_MS : doctorsMs;
@@ -70,8 +71,8 @@ export default function InfoScreenPage() {
 
         <AnimatePresence mode="wait">
           {at.since > 0 && (
-            <motion.div key={`${at.step}-${slide}`} {...slideMotion(locale === "ar")} data-slide={slide} className="lg:flex lg:min-h-[calc(100vh-17rem)] lg:flex-col lg:justify-center">
-              {slide === "about" ? <AboutSlide doctors={doctors} today={todayData} /> : <DoctorsSlide doctors={doctors} today={todayData} />}
+            <motion.div key={`${at.step}-${slide}`} {...slideMotion(locale === "ar")} data-slide={slide} className="lg:flex lg:min-h-[calc(100vh-21rem)] lg:flex-col lg:justify-center">
+              {slide === "about" ? <AboutSlide doctors={doctors} today={todayData} /> : <DoctorsSlide doctors={doctors} today={todayData} perPage={perPage} />}
             </motion.div>
           )}
         </AnimatePresence>
