@@ -9,6 +9,7 @@ import { age, fullDate } from "@/lib/display";
 import { errorText, useT } from "@/lib/i18n";
 import { useLoad } from "@/lib/useLoad";
 import { familySchema, type FamilyForm } from "@/lib/validation";
+import { clearHandoff, readHandoff } from "@/lib/handoff";
 import { Button, Card, ErrorState, Field, Input, PageHeader, Select } from "@/components/common";
 import { CardsSkeleton } from "@/components/skeleton";
 
@@ -16,7 +17,7 @@ const RELATIONS: FamilyForm["relation"][] = ["child", "parent", "spouse", "sibli
 const EMPTY: FamilyForm = { name: "", relation: "child", birth_date: "", phone: "" };
 
 // Adds someone to the account, or edits them. Empty boxes are sent as null.
-function MemberForm({ member, onDone, onCancel }: { member?: FamilyMember; onDone: () => void; onCancel: () => void }) {
+function MemberForm({ member, startName, onDone, onCancel }: { member?: FamilyMember; startName?: string; onDone: () => void; onCancel: () => void }) {
   const { t } = useT();
   const {
     register,
@@ -26,7 +27,7 @@ function MemberForm({ member, onDone, onCancel }: { member?: FamilyMember; onDon
     resolver: zodResolver(familySchema),
     defaultValues: member
       ? { name: member.name, relation: member.relation as FamilyForm["relation"], birth_date: member.birth_date ?? "", phone: member.phone ?? "" }
-      : EMPTY,
+      : { ...EMPTY, name: startName ?? "" },
   });
 
   async function onSubmit(values: FamilyForm) {
@@ -158,7 +159,14 @@ function MemberCard({ member, onChanged }: { member: FamilyMember; onChanged: ()
 export default function FamilyPage() {
   const { t } = useT();
   const { state, reload, refresh } = useLoad(api.myFamily);
-  const [adding, setAdding] = useState(false);
+  // Came from sign-up ("add me as a family member"): the add form is open with that name. This page only draws in the
+  // browser (after the sign-in check), so reading the tab's note while starting is safe.
+  const [startName] = useState(() => readHandoff()?.addName);
+  const [adding, setAdding] = useState(!!startName);
+  const close = () => {
+    clearHandoff();
+    setAdding(false);
+  };
 
   return (
     <>
@@ -170,10 +178,12 @@ export default function FamilyPage() {
       {adding && (
         <Card className="mb-4">
           <h2 className="mb-3 font-semibold">{t("family.add")}</h2>
+          {startName && <p className="mb-3 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700">{t("family.fromSignup")}</p>}
           <MemberForm
-            onCancel={() => setAdding(false)}
+            startName={startName}
+            onCancel={close}
             onDone={() => {
-              setAdding(false);
+              close();
               refresh();
             }}
           />

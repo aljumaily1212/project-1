@@ -1178,6 +1178,12 @@ export const en = {
   "doctors.to": "To",
   "validation.hours": "The end time must be after the start time",
   "apiError.invalid_name": "Enter the three-part name: your name, your father's, your grandfather's",
+  "register.taken.title": "There is already an account with this number:",
+  "register.taken.mine": "Is it your account? Sign in with its password.",
+  "register.taken.login": "Sign in with this number",
+  "register.taken.family": "Is it a family member's number? The account owner can add you as a family member, with your own medical file on the same account. They sign in with their password and your name will be ready.",
+  "register.taken.addMe": "Add me as a family member",
+  "family.fromSignup": "Choose the relation and save, and this person is added to your account.",
 };
 
 export type MessageKey = keyof typeof en;

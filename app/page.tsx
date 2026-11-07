@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { MOCK_LOGINS, MOCK_PASSWORD, resetMockData } from "demo-backend";
 import { clearSession, homeFor, saveSession, useSession } from "@/lib/auth";
 import { SHOW_DEMO_ACCOUNTS } from "@/lib/config";
+import { clearHandoff, readHandoff } from "@/lib/handoff";
 import { errorText, useT } from "@/lib/i18n";
 import { loginSchema, type LoginForm } from "@/lib/validation";
 import { LanguageSwitch } from "@/components/language-switch";
@@ -117,12 +118,29 @@ export default function LoginPage() {
     register,
     handleSubmit,
     setValue,
+    setFocus,
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
-  // After login, every role goes to its own page.
+  // Came from sign-up with a number that already has an account: the phone is ready, only the password is left.
   useEffect(() => {
-    if (session) router.replace(homeFor(session.user.role));
+    const handoff = readHandoff();
+    if (!handoff) return;
+    setValue("phone", handoff.phone);
+    setFocus("password");
+  }, [setValue, setFocus]);
+
+  // After login, every role goes to its own page. A patient who chose "add me as a family member" goes to the
+  // family page instead, where the new person's name is waiting.
+  useEffect(() => {
+    if (!session) return;
+    const handoff = readHandoff();
+    if (session.user.role === "patient" && handoff?.addName) {
+      router.replace("/account/family");
+      return;
+    }
+    clearHandoff();
+    router.replace(homeFor(session.user.role));
   }, [session, router]);
 
   async function onSubmit(values: LoginForm) {
