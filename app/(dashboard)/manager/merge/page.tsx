@@ -10,9 +10,13 @@ import { Button, Card, EmptyState, ErrorState, Field, PageHeader, Select, Textar
 import { AlertsBanner } from "@/components/medical-alerts";
 import { CardsSkeleton } from "@/components/skeleton";
 
+// Any "exact…" kind (the real server says "exact_phone_and_name", the demo "exact_match") is the same person for sure.
+const isExact = (type: string) => type.startsWith("exact");
+
 // The label for how the server matched the patients. Kinds we don't know yet get a general label.
 function matchLabel(type: string): MessageKey {
-  return type === "exact_match" || type === "shared_phone_family" ? (`merge.type.${type}` as MessageKey) : "merge.type.other";
+  if (isExact(type)) return "merge.type.exact_match";
+  return type === "shared_phone_family" ? "merge.type.shared_phone_family" : "merge.type.other";
 }
 
 // One side of the comparison: everything the manager needs to decide which file to keep.
@@ -216,7 +220,7 @@ export default function MergeRecordsPage() {
                   <div className="space-y-1">
                     <span
                       className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                        group.match_type === "exact_match" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
+                        isExact(group.match_type) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
                       }`}
                     >
                       {t(matchLabel(group.match_type))}

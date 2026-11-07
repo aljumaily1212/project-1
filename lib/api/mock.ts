@@ -71,7 +71,7 @@ export const MOCK_LOGINS = {
   accountant: "07800000008",
 };
 
-const STORAGE_KEY = "alrahma.mock.v22";
+const STORAGE_KEY = "alrahma.mock.v23";
 
 // Tests can freeze the clock by saving a date here. The real API uses the server's clock.
 const CLOCK_KEY = "alrahma.mock.now";
@@ -302,7 +302,8 @@ function seed(): Db {
       { id: 2, name: "مصطفى كريم عباس", phone: "07700000002", account_id: 5, relation: "child" },
       { id: 3, name: "حسن عباس جبار", phone: "07700000003", account_id: null },
       // The same man registered a second time by mistake at reception, with an allergy written only here.
-      { id: 6, name: "حسن عباس جبّار", phone: "07700000003", account_id: null, alerts: { allergies: ["Penicillin"], conditions: [], blood_type: null } },
+      // Id 90: the generated demo patients take 5, 6, 7… (addPastMonth), so a small id here would clash.
+      { id: 90, name: "حسن عباس جبّار", phone: "07700000003", account_id: null, alerts: { allergies: ["Penicillin"], conditions: [], blood_type: null } },
       {
         id: 4,
         name: "مريم ناصر حميد",

@@ -1184,6 +1184,8 @@ export const en = {
   "register.taken.family": "Is it a family member's number? The account owner can add you as a family member, with your own medical file on the same account. They sign in with their password and your name will be ready.",
   "register.taken.addMe": "Add me as a family member",
   "family.fromSignup": "Choose the relation and save, and this person is added to your account.",
+  "dup.phoneTaken": "This number is already registered to:",
+  "dup.phoneHint": "Choose the patient if it's one of them. If it's a new person from the same family, write their name and continue.",
 };
 
 export type MessageKey = keyof typeof en;
